@@ -1,4 +1,4 @@
-<template>
+<template id="createUr">
   <!DOCTYPE html>
 <html lang="en">
 
@@ -78,98 +78,64 @@
 									<div class="row">
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
-												<label for="email2">First Name</label>
-												<input type="email" class="form-control" id="email2"
-													placeholder="Your Name">
+												<label for="first_name">First Name</label>
+												<input type="text" class="form-control" name="first_name" v-model="form.first_name" id="first_name"
+													placeholder="First Name">
 											</div>
 										</div>
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
-												<label for="email2">Last Name</label>
-												<input type="email" class="form-control" id="email2"
+												<label for="last_name">Last Name</label>
+												<input type="text" class="form-control" name="last_name" v-model="form.last_name" id="last_name"
 													placeholder="Last Name">
 											</div>
 										</div>
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
-												<label for="email2">Designation</label>
-												<input type="email" class="form-control" id="email2"
+												<label for="designation">Designation</label>
+												<input type="text" class="form-control" name="designation" v-model="form.designation" id="designation"
 													placeholder="Enter Designation">
 											</div>
 										</div>
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
-												<label for="email2">Mobile No.</label>
-												<input type="number" class="form-control" id="email2"
+												<label for="mobile">Mobile No.</label>
+												<input type="number" class="form-control" name="mobile" v-model="form.mobile" id="mobile"
 													placeholder="Enter Mobile">
 											</div>
 										</div>
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
-												<label for="email2">Email id.</label>
-												<input type="email" class="form-control" id="email2"
-													placeholder="Enter id">
+												<label for="email">Email id.</label>
+												<input type="email" class="form-control" name="email" v-model="form.email" id="email"
+													placeholder="Enter Email Id">
 											</div>
 										</div>
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
-												<label for="email2">Program Division</label>
-												<input type="email" class="form-control" id="email2"
-													placeholder="program division">
+												<label for="program_division">Program Division</label>
+												<input type="text" class="form-control" name="program_division" v-model="form.program_division" id="program_division"
+													placeholder="Program Division">
 											</div>
 										</div>
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
-												<label for="email2">User Type</label>
-												<select name="user" id="usertype" class="form-select">
-													<option value="0">--- Select ---</option>
+												<label for="user_type">User Type</label>
+												<select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple>
+													<option value="">--- Select ---</option>
 													<option value="1">Master Data</option>
 													<option value="2">Admin</option>
-													<option value="mercedes">KY/PD</option>
-													<option value="mercedes">KY/PD</option>
+													<option value="3">KY</option>
+													<option value="4">PD</option>
 												</select>
 											</div>
 										</div>
 									</div>
 								</div>
 
-
-                <div class="card-body">
-                  <div class="row">
-                     <!-- <div
-                      class="col-md-6 col-lg-4"
-                      v-for="(value, key) in form"
-                      :key="key"
-                      v-if="key !== 'user_type'"
-                    >
-                      <div class="form-group">
-                        <label :for="key">{{ key.replace('_', ' ').toUpperCase() }}</label>
-                        <input
-                          v-model="form[key]"
-                          :id="key"
-                          type="text"
-                          class="form-control"
-                          :placeholder="`Enter ${key.replace('_', ' ')}`"
-                        />
-                      </div>
-                    </div>  -->
-
-                    <!-- User Type dropdown -->
-                    <div class="col-md-6 col-lg-4">
-                      <div class="form-group">
-                        <label for="user_type">User Type</label>
-                        <select v-model="form.user_type" id="user_type" class="form-select">
-                          <option value="">--- Select ---</option>
-                          <option value="master">Master Data</option>
-                          <option value="admin">Admin</option>
-                          <option value="ky_pd">KY/PD</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
                 <div class="card-action">
                   <button class="btn btn-primary" @click="submitForm">Submit</button>
+                  <!-- <button class="btn btn-primary" >Submit</button> -->
                   <button class="btn btn-danger" type="button">Cancel</button>
                 </div>
               </div>
@@ -205,7 +171,7 @@
       mobile: '',
       email: '',
       program_division: '',
-      user_type: '',
+      user_type: [],
     })
 
     // Submit handler

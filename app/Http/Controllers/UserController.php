@@ -41,18 +41,40 @@ class UserController extends Controller
      * Store a newly created resource in storage.
      */
     // Store a newly created user in storage
+    // skksksarray(7) { 
+    //     ["first_name"]=> string(6) "Piyush" 
+    //     ["last_name"]=> string(5) "Singh" 
+    //     ["designation"]=> string(4) "tect" 
+    //     ["mobile"]=> int(8299215118) 
+    //     ["email"]=> string(24) "bestdudepiyush@gmail.com" 
+    //     ["program_division"]=> string(4) "test" 
+    //     ["user_type"]=> array(3) { [0]=> string(6) "Master" [1]=> string(5) "Admin" [2]=> string(2) "KY" } 
+    // }
     public function store(Request $request)
     {
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|string|min:6|confirmed',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            // 'email' => 'required|email|unique:users',
+            'email' => 'required|email',
+            // 'password' => 'required|string|min:6|confirmed',
         ]);
 
+        // echo "skksks";var_dump($request->user_type);die;
+        // Convert the user_type array to a comma-separated string
+        $userTypeString = implode(',', $request->user_type);
         User::create([
-            'name' => $validated['name'],
+            'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'designation_id' => $request->designation,
+            'mobile_number' => $request->mobile,
+            'program_division_id' => $request->program_division,
+            'user_type_id' => $userTypeString,
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            // 'password' => Hash::make($validated['password']),
+            'password' => Hash::make('Test@123'),
         ]);
 
         return redirect()->route('users.index')->with('success', 'User created successfully.');
