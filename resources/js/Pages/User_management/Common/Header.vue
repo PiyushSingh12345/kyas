@@ -1,130 +1,157 @@
-<template>
-        
-       		<div class="sidebar">
-			<div class="sidebar-logo">
+<template> 
+			<div class="main-header">
+				<div class="main-header-logo">
 
-				<!-- Logo Header -->
-				<div class="logo-header">
-					<a href="login.html" class="logo">
-						KY Automation System
-					</a>
-					<div class="nav-toggle">
-						<button class="btn btn-toggle toggle-sidebar">
-							<i class="gg-menu-right"></i>
-						</button>
-						<button class="btn btn-toggle sidenav-toggler">
-							<i class="gg-menu-left"></i>
+					<!-- Logo Header -->
+					<div class="logo-header" data-background-color="dark">
+						<a href="index.html" class="logo">
+							<img src="assets/img/kaiadmin/logo_light.svg" alt="navbar brand" class="navbar-brand"
+								height="20">
+						</a>
+						<div class="nav-toggle">
+							<button class="btn btn-toggle toggle-sidebar">
+								<i class="gg-menu-right"></i>
+							</button>
+							<button class="btn btn-toggle sidenav-toggler">
+								<i class="gg-menu-left"></i>
+							</button>
+						</div>
+						<button class="topbar-toggler more">
+							<i class="gg-more-vertical-alt"></i>
 						</button>
 					</div>
-					<button class="topbar-toggler more">
-						<i class="gg-more-vertical-alt"></i>
-					</button>
+
+					<!-- End Logo Header -->
 				</div>
 
-				<!-- End Logo Header -->
+				<!-- Navbar Header -->
+				<nav class="navbar navbar-header navbar-header-transparent navbar-expand-lg border-bottom">
+					<div class="container-fluid">
+
+						<ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+							<li class="nav-item topbar-icon dropdown hidden-caret d-flex d-lg-none">
+								<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button"
+									aria-expanded="false" aria-haspopup="true">
+									<i class="fa fa-search"></i>
+								</a>
+								<ul class="dropdown-menu dropdown-search animated fadeIn">
+									<form class="navbar-left navbar-form nav-search">
+										<div class="input-group">
+											<input type="text" placeholder="Search ..." class="form-control">
+										</div>
+									</form>
+								</ul>
+							</li>
+							<li class="nav-item topbar-icon dropdown hidden-caret">
+								<a class="nav-link dropdown-toggle" href="#" id="notifDropdown" role="button"
+									data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+									<i class="fa fa-bell"></i>
+									<span class="notification">4</span>
+								</a>
+
+								<!-- <ul
+                    class="dropdown-menu notif-box animated fadeIn"
+                    aria-labelledby="notifDropdown"
+                  >
+                    <li>
+                      <div class="dropdown-title">
+                        You have 4 new notification
+                      </div>
+                    </li>
+                    <li>
+                      <div class="notif-scroll scrollbar-outer">
+                        <div class="notif-center">
+                          <a href="#">
+                            <div class="notif-icon notif-primary">
+                              <i class="fa fa-user-plus"></i>
+                            </div>
+                            <div class="notif-content">
+                              <span class="block"> New user registered </span>
+                              <span class="time">5 minutes ago</span>
+                            </div>
+                          </a>
+                          <a href="#">
+                            <div class="notif-icon notif-success">
+                              <i class="fa fa-comment"></i>
+                            </div>
+                            <div class="notif-content">
+                              <span class="block">
+                                Rahmad commented on Admin
+                              </span>
+                              <span class="time">12 minutes ago</span>
+                            </div>
+                          </a>
+                          <a href="#">
+                            <div class="notif-img">
+                              <img
+                                src="assets/img/profile2.jpg"
+                                alt="Img Profile"
+                              />
+                            </div>
+                            <div class="notif-content">
+                              <span class="block">
+                                Reza send messages to you
+                              </span>
+                              <span class="time">12 minutes ago</span>
+                            </div>
+                          </a>
+                          <a href="#">
+                            <div class="notif-icon notif-danger">
+                              <i class="fa fa-heart"></i>
+                            </div>
+                            <div class="notif-content">
+                              <span class="block"> Farrah liked Admin </span>
+                              <span class="time">17 minutes ago</span>
+                            </div>
+                          </a>
+                        </div>
+                      </div>
+                    </li>
+                    <li>
+                      <a class="see-all" href="javascript:void(0);"
+                        >See all notifications<i class="fa fa-angle-right"></i>
+                      </a>
+                    </li>
+                  </ul> -->
+							</li>
+							<li class="nav-item topbar-user dropdown hidden-caret">
+								<a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#"
+									aria-expanded="false">
+									<div class="avatar-sm">
+										<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
+									</div>
+									<span class="profile-username">
+										<span class="fw-bold">Akash Rana (KY Admin)</span>
+									</span>
+								</a>
+								<ul class="dropdown-menu dropdown-user animated fadeIn">
+									<div class="dropdown-user-scroll scrollbar-outer">
+										<li>
+											<div class="user-box">
+												<div class="avatar-lg">
+													<img src="assets/img/profile.jpg" alt="image profile"
+														class="avatar-img rounded">
+												</div>
+												<div class="u-text">
+													<h4>Akash Rana</h4>
+													<p class="text-muted">xyz@gmail.com</p>
+													<a href="#" class="btn btn-xs btn-secondary btn-sm">View Profile</a>
+												</div>
+											</div>
+										</li>
+										<li>
+											<div class="dropdown-divider"></div>
+											<a class="dropdown-item" href="#">My Profile</a>
+											<div class="dropdown-divider"></div>
+											<a class="dropdown-item" href="login.html">Logout</a>
+										</li>
+									</div>
+								</ul>
+							</li>
+						</ul>
+					</div>
+				</nav>
+
+				<!-- End Navbar -->
 			</div>
-			<div class="sidebar-wrapper scrollbar scrollbar-inner">
-				<div class="sidebar-content">
-					<ul class="nav nav-secondary">
-
-						<li class="nav-item active">
-							<a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
-								<i class="fas fa-home"></i>
-								<p>User Management</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="dashboard">
-								<ul class="nav nav-collapse">
-
-									<li>
-										<a href="dashboard.html">
-											<span class="sub-item">Dashboard</span>
-										</a>
-									</li>
-
-
-
-									<li>
-										<a href="index.html">
-											<span class="sub-item">Create User</span>
-										</a>
-									</li>
-									<li>
-										<a href="updateuser.html">
-											<span class="sub-item">Update/Delete User</span>
-										</a>
-									</li>
-								</ul>
-							</div>
-						</li>
-						<li class="nav-section">
-							<span class="sidebar-mini-icon">
-								<i class="fa fa-ellipsis-h"></i>
-							</span>
-							<h4 class="text-section">Components</h4>
-						</li>
-						<li class="nav-item">
-							<a data-bs-toggle="collapse" href="#base">
-								<i class="fas fa-layer-group"></i>
-								<p>Budget Head</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="base">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="components/avatars.html">
-											<span class="sub-item">Link 1</span>
-										</a>
-									</li>
-									<li>
-										<a href="components/buttons.html">
-											<span class="sub-item">Link 2</span>
-										</a>
-									</li>
-								</ul>
-							</div>
-						</li>
-						<li class="nav-item">
-							<a data-bs-toggle="collapse" href="#forms">
-								<i class="fas fa-pen-square"></i>
-								<p>States Tagging</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="forms">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="forms/forms.html">
-											<span class="sub-item">Link 1</span>
-										</a>
-									</li>
-								</ul>
-							</div>
-						</li>
-						<li class="nav-item">
-							<a data-bs-toggle="collapse" href="#tables">
-								<i class="fas fa-table"></i>
-								<p>Admin List</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="tables">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="tables/tables.html">
-											<span class="sub-item">Basic Table</span>
-										</a>
-									</li>
-									<li>
-										<a href="tables/datatables.html">
-											<span class="sub-item">Datatables</span>
-										</a>
-									</li>
-								</ul>
-							</div>
-						</li>
-					</ul>
-				</div>
-			</div>
-		</div>
-
-    
 </template>

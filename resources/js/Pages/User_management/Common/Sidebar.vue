@@ -1,5 +1,5 @@
-<template>  
-    <!-- Sidebar -->
+<template>
+	<!-- Sidebar -->
 		<div class="sidebar">
 			<div class="sidebar-logo">
 
@@ -45,8 +45,7 @@
 
 
 									<li>
-										<!-- <a href="index.html"> -->
-										<a href="create_user.html">
+										<a href="index.html">
 											<span class="sub-item">Create User</span>
 										</a>
 									</li>
@@ -127,5 +126,5 @@
 			</div>
 		</div>
 
-    <!-- End Sidebar -->
+		<!-- End Sidebar -->
 </template>

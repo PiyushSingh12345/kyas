@@ -20,6 +20,7 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "@vueuse/core": "^13.2.0",
         "bootstrap": "^5.3.6",
         "bootstrap-icons": "^1.13.1"
     }

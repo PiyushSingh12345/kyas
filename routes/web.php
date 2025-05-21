@@ -13,7 +13,7 @@ Route::get('/', function () {
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
-});
+});                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
@@ -31,5 +31,6 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::resource('users', UserController::class);
+// Route::post('/users', [UserController::class, 'store']);
 
 require __DIR__.'/auth.php';
