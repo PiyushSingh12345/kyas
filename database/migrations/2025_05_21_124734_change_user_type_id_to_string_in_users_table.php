@@ -12,6 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
+            $table->string('designation_id ')->change();
+            $table->string('program_division_id ')->change();
             $table->string('user_type_id')->change();
         });
     }
@@ -22,6 +24,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
+            $table->unsignedBigInteger('user_type_id')->change();
+            $table->unsignedBigInteger('user_type_id')->change();
             $table->unsignedBigInteger('user_type_id')->change();
         });
     }
