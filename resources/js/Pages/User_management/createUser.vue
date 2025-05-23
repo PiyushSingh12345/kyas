@@ -1,27 +1,4 @@
 <template id="createUr">
-  <!DOCTYPE html>
-<html lang="en">
-
-<head>
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>krishi Unnati</title>
-	<meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport">
-	<link rel="icon" href="assets/img/favi.png" type="image/x-icon">
-	
-	<!-- G Fonts -->
-	<link href="https://fonts.googleapis.com/css2?family=Beiruti:wght@200..900&amp;display=swap" rel="stylesheet">
-
-	<!-- CSS Files -->
-	<link rel="stylesheet" href="assets/css/bootstrap.min.css">
-	<link rel="stylesheet" href="assets/css/plugins.min.css">
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-	<link rel="stylesheet" href="assets/css/kaiadmin.min.css">
-
-	<!-- CSS Just for demo purpose, don't include it in your project -->
-	<link rel="stylesheet" href="assets/css/demo.css">
-</head>
-
-<body >
   <div class="wrapper">
     <Sidebar />
 
@@ -148,9 +125,6 @@
     </div>
   </div>
 
-  </body>
-
-</html>
 </template>
 
   <script setup>
@@ -159,9 +133,9 @@
     import { useScriptTag } from '@vueuse/core'
 
     // Correct relative paths (from createUser.vue to Common/)
-    import Header from './Common/Header.vue'
-    import Sidebar from './Common/Sidebar.vue'
-    import Footer from './Common/Footer.vue'
+    import Header from '../Common/Header.vue'
+    import Sidebar from '../Common/Sidebar.vue'
+    import Footer from '../Common/Footer.vue'
 
     // Form state
     const form = useForm({
@@ -204,42 +178,22 @@
 
     //  Core JS Files
 	// useScriptTag("assets/js/core/jquery-3.7.1.min.js");
-	useScriptTag("assets/js/core/jquery-3.7.1.min.js");
-	useScriptTag("assets/js/core/popper.min.js");
-	useScriptTag("assets/js/core/bootstrap.min.js");
+	// useScriptTag("assets/js/core/jquery-3.7.1.min.js");
+	// useScriptTag("assets/js/core/popper.min.js");
+	// useScriptTag("assets/js/core/bootstrap.min.js");
 
-	// jQuery Scrollbar
-	useScriptTag("assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js");
+	// // jQuery Scrollbar
+	// useScriptTag("assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js");
 
 
-	// Kaiadmin JS
-	useScriptTag("assets/js/kaiadmin.min.js");
+	// // Kaiadmin JS
+	// useScriptTag("assets/js/kaiadmin.min.js");
 
-	// Kaiadmin DEMO methods, don't include it in your project!
-	useScriptTag("assets/js/setting-demo.js");
-	useScriptTag("assets/js/demo.js");
+	// // Kaiadmin DEMO methods, don't include it in your project!
+	// useScriptTag("assets/js/setting-demo.js");
+	// useScriptTag("assets/js/demo.js");
 
-    useScriptTag('assets//js/plugin/webfont/webfont.min.js', () => {
-      if (window.WebFont) {
-        window.WebFont.load({
-          google: {
-            families: ['Public Sans:300,400,500,600,700'],
-          },
-          custom: {
-            families: [
-              'Font Awesome 5 Solid',
-              'Font Awesome 5 Regular',
-              'Font Awesome 5 Brands',
-              'simple-line-icons',
-            ],
-            urls: ['/assets/css/fonts.min.css'],
-          },
-          active() {
-            sessionStorage.fonts = true;
-          },
-        });
-      }
-    });
+    
 
 
   </script>
