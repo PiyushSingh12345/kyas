@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
+use App\Models\MdProgramDivision;
+use App\Models\MdUserType;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -23,6 +25,10 @@ Route::get('/user-create', function () {
     return Inertia::render('User_management/createUser');
 })->middleware(['auth', 'verified'])->name('user-create');
 
+Route::get('/user-edit', function () {
+    return Inertia::render('User_management/editUser');
+})->middleware(['auth', 'verified'])->name('user-edit');
+
 Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -30,7 +36,23 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-Route::resource('users', UserController::class);
+// Route::resource('users', UserController::class);
 Route::post('/users', [UserController::class, 'store']);
+
+// Route::get('/users', [UserController::class, 'index'])->name('users.index');
+Route::get('/users', [UserController::class, 'index'])->middleware(['auth', 'verified'])->name('users.index');
+
+
+// Route::get('/md-program-divisions', function () {
+//     return \App\Models\MdProgramDivision::select('id', 'name')->get();
+// });
+
+Route::get('/md-program-divisions', function () {
+    return MdProgramDivision::select('division_id', 'division_name')->get();
+});
+
+Route::get('/md-user-types', function () {
+    return MdUserType::select('md_user_type_id', 'user_type_name')->get();
+});
 
 require __DIR__.'/auth.php';

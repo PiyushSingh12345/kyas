@@ -88,23 +88,36 @@
 													placeholder="Enter Email Id">
 											</div>
 										</div>
-										<div class="col-md-6 col-lg-4">
+										<!-- <div class="col-md-6 col-lg-4">
 											<div class="form-group">
 												<label for="program_division">Program Division</label>
 												<input type="text" class="form-control" name="program_division" v-model="form.program_division" id="program_division"
 													placeholder="Program Division">
 											</div>
+										</div> -->
+                    
+                    <div class="col-md-6 col-lg-4">
+											<div class="form-group">
+												<label for="program_division">Program Division</label>
+												<select name="program_division" id="program_division" class="form-select" v-model="form.program_division">
+													<option value="">--- Select ---</option>
+													<option v-for="division in programDivisions" :key="division.division_id" :value="division.division_id">
+														{{ division.division_name }}
+													</option>
+												</select>
+											</div>
 										</div>
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
 												<label for="user_type">User Type</label>
-												<select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple>
-													<option value="">--- Select ---</option>
-													<option value="1">Master Data</option>
-													<option value="2">Admin</option>
-													<option value="3">KY</option>
-													<option value="4">PD</option>
-												</select>
+                        <!-- {{ userTypes }} -->
+                        <!-- Using v-model to bind the selected user types , multiple selection enabled data coming from md_user_types table -->
+                        <select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple>
+                            <option value="">--- Select ---</option>
+                            <option v-for="userType in userTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
+                                {{ userType.user_type_name }}
+                            </option>
+                        </select>
 											</div>
 										</div>
 									</div>
@@ -129,7 +142,8 @@
 
   <script setup>
     import { useForm } from '@inertiajs/vue3'
-    import { onMounted } from 'vue'
+    import { onMounted, ref } from 'vue'
+    import axios from 'axios'
     import { useScriptTag } from '@vueuse/core'
 
     // Correct relative paths (from createUser.vue to Common/)
@@ -148,10 +162,43 @@
       user_type: [],
     })
 
+
     // Submit handler
     const submitForm = () => {
       form.post('/users') // Update this to your actual route
     }
+
+    // This will hold dropdown options
+    const programDivisions = ref([])
+    const userTypes = ref([])
+
+    // Fetch divisions from server
+    onMounted(async () => {
+      try {
+        const response = await axios.get('/md-program-divisions')
+        programDivisions.value = response.data
+      } catch (error) {
+        console.error('Failed to fetch program divisions', error)
+      }
+
+      try {
+        const responseMUT = await axios.get('/md-user-types')
+        userTypes.value = responseMUT.data
+      } catch (error) {
+        console.error('Failed to fetch user types', error)
+      }
+    })
+    // // Fetch Program Divisions from backend
+    // onMounted(async () => {
+    //   try {
+    //     const response = await axios.get('/md-program-divisions')
+    //     console.log('Program Divisions:', response.data);
+    //     alert('Program Divisions: ' + JSON.stringify(response.data));
+    //     programDivisions.value = response.data
+    //   } catch (error) {
+    //     console.error('Error fetching program divisions:', error)
+    //   }
+    // })
 
     // Dashboard card data
     const statsCards = [
