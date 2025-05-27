@@ -25,9 +25,10 @@ class UserController extends Controller
      */
     public function index()
     {
-        // $users = User::all();
-        $users = User::select('id', 'name', 'email')->get();
-        return view('users.index', compact('users'));
+        $users = User::all();
+        // $users = User::select('id', 'name', 'email')->get();
+        // return view('users.index', compact('users'));
+        return response()->json($users);
     }
 
     /**

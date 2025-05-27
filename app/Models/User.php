@@ -19,14 +19,16 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
-        // 'first_name',
-        // 'last_name',
-        // 'designation',
-        // 'program_division_id',
-        // 'user_type_id',
-        // 'mobile_number',
         'email',
         'password',
+        'first_name',
+        'mobile_number',
+        'designation_id',
+        'program_division_id',
+        'user_type_id',
+        'last_name',
+        'role_id',
+        'department_id',
     ];
 
     /**
@@ -51,4 +53,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function userType()
+    {
+        return $this->belongsTo(MdUserType::class, 'user_type_id', 'md_user_type_id');
+    }
+    public function programDivision()
+    {
+        return $this->belongsTo(MdProgramDivision::class, 'program_division_id', 'md_program_division_id');
+    }
+    
 }

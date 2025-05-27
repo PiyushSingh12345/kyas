@@ -15,7 +15,7 @@
               <li class="separator"><i class="icon-arrow-right"></i></li>
               <li class="nav-item"><a href="#">Dashboard</a></li>
               <li class="separator"><i class="icon-arrow-right"></i></li>
-              <li class="nav-item"><a href="#">Create User</a></li>
+              <li class="nav-item"><a href="#">Edit User</a></li>
             </ul>
           </div>
 
@@ -50,35 +50,41 @@
                   <div class="card-title">Update/Delete User</div>
                 </div>
 
-             
+              
                 <div class="card-body">
                     <div class="table-responsive">
 											<table class="table table-bordered table-head-bg-primary">
 												<thead>
 													<tr>
 														<th>#</th>
-														<th>First Name</th>
-														<th>Last Name</th>
-														<th>Designation</th>
+														<th>Name</th>
 														<th>Mobile No.</th>
-														<th>Email id.</th>
+                            	<th>Email</th>
+														<th>Designation</th>
+														
+														
 														<th>Program Division</th>
-														<th>Password</th>
+												
 														<th>User Type</th>
 														<th>Action</th>
 													</tr>
 												</thead>
 												<tbody>
-													<tr>
-														<th scope="row">1</th>
-														<td>Akash kumar</td>
-														<td>Rana</td>
-														<td>US IT</td>
-														<td>xyx@gmail.com</td>
-														<td>Table cell</td>
-														<td>xyxcccc</td>
-														<td>*******</td>
-														<td>Admin</td>
+                          {{ user }}
+                          <tr v-if="users.length === 0">
+                            <td colspan="10" class="text-center">No users found</td>
+                          </tr>
+													<tr v-else v-for="(user,index) in users" :key="user.id">
+														<th scope="row">{{ index + 1 }}</th>
+														<td>{{ user.name }}</td>
+														<td>{{ user.mobile_number }}</td>
+															<td>{{ user.email }}</td>
+														<td>{{ user.designation_id }}</td>
+													
+													
+														<td>{{ user.program_division }}</td>
+														
+														<td>{{ user.user_type }}</td>
 														<td>
 															<a href="#" class="me-2" data-bs-toggle="modal" data-bs-target="#myModal">
 																<i class="fas fa-edit"></i>
@@ -88,7 +94,7 @@
 															</a>
 														</td>
 													</tr>
-													<tr>
+													<!-- <tr>
 														<th scope="row">2</th>
 														<td>Menu kumar</td>
 														<td>Rana</td>
@@ -106,7 +112,7 @@
 																<i class="fas fa-trash"></i>
 															</a>
 														</td>
-													</tr>
+													</tr> -->
 												</tbody>
 											</table>
 										</div>

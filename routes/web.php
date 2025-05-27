@@ -25,9 +25,9 @@ Route::get('/user-create', function () {
     return Inertia::render('User_management/createUser');
 })->middleware(['auth', 'verified'])->name('user-create');
 
-Route::get('/user-edit', function () {
+Route::get('/user-listing', function () {
     return Inertia::render('User_management/editUser');
-})->middleware(['auth', 'verified'])->name('user-edit');
+})->middleware(['auth', 'verified'])->name('user-listing');
 
 Route::middleware('auth')->group(function () {
 

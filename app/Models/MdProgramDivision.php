@@ -9,4 +9,7 @@ class MdProgramDivision extends Model
     protected $table = 'md_program_divisions';
 
     protected $guarded = [];
+
 }
+
+
