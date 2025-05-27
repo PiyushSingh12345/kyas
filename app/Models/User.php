@@ -56,11 +56,12 @@ class User extends Authenticatable
 
     public function userType()
     {
-        return $this->belongsTo(MdUserType::class, 'user_type_id', 'md_user_type_id');
+        return $this->hasMany(MdUserType::class, 'user_type_id', 'md_user_type_id');
+
     }
     public function programDivision()
     {
-        return $this->belongsTo(MdProgramDivision::class, 'program_division_id', 'md_program_division_id');
+        return $this->hasOne(MdProgramDivision::class, 'program_division_id', 'md_program_division_id');
     }
     
 }

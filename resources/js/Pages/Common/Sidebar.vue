@@ -5,7 +5,7 @@
 
 				<!-- Logo Header -->
 				<div class="logo-header">
-					<a href="login.html" class="logo">
+					<a href="/user-listing" class="logo">
 						KY Automation System
 					</a>
 					<div class="nav-toggle">
@@ -28,7 +28,7 @@
 					<ul class="nav nav-secondary">
 
 						<li class="nav-item active">
-							<a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
+							<a data-bs-toggle="collapse" href="/user-listing" class="collapsed" aria-expanded="false">
 								<i class="fas fa-home"></i>
 								<p>User Management</p>
 								<span class="caret"></span>
@@ -37,7 +37,7 @@
 								<ul class="nav nav-collapse">
 
 									<li>
-										<a href="dashboard.html">
+										<a href="/user-listing">
 											<span class="sub-item">Dashboard</span>
 										</a>
 									</li>
@@ -45,12 +45,12 @@
 
 
 									<li>
-										<a href="index.html">
+										<a href="/user-create">
 											<span class="sub-item">Create User</span>
 										</a>
 									</li>
 									<li>
-										<a href="updateuser.html">
+										<a href="/user-listing">
 											<span class="sub-item">Update/Delete User</span>
 										</a>
 									</li>

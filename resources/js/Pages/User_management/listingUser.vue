@@ -70,7 +70,6 @@
 													</tr>
 												</thead>
 												<tbody>
-                          {{ user }}
                           <tr v-if="users.length === 0">
                             <td colspan="10" class="text-center">No users found</td>
                           </tr>
@@ -82,14 +81,16 @@
 														<td>{{ user.designation_id }}</td>
 													
 													
+														<!-- <td>{{ user.program_division_id }}</td> -->
 														<td>{{ user.program_division }}</td>
 														
+														<!-- <td>{{ user.user_type_id }}</td> -->
 														<td>{{ user.user_type }}</td>
 														<td>
-															<a href="#" class="me-2" data-bs-toggle="modal" data-bs-target="#myModal">
+															<a href="#" @click="openEditModal(user)" class="me-2" data-bs-toggle="modal" data-bs-target="#myModal">
 																<i class="fas fa-edit"></i>
 															</a>
-															<a href="#" class="me-2" data-bs-toggle="modal" data-bs-target="#myModalDel">
+															<a href="#" @click="openDeleteModal(user)" class="me-2" data-bs-toggle="modal" data-bs-target="#myModalDel">
 																<i class="fas fa-trash"></i>
 															</a>
 														</td>
@@ -139,45 +140,49 @@
           <h4 class="modal-title">Update User</h4>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-        
         <!-- Modal body -->
         <div class="modal-body">
           <div class="card-body">
             <div class="row">
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
-                  <label for="email2">First Name</label>
-                  <input type="email" class="form-control" id="email2" placeholder="Akash Kumar">
+                    <label for="first_name">First Name</label>
+                    <input type="text" v-model="form.first_name" class="form-control" name="first_name" id="first_name"
+                      placeholder="First Name">
+                  </div>
+              </div>
+              <div class="col-md-6 col-lg-4">
+                <div class="form-group">
+                  <label for="last_name">Last Name</label>
+                  <input type="text" v-model="form.last_name" class="form-control" name="last_name" id="last_name"
+                    placeholder="Last Name">
                 </div>
               </div>
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
-                  <label for="email2">Last Name</label>
-                  <input type="email" class="form-control" id="email2" placeholder="Rana">
+                  <label for="designation">Designation</label>
+                  <input type="text" v-model="form.designation" class="form-control" name="designation" id="designation"
+                    placeholder="Enter Designation">
                 </div>
               </div>
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
-                  <label for="email2">Designation</label>
-                  <input type="email" class="form-control" id="email2" placeholder="KY Admin">
+                  <label for="mobile">Mobile No.</label>
+                  <input type="number" v-model="form.mobile_number" class="form-control" name="mobile" id="mobile"
+                    placeholder="Enter Mobile">
                 </div>
               </div>
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
-                  <label for="email2">Mobile No.</label>
-                  <input type="email" class="form-control" id="email2" placeholder="9999999999">
-                </div>
-              </div>
-              <div class="col-md-6 col-lg-4">
-                <div class="form-group">
-                  <label for="email2">Email id.</label>
-                  <input type="email" class="form-control" id="email2" placeholder="xyz@gmail.com">
+                  <label for="email">Email id.</label>
+                  <input type="email" v-model="form.email" class="form-control" name="email" id="email"
+                    placeholder="Enter Email Id">
                 </div>
               </div>
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
                   <label for="program_division">Program Division</label>
-                  <select name="program_division" id="program_division"  class="form-select" v-model="form.program_division">
+                  <select name="program_division" v-model="form.program_division_id" id="program_division"  class="form-select">
                     <option value="">--- Select ---</option>
                     <option v-for="division in programDivisions" :key="division.division_id" :value="division.division_id">
                      
@@ -189,16 +194,15 @@
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
                   <label for="email2">Password</label>
-                  <input type="password" class="form-control" placeholder="**********">
+                  <input type="password" v-model="form.password" class="form-control" placeholder="Enter Password" name="password" id="password">
                 </div>
               </div>
               
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
                   <label for="user_type">User Type</label>
-                  <!-- {{ userTypes }} -->
-                  <!-- Using v-model to bind the selected user types , multiple selection enabled data coming from md_user_types table -->
-                  <select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple>
+
+                  <select name="user_type" v-model="form.user_type_id" id="user_type" class="form-select" multiple>
                       <option value="">--- Select ---</option>
                       <option v-for="userType in userTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
                           {{ userType.user_type_name }}
@@ -212,8 +216,8 @@
         
         <!-- Modal footer -->
         <div class="modal-footer">
-          <button class="btn btn-primary">Update User</button>
-          <button type="button" class="btn btn-danger">Cancel</button>
+          <button @click="submitEditForm" class="btn btn-primary">Update User</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         </div>
       </div>
     </div>
@@ -230,90 +234,19 @@
         
         <!-- Modal body -->
         <div class="modal-body">
-          Do you want to Delete....
+          Are you sure you want to delete {{ selectedUser?.name }}?
         </div>
         
         <!-- Modal footer -->
         <div class="modal-footer">
-          <button class="btn btn-success">Yes</button>
-          <button type="button" class="btn btn-danger">No</button>
+          <button class="btn btn-success" @click="confirmDelete">Yes</button>
+          <button type="button" class="btn btn-danger" data-bs-dismiss="modal">No</button>
         </div>
       </div>
     </div>
   </div>
 
 </template>
-
-  <!-- <script setup>
-    import { useForm } from '@inertiajs/vue3'
-    import { onMounted } from 'vue'
-    import { useScriptTag } from '@vueuse/core'
-
-    // Correct relative paths (from createUser.vue to Common/)
-    import Header from '../Common/Header.vue'
-    import Sidebar from '../Common/Sidebar.vue'
-    import Footer from '../Common/Footer.vue'
-
-    // Form state
-    const form = useForm({
-      first_name: '',
-      last_name: '',
-      designation: '',
-      mobile: '',
-      email: '',
-      program_division: '',
-      user_type: [],
-    })
-
-    // Submit handler
-    const submitForm = () => {
-      form.post('/users') // Update this to your actual route
-    }
-
-    // Dashboard card data
-    const statsCards = [
-      {
-        title: 'Total User',
-        count: '1,294',
-        icon: 'fas fa-users',
-        iconColor: 'icon-primary',
-      },
-      {
-        title: 'Total PD Users',
-        count: '1,303',
-        icon: 'fas fa-user-check',
-        iconColor: 'icon-info',
-      },
-      {
-        title: 'Total KY Division Users',
-        count: '1,345',
-        icon: 'fas fa-luggage-cart',
-        iconColor: 'icon-success',
-      },
-    ]
-
-
-    //  Core JS Files
-	// useScriptTag("assets/js/core/jquery-3.7.1.min.js");
-	// useScriptTag("assets/js/core/jquery-3.7.1.min.js");
-	// useScriptTag("assets/js/core/popper.min.js");
-	// useScriptTag("assets/js/core/bootstrap.min.js");
-
-	// // jQuery Scrollbar
-	// useScriptTag("assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js");
-
-
-	// // Kaiadmin JS
-	// useScriptTag("assets/js/kaiadmin.min.js");
-
-	// // Kaiadmin DEMO methods, don't include it in your project!
-	// useScriptTag("assets/js/setting-demo.js");
-	// useScriptTag("assets/js/demo.js");
-
-    
-
-
-  </script> -->
 
 <script setup>
   import { ref, onMounted } from 'vue'
@@ -324,19 +257,25 @@
   import Sidebar from '../Common/Sidebar.vue'
   import Footer from '../Common/Footer.vue'
 
+  const users = ref([]) // reactive users array
+  const selectedUser = ref(null) // user selected for editing
+
   const form = useForm({
+    id: null,
+    name: '',
     first_name: '',
     last_name: '',
     designation: '',
-    mobile: '',
+    mobile_number: '',
     email: '',
     program_division: '',
+    program_division_id: '',
     password: '',
     user_type: [],
+    user_type_id: [],
   })
 
-  const users = ref([]) // reactive users array
-  const selectedUser = ref(null) // user selected for editing
+  
 
   // Fetch users from API
   const getUsers = async () => {
@@ -353,61 +292,103 @@
     const userTypes = ref([])
 
     onMounted(() => {
-      const fetchData = async () => {
-        try {
-          const response = await axios.get('/md-program-divisions')
-          programDivisions.value = response.data
-        } catch (error) {
-          console.error('Failed to fetch program divisions', error)
-        }
+      fetchUsers();
+      fetchProgramDivisions();
+      fetchUserTypes();
+    });
 
-        try {
-          const responseMUT = await axios.get('/md-user-types')
-          userTypes.value = responseMUT.data
-        } catch (error) {
-          console.error('Failed to fetch user types', error)
-        }
-
-        try {
-          const responseUsers = await axios.get('/users')
-          users.value = responseUsers.data
-        } catch (error) {
-          console.error('Failed to fetch users:', error)
-        }
+    const fetchUsers = async () => {
+      try {
+        const response = await axios.get('/users');
+        users.value = response.data;
+      } catch (error) {
+        console.error('Error fetching users:', error);
       }
+    };
 
-      fetchData()
-    })
+    const fetchProgramDivisions = async () => {
+      // Fetch program divisions logic
+      try {
+        const response = await axios.get('/md-program-divisions')
+        programDivisions.value = response.data
+      } catch (error) {
+        console.error('Failed to fetch program divisions', error)
+      }
+    };
+
+    const fetchUserTypes = async () => {
+      // Fetch user types logic
+      try {
+        const response = await axios.get('/md-user-types')
+        userTypes.value = response.data
+      } catch (error) {
+        console.error('Failed to fetch user types', error)
+      }
+    };
 
 
-  // onMounted(() => {
-  //   getUsers()
+  
+    const openEditModal = (user) => {
+      selectedUser.value = user;
+      form.id = user.id;
+      form.name = (user.name)? user.name : `${user.first_name} ${user.last_name}`;
 
-  //    try {
-  //       const response = await axios.get('/md-program-divisions')
-  //       programDivisions.value = response.data
-  //     } catch (error) {
-  //       console.error('Failed to fetch program divisions', error)
-  //     }
+      const nameParts = form.name.split(' ');
+      const first_name = (nameParts[0]) ? nameParts[0] : '';
+      const last_name = (nameParts[1]) ? nameParts[1] : '';
 
-  //     try {
-  //       const responseMUT = await axios.get('/md-user-types')
-  //       userTypes.value = responseMUT.data
-  //     } catch (error) {
-  //       console.error('Failed to fetch user types', error)
-  //     }
-  // })
+      form.first_name = (user.first_name)? user.first_name : first_name;
+      form.last_name = (user.last_name)? user.last_name : last_name;
+      form.email = user.email;
+      form.mobile_number = user.mobile_number;
+      form.designation = user.designation_id;
+      form.program_division_id = user.program_division_id;  
+      form.program_division = user.program_division;
+      // form.user_type = user.user_type_ids; // Adjust based on your data structure
+      form.user_type = user.user_type; // Adjust based on your data structure
+      // form.user_type_id = user.user_type_id; // Adjust based on your data structure
+      // Convert comma-separated string to array of numbers
+      form.user_type_id = user.user_type_id
+    ? user.user_type_id.split(',').map(id => parseInt(id.trim()))
+    : [];
+      form.password = user.password;
+      const modal = new bootstrap.Modal(document.getElementById('myModal'));
+      modal.show();
+    };
 
-  // Modal open handler
-  const openEditModal = (user) => {
-    selectedUser.value = { ...user } // shallow copy to avoid live binding
-    const modal = new bootstrap.Modal(document.getElementById('myModal'))
-    modal.show()
-  }
+    const submitEditForm = () => {
+      form.put(`/users/${form.id}`, {
+        onSuccess: () => {
+          const modal = bootstrap.Modal.getInstance(document.getElementById('myModal'));
+          modal.hide();
+          this.$router.go();
+          fetchUsers();
+        },
+        onError: (errors) => {
+          console.error('Error updating user:', errors);
+        },
+      });
+    };
+
+    
+
 
   const openDeleteModal = (user) => {
-    selectedUser.value = user
-    const modal = new bootstrap.Modal(document.getElementById('myModalDel'))
-    modal.show()
-  }
+    selectedUser.value = user;
+    const modal = new bootstrap.Modal(document.getElementById('myModalDel'));
+    modal.show();
+  };
+
+  const confirmDelete = () => {
+    axios
+      .delete(`/users/${selectedUser.value.id}`)
+      .then(() => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('myModalDel'));
+        modal.hide();
+        fetchUsers();
+      })
+      .catch((error) => {
+        console.error('Error deleting user:', error);
+      });
+  };
 </script>

@@ -26,7 +26,7 @@ Route::get('/user-create', function () {
 })->middleware(['auth', 'verified'])->name('user-create');
 
 Route::get('/user-listing', function () {
-    return Inertia::render('User_management/editUser');
+    return Inertia::render('User_management/listingUser');
 })->middleware(['auth', 'verified'])->name('user-listing');
 
 Route::middleware('auth')->group(function () {
@@ -54,5 +54,8 @@ Route::get('/md-program-divisions', function () {
 Route::get('/md-user-types', function () {
     return MdUserType::select('md_user_type_id', 'user_type_name')->get();
 });
+
+Route::put('/users/{id}', [UserController::class, 'update']);
+Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
 require __DIR__.'/auth.php';

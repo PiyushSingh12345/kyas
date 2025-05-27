@@ -88,13 +88,6 @@
 													placeholder="Enter Email Id">
 											</div>
 										</div>
-										<!-- <div class="col-md-6 col-lg-4">
-											<div class="form-group">
-												<label for="program_division">Program Division</label>
-												<input type="text" class="form-control" name="program_division" v-model="form.program_division" id="program_division"
-													placeholder="Program Division">
-											</div>
-										</div> -->
                     
                     <div class="col-md-6 col-lg-4">
 											<div class="form-group">
@@ -165,7 +158,20 @@
 
     // Submit handler
     const submitForm = () => {
-      form.post('/users') // Update this to your actual route
+      form.post('/users',
+        {
+          onSuccess: () => {
+            // Reset form after successful submission
+            form.reset();
+            // show a success message on screen without using alert
+            this.$toast.success('User created successfully!');
+          },
+          onError: (errors) => {
+            console.error('Form submission errors:', errors)
+            // can show an error message on screen
+            this.$toast.error('Failed to create user. ' + errors.join(', '));
+          },
+        }) // Update this to your actual route
     }
 
     // This will hold dropdown options
@@ -188,17 +194,7 @@
         console.error('Failed to fetch user types', error)
       }
     })
-    // // Fetch Program Divisions from backend
-    // onMounted(async () => {
-    //   try {
-    //     const response = await axios.get('/md-program-divisions')
-    //     console.log('Program Divisions:', response.data);
-    //     alert('Program Divisions: ' + JSON.stringify(response.data));
-    //     programDivisions.value = response.data
-    //   } catch (error) {
-    //     console.error('Error fetching program divisions:', error)
-    //   }
-    // })
+    
 
     // Dashboard card data
     const statsCards = [

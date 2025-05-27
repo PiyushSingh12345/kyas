@@ -12,6 +12,10 @@ import '../js/core/jquery-3.7.1.min.js';
 import '../js/core/popper.min.js';
 import '../js/core/bootstrap.min.js';
 
+// import '../assets/fonts/fontawesome-free-6.5.2-web/js/v4-shims.min.js';
+// import '../assets/fonts/simple-line-icons-2.5.5/js/simple-line-icons.min.js';
+// import '../js/core/jquery.slimscroll.min.js'
+
 //import '../js/plugin/jquery-scrollbar/jquery.scrollbar.min.js';
 import '../js/kaiadmin.min.js';
 import '../js/setting-demo.js';

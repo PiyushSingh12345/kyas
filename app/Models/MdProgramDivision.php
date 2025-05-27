@@ -10,6 +10,12 @@ class MdProgramDivision extends Model
 
     protected $guarded = [];
 
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'program_division_id', 'md_program_division_id');
+
+    }
+
 }
 
 
