@@ -23,6 +23,7 @@
         "@vueuse/core": "^13.2.0",
         "bootstrap": "^5.3.6",
         "bootstrap-icons": "^1.13.1",
+        "vue-scrolling-table": "^2.0.0",
         "webfontloader": "^1.6.28"
     }
 }
