@@ -13,10 +13,15 @@
             <ul class="breadcrumbs mb-3">
               <li class="nav-home"><a href="#"><i class="icon-home"></i></a></li>
               <li class="separator"><i class="icon-arrow-right"></i></li>
-              <li class="nav-item"><a href="#">Dashboard</a></li>
+              <li class="nav-item"><a href="/user-listing">Dashboard</a></li>
               <li class="separator"><i class="icon-arrow-right"></i></li>
-              <li class="nav-item"><a href="#">Edit User</a></li>
+              <li class="nav-item"><a href="/user-listing">Edit User</a></li>
             </ul>
+            <a href="/user-create" class="btn btn-primary float-right">Create User</a>
+          </div>
+          <div class="page-message">
+            <!-- <h2 class="showmsg text-success"></h2>
+            <h2 class="showerror text-danger"></h2> -->
           </div>
 
           <!-- Dashboard cards -->
@@ -138,7 +143,8 @@
         <!-- Modal Header -->
         <div class="modal-header">
           <h4 class="modal-title">Update User</h4>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <!-- <button type="button" @click="closeEditFormModal('myModal')" class="btn-close" data-bs-dismiss="modal"></button> -->
+          <button type="button" @click="hideModal('myModal')" class="btn-close" ></button>
         </div>
         <!-- Modal body -->
         <div class="modal-body">
@@ -217,7 +223,8 @@
         <!-- Modal footer -->
         <div class="modal-footer">
           <button @click="submitEditForm" class="btn btn-primary">Update User</button>
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <!-- <button @click="closeEditFormModal" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button> -->
+          <button @click="hideModal('myModal')" type="button" class="btn btn-secondary">Cancel</button>
         </div>
       </div>
     </div>
@@ -229,7 +236,8 @@
         <!-- Modal Header -->
         <div class="modal-header">
           <h4 class="modal-title">Delete User</h4>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <!-- <button type="button" class="btn-close" data-bs-dismiss="modal"></button> -->
+          <button type="button" @click="hideModal('myModalDel')" class="btn-close" ></button>
         </div>
         
         <!-- Modal body -->
@@ -240,7 +248,8 @@
         <!-- Modal footer -->
         <div class="modal-footer">
           <button class="btn btn-success" @click="confirmDelete">Yes</button>
-          <button type="button" class="btn btn-danger" data-bs-dismiss="modal">No</button>
+          <!-- <button type="button" @click="closeEditFormModal" class="btn btn-danger" data-bs-dismiss="modal">No</button> -->
+          <button type="button" @click="hideModal('myModalDel')" class="btn btn-danger">No</button>
         </div>
       </div>
     </div>
@@ -275,7 +284,31 @@
     user_type_id: [],
   })
 
-  
+  // This will hold dropdown options
+  const programDivisions = ref([])
+  const userTypes = ref([])
+
+  // Dashboard card data
+  const statsCards = [
+    {
+      title: 'Total User',
+      count: '1,294',
+      icon: 'fas fa-users',
+      iconColor: 'icon-primary',
+    },
+    {
+      title: 'Total PD Users',
+      count: '1,303',
+      icon: 'fas fa-user-check',
+      iconColor: 'icon-info',
+    },
+    {
+      title: 'Total KY Division Users',
+      count: '1,345',
+      icon: 'fas fa-luggage-cart',
+      iconColor: 'icon-success',
+    },
+  ]
 
   // Fetch users from API
   const getUsers = async () => {
@@ -287,9 +320,48 @@
       console.error('Failed to fetch users:', error)
     }
   }
-   // This will hold dropdown options
-    const programDivisions = ref([])
-    const userTypes = ref([])
+   
+
+    // const closeEditFormModal = () => {
+    //   const modal = bootstrap.Modal.getInstance(document.getElementById('myModal'));
+    //   if (modal) {
+    //     modal.hide();
+    //     // remove .modal-backdrop class from modal
+    //     const backdrop = document.querySelector('div.modal-backdrop');
+    //     if (backdrop) {
+    //       backdrop.remove();
+    //     }
+    //   }else{
+    //     // remove .modal-backdrop class from modal
+    //     const backdrop = document.querySelector('.modal-backdrop');
+    //     if (backdrop) {
+    //       backdrop.remove();
+    //     }
+    //   }
+    // };
+
+    const showMessage = (msg, type) => {
+      const el = document.querySelector('.page-message');
+      el.innerHTML = `<h2 class="text-${type}">${msg}</h2>`;
+      setTimeout(() => (el.innerHTML = ''), 3000);
+    };
+
+    const removeModalBackdrop = () => {
+      document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
+    };
+
+    const showModal = (id) => {
+      const modal = new bootstrap.Modal(document.getElementById(id));
+      modal.show();
+    };
+
+    const hideModal = (id) => {
+      const modal = bootstrap.Modal.getInstance(document.getElementById(id));
+      if (modal) {
+        modal.hide();
+      }
+      removeModalBackdrop();
+    };
 
     onMounted(() => {
       fetchUsers();
@@ -352,27 +424,57 @@
     ? user.user_type_id.split(',').map(id => parseInt(id.trim()))
     : [];
       form.password = user.password;
-      const modal = new bootstrap.Modal(document.getElementById('myModal'));
-      modal.show();
+
+      // const modal = new bootstrap.Modal(document.getElementById('myModal'));
+      // modal.show();
+
+      showModal('myModal');
     };
 
     const submitEditForm = () => {
       form.put(`/users/${form.id}`, {
         onSuccess: () => {
-          const modal = bootstrap.Modal.getInstance(document.getElementById('myModal'));
-          modal.hide();
-          this.$router.go();
+          // closeEditFormModal();
+          // const modal = bootstrap.Modal.getInstance(document.getElementById('myModal'));
+          // modal.hide();
+          // // remove .modal-backdrop class from modal
+          // const backdrop = document.querySelector('.modal-backdrop');
+          // if (backdrop) {
+          //   backdrop.remove();
+          // }
+
+          // const modalElement = document.getElementById('myModalDel');
+          // const modalInstance = bootstrap.Modal.getInstance(modalElement);
+          // if (modalInstance) {
+          //   modalInstance.hide();
+          // } 
+
+          hideModal('myModal');
           fetchUsers();
+          showMessage('User updated successfully!', 'success');
+          // show Success message with h2 heading and class text-success in the page-message class div for 3 ms only
+          // const messageElement = document.querySelector('.page-message');
+          // messageElement.innerHTML = '<h2 class="text-success">User updated successfully!</h2>';
+          // setTimeout(() => {
+          //   messageElement.innerHTML = '';
+          // }, 3000);
         },
         onError: (errors) => {
+          hideModal('myModal');
+          showMessage('Failed to update user.', 'danger');
+          // closeEditFormModal();
           console.error('Error updating user:', errors);
+          // // show Error message with h2 heading and class text-danger in the page-message class div for 3 ms only
+          // const errorElement = document.querySelector('.page-message');
+          // errorElement.innerHTML = `<h2 class="text-danger">Failed to update user. ${errors.join(', ')}</h2>`;
+          // setTimeout(() => {
+          //   errorElement.innerHTML = '';
+          // }, 3000);
         },
       });
     };
 
-    
-
-
+  
   const openDeleteModal = (user) => {
     selectedUser.value = user;
     const modal = new bootstrap.Modal(document.getElementById('myModalDel'));
@@ -383,12 +485,20 @@
     axios
       .delete(`/users/${selectedUser.value.id}`)
       .then(() => {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('myModalDel'));
-        modal.hide();
+        // // const modal = bootstrap.Modal.getInstance(document.getElementById('myModalDel'));
+        // // modal.hide();
+        // closeEditFormModal();
+
+        // fetchUsers();
+
+        hideModal('myModalDel');
         fetchUsers();
+        showMessage('User deleted successfully!', 'success');
       })
       .catch((error) => {
-        console.error('Error deleting user:', error);
+        // console.error('Error deleting user:', error);
+        // closeEditFormModal();
+        showMessage('Failed to delete user.', 'danger');
       });
   };
 </script>

@@ -13,10 +13,14 @@
             <ul class="breadcrumbs mb-3">
               <li class="nav-home"><a href="#"><i class="icon-home"></i></a></li>
               <li class="separator"><i class="icon-arrow-right"></i></li>
-              <li class="nav-item"><a href="#">Dashboard</a></li>
+              <li class="nav-item"><a href="/user-listing">Dashboard</a></li>
               <li class="separator"><i class="icon-arrow-right"></i></li>
-              <li class="nav-item"><a href="#">Create User</a></li>
+              <li class="nav-item"><a href="/user-create">Create User</a></li>
             </ul>
+          </div>
+          <div class="page-message">
+            <h2 class="showmsg text-success"></h2>
+            <h2 class="showerror text-danger"></h2>
           </div>
 
           <!-- Dashboard cards -->
@@ -163,13 +167,25 @@
           onSuccess: () => {
             // Reset form after successful submission
             form.reset();
-            // show a success message on screen without using alert
-            this.$toast.success('User created successfully!');
+            
+            // Success message in the showmsg class of h2 tag in the page-message class div for 3 ms only
+            // this.$toast.success('User created successfully!');
+            const messageElement = document.querySelector('.showmsg');
+            messageElement.textContent = 'User created successfully!';
+            setTimeout(() => {
+              messageElement.textContent = '';
+            }, 3000);
+            
           },
           onError: (errors) => {
             console.error('Form submission errors:', errors)
             // can show an error message on screen
-            this.$toast.error('Failed to create user. ' + errors.join(', '));
+            // this.$toast.error('Failed to create user. ' + errors.join(', '));
+            const errorElement = document.querySelector('.showerror');
+            errorElement.textContent = 'Failed to create user. ' + errors.join(', ');
+            setTimeout(() => {
+              errorElement.textContent = '';
+            }, 3000);
           },
         }) // Update this to your actual route
     }

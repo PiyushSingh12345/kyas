@@ -135,11 +135,14 @@ class UserController extends Controller
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            // 'email' => 'required|email|unique:users',
+            // email should not be unique for create, so we don't include the unique rule here
             'email' => 'required|email',
+
+            // 'email' => 'required|email',
             // 'password' => 'required|string|min:6|confirmed',
         ]);
-
+        
+        // Check if the user already exists
         // echo "skksks";var_dump($request->user_type);die;
         // Convert the user_type array to a comma-separated string
         $userTypeString = implode(',', $request->user_type);
@@ -243,7 +246,11 @@ class UserController extends Controller
             'mobile_number'         => 'required|integer|digits_between:10,15', // Adjust the min and max length as needed
             'program_division_id'   => 'required|integer',
             'user_type_id'          => 'required|array',
-            'email'                 => 'required|email',
+            // email should not be unique for update, so we don't include the unique rule here
+            'email'                 => 'required|email', // Ensure email is valid, but not unique for the current user  
+
+
+            // 'email'                 => 'required|email|unique:users,email,' . $user->id, // Uncomment if you want to ensure email uniqueness except for the current user
             // 'password'              => 'nullable|string|min:6|confirmed', // Password can be nullable if not changing
             // Add other validation rules as necessary
         ]);
@@ -272,10 +279,12 @@ class UserController extends Controller
 
     public function destroy($id)
     {
-        echo "assaas"; var_dump($id); die;
         $user = User::findOrFail($id);
+        // echo "assaas"; print_r($user); die;
         $user->delete();
-        return redirect()->back()->with('success', 'User deleted successfully.');
+        // return redirect()->back()->with('success', 'User deleted successfully.');
+        return json_encode(['success' => true, 'message' => 'User deleted successfully.']);
+        
     }
 
 
