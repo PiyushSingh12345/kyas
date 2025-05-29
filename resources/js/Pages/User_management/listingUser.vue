@@ -434,42 +434,15 @@
     const submitEditForm = () => {
       form.put(`/users/${form.id}`, {
         onSuccess: () => {
-          // closeEditFormModal();
-          // const modal = bootstrap.Modal.getInstance(document.getElementById('myModal'));
-          // modal.hide();
-          // // remove .modal-backdrop class from modal
-          // const backdrop = document.querySelector('.modal-backdrop');
-          // if (backdrop) {
-          //   backdrop.remove();
-          // }
-
-          // const modalElement = document.getElementById('myModalDel');
-          // const modalInstance = bootstrap.Modal.getInstance(modalElement);
-          // if (modalInstance) {
-          //   modalInstance.hide();
-          // } 
-
           hideModal('myModal');
           fetchUsers();
           showMessage('User updated successfully!', 'success');
-          // show Success message with h2 heading and class text-success in the page-message class div for 3 ms only
-          // const messageElement = document.querySelector('.page-message');
-          // messageElement.innerHTML = '<h2 class="text-success">User updated successfully!</h2>';
-          // setTimeout(() => {
-          //   messageElement.innerHTML = '';
-          // }, 3000);
         },
         onError: (errors) => {
           hideModal('myModal');
           showMessage('Failed to update user.', 'danger');
-          // closeEditFormModal();
           console.error('Error updating user:', errors);
-          // // show Error message with h2 heading and class text-danger in the page-message class div for 3 ms only
-          // const errorElement = document.querySelector('.page-message');
-          // errorElement.innerHTML = `<h2 class="text-danger">Failed to update user. ${errors.join(', ')}</h2>`;
-          // setTimeout(() => {
-          //   errorElement.innerHTML = '';
-          // }, 3000);
+          
         },
       });
     };

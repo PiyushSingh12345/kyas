@@ -18,6 +18,7 @@
               <li class="nav-item"><a href="/user-create">Create User</a></li>
             </ul>
           </div>
+          <small class="text-danger" v-if="validationErrors.first_name" > {{ validationErrors.first_name }} </small>
           <div class="page-message">
             <h2 class="showmsg text-success"></h2>
             <h2 class="showerror text-danger"></h2>
@@ -139,7 +140,7 @@
 
   <script setup>
     import { useForm } from '@inertiajs/vue3'
-    import { onMounted, ref } from 'vue'
+    import { onMounted, ref, reactive } from 'vue'
     import axios from 'axios'
     import { useScriptTag } from '@vueuse/core'
 
@@ -159,9 +160,69 @@
       user_type: [],
     })
 
+    // Validation errors
+    const validationErrors = reactive({
+      first_name: '',
+      last_name: '',
+      designation: '',
+      mobile: '',
+      email: '',
+      program_division: '',
+      user_type: ''
+    })
+
+    const validateForm = () => {
+      let valid = true
+      Object.keys(validationErrors).forEach((key) => {
+        validationErrors[key] = ''
+      })
+
+      if (!form.first_name) {
+        validationErrors.first_name = 'First name is required.'
+        valid = false
+      }
+
+      if (!form.last_name) {
+        validationErrors.last_name = 'Last name is required.'
+        valid = false
+      }
+
+      if (!form.designation) {
+        validationErrors.designation = 'Designation is required.'
+        valid = false
+      }
+
+      if (!form.mobile || !/^[0-9]{10}$/.test(form.mobile)) {
+        validationErrors.mobile = 'Enter a valid 10-digit mobile number.'
+        valid = false
+      }
+
+      
+      if (!form.email || !/\S+@\S+\.\S+/.test(form.email)) {
+        validationErrors.email = 'Enter a valid email address.'
+        valid = false
+      }
+
+      if (!form.program_division) {
+        validationErrors.program_division = 'Program division is required.'
+        valid = false
+      }
+
+      if (!form.user_type.length) {
+        validationErrors.user_type = 'Select at least one user type.'
+        valid = false
+      }
+
+      return valid
+    }
+
 
     // Submit handler
     const submitForm = () => {
+           if (!validateForm()) {
+              return;
+            }
+
       form.post('/users',
         {
           onSuccess: () => {
