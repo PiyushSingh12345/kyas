@@ -121,7 +121,8 @@
 										<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
 									</div>
 									<span class="profile-username">
-										<span class="fw-bold">Akash Rana (KY Admin)</span>
+										<!-- <span class="fw-bold">Akash Rana (KY Admin)</span> -->
+										<span class="fw-bold">{{ $page.props.auth.user.name }}</span>
 									</span>
 								</a>
 								<ul class="dropdown-menu dropdown-user animated fadeIn">
