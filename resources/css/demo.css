@@ -222,6 +222,16 @@ body[data-background-color="dark"] .demo-icon .icon-class {
 .btnSwitch button[data-color="bg3"] {
   background-color: #f1f1f1; }
 
+  .table-scroll-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.min-wide-table {
+  min-width: 1200px; /* Adjust based on how many PD columns you have */
+}
+
+
 #modalShowcase .btn-close {
   background: #ff0000;
   opacity: 0.7;

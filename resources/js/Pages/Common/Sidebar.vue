@@ -44,7 +44,6 @@
 									</li>
 
 
-
 									<li>
 										<a href="/user-create">
 											<span class="sub-item">Create User</span>
@@ -58,34 +57,55 @@
 								</ul>
 							</div>
 						</li>
-						<li class="nav-section">
+            <!-- Budget Allocation Module -->
+          <li class="nav-item ">
+            <a data-bs-toggle="collapse" href="#budget" class="collapsed" aria-expanded="false">
+              <i class="fas fa-pen-square"></i>
+              <p>Budget Allocation Module</p>
+              <span class="caret"></span>
+            </a>
+            <div class="collapse" id="budget">
+              <ul class="nav nav-collapse">
+                <li>
+                  <Link :href="route('budget-phase')" class="nav-link">
+                    <span class="sub-item">Add details of BE/FE/RE</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link :href="route('fund-allocation')" class="nav-link">
+                    <span class="sub-item">Fund Allocation</span>
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </li>
+
+         
+      
+
+          <!-- Budget Head -->
+          <li class="nav-item">
+            <a data-bs-toggle="collapse" href="#base">
+              <i class="fas fa-layer-group"></i>
+              <p>Budget Head</p>
+              <span class="caret"></span>
+            </a>
+            <div class="collapse" id="base">
+              <ul class="nav nav-collapse">
+                <li><a href="/components/avatars"><span class="sub-item">Budget Heads</span></a></li>
+                <li><a href="/components/buttons"><span class="sub-item">State/UTs</span></a></li>
+                <li><a href="/components/buttons"><span class="sub-item">States/UTs-PD/Component</span></a></li>
+              </ul>
+            </div>
+          </li>
+						<!-- <li class="nav-section">
 							<span class="sidebar-mini-icon">
 								<i class="fa fa-ellipsis-h"></i>
 							</span>
 							<h4 class="text-section">Components</h4>
-						</li>
-						<li class="nav-item">
-							<a data-bs-toggle="collapse" href="#base">
-								<i class="fas fa-layer-group"></i>
-								<p>Budget Head</p>
-								<span class="caret"></span>
-							</a>
-							<div class="collapse" id="base">
-								<ul class="nav nav-collapse">
-									<li>
-										<a href="components/avatars.html">
-											<span class="sub-item">Link 1</span>
-										</a>
-									</li>
-									<li>
-										<a href="components/buttons.html">
-											<span class="sub-item">Link 2</span>
-										</a>
-									</li>
-								</ul>
-							</div>
-						</li>
-						<li class="nav-item">
+						</li> -->
+						
+						<!-- <li class="nav-item">
 							<a data-bs-toggle="collapse" href="#forms">
 								<i class="fas fa-pen-square"></i>
 								<p>States Tagging</p>
@@ -100,8 +120,8 @@
 									</li>
 								</ul>
 							</div>
-						</li>
-						<li class="nav-item">
+						</li> -->
+						<!-- <li class="nav-item">
 							<a data-bs-toggle="collapse" href="#tables">
 								<i class="fas fa-table"></i>
 								<p>Admin List</p>
@@ -121,7 +141,7 @@
 									</li>
 								</ul>
 							</div>
-						</li>
+						</li> -->
 					</ul>
 				</div>
 			</div>
@@ -129,3 +149,7 @@
 
 		<!-- End Sidebar -->
 </template>
+
+<script setup>
+import { Link } from '@inertiajs/vue3'
+</script>
