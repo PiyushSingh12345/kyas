@@ -92,7 +92,10 @@
 													placeholder="Enter Email Id">
 											</div>
 										</div>
-                    
+                    <!-- change the code, on select of ky_division in program division the drop down values of user type will be filtered and shown ky related values like KY User and KY_Admin -->
+
+
+
                     <div class="col-md-6 col-lg-4">
 											<div class="form-group">
 												<label for="program_division">Program Division</label>
@@ -109,11 +112,18 @@
 												<label for="user_type">User Type</label>
                         <!-- {{ userTypes }} -->
                         <!-- Using v-model to bind the selected user types , multiple selection enabled data coming from md_user_types table -->
+                        <!-- <select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple> -->
+                            <!-- <option value="">--- Select ---</option> -->
+                            <!-- <option v-for="userType in userTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id"> -->
+                              <!-- <option v-for="userType in filteredUserTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id"> -->
+                                <!-- {{ userType.user_type_name }} -->
+                            <!-- </option> -->
+                        <!-- </select> -->
                         <select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple>
-                            <option value="">--- Select ---</option>
-                            <option v-for="userType in userTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
-                                {{ userType.user_type_name }}
-                            </option>
+                          <option value="">--- Select ---</option>
+                          <option v-for="userType in filteredUserTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
+                            {{ userType.user_type_name }}
+                          </option>
                         </select>
 											</div>
 										</div>
@@ -123,7 +133,7 @@
                 <div class="card-action">
                   <button class="btn btn-primary" @click="submitForm">Submit</button>
                   <!-- <button class="btn btn-primary" >Submit</button> -->
-                  <button class="btn btn-danger" type="button">Cancel</button>
+                  <button class="btn btn-danger" type="button"  @click="resetForm" >Cancel</button>
                 </div>
               </div>
             </div>
@@ -139,7 +149,7 @@
 
   <script setup>
     import { useForm } from '@inertiajs/vue3'
-    import { onMounted, ref } from 'vue'
+    import { onMounted, ref, computed, watch } from 'vue'
     import axios from 'axios'
     import { useScriptTag } from '@vueuse/core'
 
@@ -159,6 +169,38 @@
       user_type: [],
     })
 
+
+
+    const filteredUserTypes = computed(() => {
+      // If program_division is '1', filter user types to only include KY_Admin and KY User
+      const KY_TYPE_IDS = [1, 2];
+      const selectedDivision = parseInt(form.program_division);
+
+      if (!selectedDivision) {
+        // No division selected: show all types
+        return userTypes.value;
+      }
+
+      if (selectedDivision === 1) {
+        // KY Division selected: show only KY types
+        return userTypes.value.filter(type =>
+          KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+        );
+      }
+
+      // Other divisions selected: show all except KY types
+      return userTypes.value.filter(type =>
+        !KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+      );      
+    })
+
+    watch(() => form.program_division, () => {
+      form.user_type = [];
+    });
+
+    const resetForm = () => {
+      form.reset();
+    };
 
     // Submit handler
     const submitForm = () => {

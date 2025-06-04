@@ -17,6 +17,8 @@
               <li class="separator"><i class="icon-arrow-right"></i></li>
               <li class="nav-item"><a href="/user-listing">Edit User</a></li>
             </ul>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
             <a href="/user-create" class="btn btn-primary float-right">Create User</a>
           </div>
           <div class="page-message">
