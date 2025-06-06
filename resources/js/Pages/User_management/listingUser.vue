@@ -141,7 +141,7 @@
   <div class="modal" id="myModal">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
-        
+        <form @submit.prevent="submitEditForm">
         <!-- Modal Header -->
         <div class="modal-header">
           <h4 class="modal-title">Update User</h4>
@@ -212,7 +212,8 @@
 
                   <select name="user_type" v-model="form.user_type_id" id="user_type" class="form-select" multiple>
                       <option value="">--- Select ---</option>
-                      <option v-for="userType in userTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
+                      <!-- <option v-for="userType in userTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id"> -->
+                        <option v-for="userType in getFilteredUserTypes(form.program_division_id)" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
                           {{ userType.user_type_name }}
                       </option>
                   </select>
@@ -228,6 +229,7 @@
           <!-- <button @click="closeEditFormModal" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button> -->
           <button @click="hideModal('myModal')" type="button" class="btn btn-secondary">Cancel</button>
         </div>
+        </form>
       </div>
     </div>
   </div>
@@ -260,7 +262,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { ref, onMounted, computed, watch } from 'vue'
   import axios from 'axios'
   import { useForm } from '@inertiajs/vue3'
 
@@ -365,6 +367,8 @@
       removeModalBackdrop();
     };
 
+    
+
     onMounted(() => {
       fetchUsers();
       fetchProgramDivisions();
@@ -401,6 +405,87 @@
     };
 
 
+    // const getFilteredUserTypes = computed(() => {
+    //   // If program_division is '1', filter user types to only include KY_Admin and KY User
+    //   const KY_TYPE_IDS = [1, 2];
+    //   const selectedDivision = parseInt(form.program_division_id);
+
+    //   if (!selectedDivision) {
+    //     // No division selected: show all types
+    //     return userTypes.value;
+    //   }
+
+    //   if (selectedDivision === 1) {
+    //     // KY Division selected: show only KY types
+    //     return userTypes.value.filter(type =>
+    //       KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+    //     );
+    //   }
+
+    //   // Other divisions selected: show all except KY types
+    //   return userTypes.value.filter(type =>
+    //     !KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+    //   );      
+    // })
+
+    // watch(() => form.program_division_id, () => {
+    //   form.user_type = [];
+    // });
+
+    // const resetForm = () => {
+    //   form.reset();
+    // };
+
+
+    // const getFilteredUserTypes = computed((program_division_id) => {
+    //   const KY_TYPE_IDS = [1, 2];
+    //   const selectedDivision = parseInt(form.program_division_id);
+    //   console.log('Selected Division:', selectedDivision);
+    //   console.log('Program Division ID:', program_division_id);
+    //   if (!selectedDivision) {
+    //     // No division selected: show all
+    //     return userTypes.value;
+    //   }
+
+    //   if (selectedDivision === 1) {
+    //     // KY Division: only KY types
+    //     return userTypes.value.filter(type =>
+    //       KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+    //     );
+    //   }
+
+    //   // Other divisions: exclude KY types
+    //   return userTypes.value.filter(type =>
+    //     !KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+    //   );
+    // });
+
+    const getFilteredUserTypes = (program_division_id) => {
+      const KY_TYPE_IDS = [1, 2];
+      const selectedDivision = parseInt(program_division_id);
+console.log('Selected Division:', selectedDivision);
+      if (!selectedDivision) {
+        // No division selected: show all user types
+        return userTypes.value;
+      }
+
+      if (selectedDivision === 1) {
+        // KY Division selected: show only KY types
+        return userTypes.value.filter(type =>
+          KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+        );
+      }
+
+      // Other divisions: exclude KY types
+      return userTypes.value.filter(type =>
+        !KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
+      );
+    };
+
+    watch(() => form.program_division_id, () => {
+      // form.user_type_id = []; // Ensures previous selection doesn’t persist
+      form.user_type = []; // Ensures previous selection doesn’t persist
+    });
   
     const openEditModal = (user) => {
       selectedUser.value = user;
