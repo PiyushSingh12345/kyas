@@ -202,7 +202,9 @@
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
                   <label for="email2">Password</label>
-                  <input type="password" v-model="form.password" class="form-control" placeholder="Enter Password" name="password" id="password">
+                  <!-- <input type="password" v-model="form.password" class="form-control" placeholder="Enter Password" name="password" id="password"> -->
+                  <input type="password" v-model="form.password" class="form-control" placeholder="Leave blank to keep current password" name="password" id="password" autocomplete="new-password">
+
                 </div>
               </div>
               
@@ -463,7 +465,7 @@
     const getFilteredUserTypes = (program_division_id) => {
       const KY_TYPE_IDS = [1, 2];
       const selectedDivision = parseInt(program_division_id);
-console.log('Selected Division:', selectedDivision);
+// console.log('Selected Division:', selectedDivision);
       if (!selectedDivision) {
         // No division selected: show all user types
         return userTypes.value;

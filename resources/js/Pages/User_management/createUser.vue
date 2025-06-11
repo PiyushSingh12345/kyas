@@ -18,6 +18,9 @@
               <li class="nav-item"><a href="/user-create">Create User</a></li>
             </ul>
           </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <a href="/user-listing" class="btn btn-primary float-right">Edit User</a>
+          </div>
           <div class="page-message">
             <h2 class="showmsg text-success"></h2>
             <h2 class="showerror text-danger"></h2>
