@@ -33,12 +33,14 @@
 
               <li class="nav-item active">
                 <!-- <a data-bs-toggle="collapse" href="/user-listing" class="collapsed" aria-expanded="false"> -->
-                <a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
+                <!-- <a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false"> -->
+                <a href="#" @click.prevent="toggleMenu('dashboard')">
                   <i class="fas fa-home"></i>
                   <p>User Management</p>
-                  <span class="caret"></span>
+                  <span class="caret" :class="{ rotated: activeMenu === 'dashboard' }"></span>
                 </a>
-                <div class="collapse" id="dashboard">
+                <!-- <div class="collapse" id="dashboard"> -->
+                <div v-show="activeMenu === 'dashboard'">
                   <ul class="nav nav-collapse">
 
                     <li>
@@ -61,14 +63,42 @@
                   </ul>
                 </div>
               </li>
+
+              <!-- Daily Sanction Module -->
+            <li class="nav-item ">
+              <!-- <a data-bs-toggle="collapse" href="#daily-sanction" class="collapsed" aria-expanded="false"> -->
+              <a href="#" @click.prevent="toggleMenu('daily-sanction')">
+                <i class="fas fa-pen-square"></i>
+                <p>Daily Sanction Module</p>
+                <span class="caret" :class="{ rotated: activeMenu === 'daily-sanction' }"></span>
+              </a>
+              <!-- <div class="collapse" id="daily-sanction"> -->
+              <div v-show="activeMenu === 'daily-sanction'">
+                <ul class="nav nav-collapse">
+                  <li>
+                    <Link :href="route('daily-sanction')" class="nav-link">
+                      <span class="sub-item">Daily Sanction Form</span>
+                    </Link>
+                  </li>
+                  <!-- <li>
+                    <Link :href="route('fund-allocation')" class="nav-link">
+                      <span class="sub-item">Fund Allocation</span>
+                    </Link>
+                  </li> -->
+                </ul>
+              </div>
+            </li>
+
+
+
               <!-- Budget Allocation Module -->
             <li class="nav-item ">
-              <a data-bs-toggle="collapse" href="#budget" class="collapsed" aria-expanded="false">
+              <a href="#" @click.prevent="toggleMenu('budget')">
                 <i class="fas fa-pen-square"></i>
                 <p>Budget Allocation Module</p>
-                <span class="caret"></span>
+                <span class="caret" :class="{ rotated: activeMenu === 'budget' }"></span>
               </a>
-              <div class="collapse" id="budget">
+              <div v-show="activeMenu === 'budget'">
                 <ul class="nav nav-collapse">
                   <li>
                     <Link :href="route('budget-phase')" class="nav-link">
@@ -89,12 +119,12 @@
 
             <!-- Budget Head -->
             <li class="nav-item">
-              <a data-bs-toggle="collapse" href="#base">
+              <a href="#" @click.prevent="toggleMenu('base')">
                 <i class="fas fa-layer-group"></i>
                 <p>Budget Head</p>
-                <span class="caret"></span>
+                <span class="caret" :class="{ rotated: activeMenu === 'base' }"></span>
               </a>
-              <div class="collapse" id="base">
+              <div v-show="activeMenu === 'base'">
                 <ul class="nav nav-collapse">
                   <li><a href="/components/avatars"><span class="sub-item">Budget Heads</span></a></li>
                   <li><a href="/components/buttons"><span class="sub-item">State/UTs</span></a></li>
@@ -156,6 +186,18 @@
     </div>
 </template>
 
-<script setup>
+<!-- <script setup>
 import { Link } from '@inertiajs/vue3'
+</script> -->
+<script setup>
+import { ref } from 'vue'
+import { Link } from '@inertiajs/vue3'
+
+const activeMenu = ref('') // This will store the ID of the currently open menu
+
+// Toggle menu on click
+const toggleMenu = (menuId) => {
+  activeMenu.value = activeMenu.value === menuId ? '' : menuId
+}
 </script>
+

@@ -184,7 +184,7 @@
                 <div class="form-group">
                   <label for="email">Email id.</label>
                   <input type="email" v-model="form.email" class="form-control" name="email" id="email"
-                    placeholder="Enter Email Id">
+                    placeholder="Enter Email Id" autocomplete="username">
                 </div>
               </div>
               <div class="col-md-6 col-lg-4">
@@ -266,7 +266,7 @@
 <script setup>
   import { ref, onMounted, computed, watch } from 'vue'
   import axios from 'axios'
-  import { useForm } from '@inertiajs/vue3'
+  import { useForm, usePage, router } from '@inertiajs/vue3'
 
   import Header from '../Common/Header.vue'
   import Sidebar from '../Common/Sidebar.vue'
@@ -521,8 +521,11 @@
     };
 
     const submitEditForm = () => {
+
       form.put(`/users/${form.id}`, {
+        preserveScroll: true,
         onSuccess: () => {
+
           // closeEditFormModal();
           // const modal = bootstrap.Modal.getInstance(document.getElementById('myModal'));
           // modal.hide();

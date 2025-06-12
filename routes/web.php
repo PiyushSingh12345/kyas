@@ -34,6 +34,10 @@ Route::get('/user-listing', function () {
 
 //Budget Allocation Module
 
+Route::get('/daily-sanction', function () {
+    return Inertia::render('Budget_allocation/DailySanction');
+})->middleware(['auth', 'verified'])->name('daily-sanction');
+
 Route::get('/budget-phase', function () {
     return Inertia::render('Budget_allocation/BudgetPhase');
 })->middleware(['auth', 'verified'])->name('budget-phase');
