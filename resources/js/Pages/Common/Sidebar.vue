@@ -1,11 +1,8 @@
 <template>
   <div class="sidebar">
     <div class="sidebar-logo">
-      <!-- Logo Header -->
       <div class="logo-header">
-        <a href="/login" class="logo">
-          KY Automation System
-        </a>
+        <a href="/login" class="logo">KY Automation System</a>
         <div class="nav-toggle">
           <button class="btn btn-toggle toggle-sidebar">
             <i class="gg-menu-right"></i>
@@ -23,38 +20,26 @@
     <div class="sidebar-wrapper scrollbar scrollbar-inner">
       <div class="sidebar-content">
         <ul class="nav nav-secondary">
-          
+
           <!-- User Management -->
-          <li class="nav-item active">
-            <a data-bs-toggle="collapse" href="#userManagement" class="collapsed" aria-expanded="false">
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="collapse" href="#userManagement" role="button" aria-expanded="false" aria-controls="userManagement">
               <i class="fas fa-home"></i>
               <p>User Management</p>
               <span class="caret"></span>
             </a>
             <div class="collapse" id="userManagement">
               <ul class="nav nav-collapse">
-                <li>
-                  <a href="/dashboard">
-                    <span class="sub-item">Dashboard</span>
-                  </a>
-                </li>
-                <li>
-                  <a href="/create-user">
-                    <span class="sub-item">Create User</span>
-                  </a>
-                </li>
-                <li>
-                  <a href="/update-user">
-                    <span class="sub-item">Update/Delete User</span>
-                  </a>
-                </li>
+                <li><a href="/dashboard"><span class="sub-item">Dashboard</span></a></li>
+                <li><a href="/create-user"><span class="sub-item">Create User</span></a></li>
+                <li><a href="/update-user"><span class="sub-item">Update/Delete User</span></a></li>
               </ul>
             </div>
           </li>
 
           <!-- Budget Allocation Module -->
-          <li class="nav-item ">
-            <a data-bs-toggle="collapse" href="#budget" class="collapsed" aria-expanded="false">
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="collapse" href="#budget" role="button" aria-expanded="false" aria-controls="budget">
               <i class="fas fa-pen-square"></i>
               <p>Budget Allocation Module</p>
               <span class="caret"></span>
@@ -75,12 +60,9 @@
             </div>
           </li>
 
-         
-      
-
           <!-- Budget Head -->
           <li class="nav-item">
-            <a data-bs-toggle="collapse" href="#base">
+            <a class="nav-link" data-bs-toggle="collapse" href="#base" role="button" aria-expanded="false" aria-controls="base">
               <i class="fas fa-layer-group"></i>
               <p>Budget Head</p>
               <span class="caret"></span>
@@ -94,35 +76,19 @@
             </div>
           </li>
 
-          <!-- States Tagging -->
-          <!-- <li class="nav-item">
-            <a data-bs-toggle="collapse" href="#forms">
+          <!-- Mother Sanction -->
+          <li class="nav-item">
+            <Link :href="route('mother-sanction-list')" class="nav-link">
               <i class="fas fa-pen-square"></i>
-              <p>States Tagging</p>
-              <span class="caret"></span>
-            </a>
-            <div class="collapse" id="forms">
-              <ul class="nav nav-collapse">
-                <li><a href="/forms/forms"><span class="sub-item">Link 1</span></a></li>
-              </ul>
-            </div>
-          </li>-->
-
-          <!-- Admin List -->
-         <!-- <li class="nav-item">
-            <a data-bs-toggle="collapse" href="#tables">
-              <i class="fas fa-table"></i>
-              <p>Admin List</p>
-              <span class="caret"></span>
-            </a>
-            <div class="collapse" id="tables">
-              <ul class="nav nav-collapse">
-                <li><a href="/tables/basic"><span class="sub-item">Basic Table</span></a></li>
-                <li><a href="/tables/datatables"><span class="sub-item">Datatables</span></a></li>
-              </ul>
-            </div>
-          </li>-->
-
+              <p>Mother Sanction Module</p>
+            </Link>
+          </li>
+          <li class="nav-item active">
+                <Link :href="route('daily-sanction-list')" class="nav-link">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Daily Sanction Module</p>
+                </Link>
+          </li>
         </ul>
       </div>
     </div>
@@ -131,4 +97,12 @@
 
 <script setup>
 import { Link } from '@inertiajs/vue3'
+import { onMounted } from 'vue'
+import Collapse from 'bootstrap/js/dist/collapse'
+
+onMounted(() => {
+  document.querySelectorAll('.collapse').forEach(el => {
+    new Collapse(el, { toggle: false })
+  })
+})
 </script>

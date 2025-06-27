@@ -26,4 +26,8 @@ class StateController extends Controller
         return redirect()->back()->with('success', 'State added successfully!');
 
     }
+    public function getStatesApi()
+    {
+        return response()->json(State::all());
+    }
 }
