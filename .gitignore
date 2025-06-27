@@ -17,6 +17,7 @@ npm-debug.log
 yarn-error.log
 package-lock.json
 package.json
+public/index.php
 vite.config.js
 /auth.json
 /.fleet
