@@ -190,8 +190,10 @@
 import { Link } from '@inertiajs/vue3'
 </script> -->
 <script setup>
-import { ref } from 'vue'
+// import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+// import Collapse from 'bootstrap/js/dist/collapse'
 
 const activeMenu = ref('') // This will store the ID of the currently open menu
 
@@ -199,5 +201,12 @@ const activeMenu = ref('') // This will store the ID of the currently open menu
 const toggleMenu = (menuId) => {
   activeMenu.value = activeMenu.value === menuId ? '' : menuId
 }
+import Collapse from 'bootstrap/js/dist/collapse'
+
+onMounted(() => {
+  document.querySelectorAll('.collapse').forEach(el => {
+    new Collapse(el, { toggle: false })
+  })
+})
 </script>
 
