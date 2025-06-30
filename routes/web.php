@@ -39,9 +39,9 @@ Route::get('/user-listing', function () {
 
 //Budget Allocation Module
 
-Route::get('/daily-sanction', function () {
-    return Inertia::render('Budget_allocation/DailySanction');
-})->middleware(['auth', 'verified'])->name('daily-sanction');
+// Route::get('/daily-sanction', function () {
+//     return Inertia::render('Budget_allocation/DailySanction');
+// })->middleware(['auth', 'verified'])->name('daily-sanction');
 
 Route::get('/budget-phase', function () {
     return Inertia::render('Budget_allocation/BudgetPhase');
@@ -73,9 +73,9 @@ Route::get('/daily-sanction-list', function () {
     return Inertia::render('Daily_sanction/DailySanctionList');
 })->middleware(['auth', 'verified'])->name('daily-sanction-list');
 
-// Route::get('/daily-sanction', function () {
-//     return Inertia::render('Daily_sanction/DailySanction');
-// })->middleware(['auth', 'verified'])->name('dily-sanction');
+Route::get('/daily-sanction', function () {
+    return Inertia::render('Daily_sanction/DailySanction');
+})->middleware(['auth', 'verified'])->name('daily-sanction');
 
 
 Route::middleware('auth')->group(function () {
@@ -107,7 +107,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/states', [StateController::class, 'getStatesApi']);
 
     Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
-    Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocation.store');
+    Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocaAtion.store');
 
     Route::get('/api/sls-data/{stateId}', [MotherSanctionController::class, 'getSlsData']);
 
@@ -121,9 +121,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/api/mother-sanctions', [DailySanctionController::class, 'getMotherSanctions']);
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
-    // Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
+    Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
 
-    //   Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
+      Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
 
 
 
