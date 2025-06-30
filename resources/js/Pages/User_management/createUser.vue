@@ -281,21 +281,21 @@
 
 
     //  Core JS Files
-	// useScriptTag("assets/js/core/jquery-3.7.1.min.js");
-	// useScriptTag("assets/js/core/jquery-3.7.1.min.js");
-	// useScriptTag("assets/js/core/popper.min.js");
-	// useScriptTag("assets/js/core/bootstrap.min.js");
+  // useScriptTag("assets/js/core/jquery-3.7.1.min.js");
+  // useScriptTag("assets/js/core/jquery-3.7.1.min.js");
+  // useScriptTag("assets/js/core/popper.min.js");
+  // useScriptTag("assets/js/core/bootstrap.min.js");
 
-	// // jQuery Scrollbar
-	// useScriptTag("assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js");
+  // // jQuery Scrollbar
+  // useScriptTag("assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js");
 
 
-	// // Kaiadmin JS
-	// useScriptTag("assets/js/kaiadmin.min.js");
+  // // Kaiadmin JS
+  // useScriptTag("assets/js/kaiadmin.min.js");
 
-	// // Kaiadmin DEMO methods, don't include it in your project!
-	// useScriptTag("assets/js/setting-demo.js");
-	// useScriptTag("assets/js/demo.js");
+  // // Kaiadmin DEMO methods, don't include it in your project!
+  // useScriptTag("assets/js/setting-demo.js");
+  // useScriptTag("assets/js/demo.js");
 
     
 

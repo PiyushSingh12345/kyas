@@ -47,8 +47,8 @@
                         <select class="form-select" id="budgetPhase" v-model="selectedPhase" @change="fetchBudgetHeads">
                           <option disabled value="0">Select Budget Phase</option>
                           <option value="BE">BE</option>
-                          <option value="FE">FE</option>
                           <option value="RE">RE</option>
+                          <option value="FE">FE</option>
                         </select>
                       </div>
                     </div>
@@ -166,7 +166,7 @@ export default {
 
     const saveAsDraft = () => {
       const allocations = filteredBudgetHeads.value
-        .filter(item => item.draft_flag === 0)
+        .filter(item => item.draft_flag === 0 && item.amount !== null && item.amount !== '' && item.amount !== undefined)
         .map(item => ({
           financial_year: financialYear.value,
           budget_phase: selectedPhase.value,
@@ -176,31 +176,40 @@ export default {
           draft_flag: 0
         }))
 
-      router.post(route('budget-phase.store'), { allocations }, {
-        onSuccess: () => {
-          isSubmitted.value = false
-        }
-      })
-    }
-
-    const submit = () => {
-      const allocations = filteredBudgetHeads.value
-        .filter(item => item.draft_flag === 0)
-        .map(item => ({
-          financial_year: financialYear.value,
-          budget_phase: selectedPhase.value,
-          budget_head_id: item.id,
-          budget_amount: item.amount,
-          status: 1,
-          draft_flag: 1
-        }))
+      console.log("Filtered draft allocations:", allocations)
 
       router.post(route('budget-phase.store'), { allocations }, {
+        preserveScroll: true,
         onSuccess: () => {
           isSubmitted.value = true
+        },
+        onError: (errors) => {
+          console.error("Validation errors:", errors);
         }
       })
     }
+
+
+  const submit = () => {
+    const allocations = filteredBudgetHeads.value
+      .filter(item => item.draft_flag === 0 && item.amount !== null && item.amount !== '' && item.amount !== undefined)
+      .map(item => ({
+        financial_year: financialYear.value,
+        budget_phase: selectedPhase.value,
+        budget_head_id: item.id,
+        budget_amount: item.amount,
+        status: 1,
+        draft_flag: 1
+      }))
+
+    console.log("Filtered submitted allocations:", allocations)
+
+    router.post(route('budget-phase.store'), { allocations }, {
+      onSuccess: () => {
+        isSubmitted.value = true
+      }
+    })
+  }
 
 
     const reset = () => {

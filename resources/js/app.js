@@ -32,25 +32,9 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
-import WebFont from 'webfontloader';
 
-WebFont.load({
-  google: {
-    families: ['Public Sans:300,400,500,600,700'],
-  },
-  custom: {
-    families: [ 
-      'Font Awesome 5 Solid',
-      'Font Awesome 5 Regular',
-      'Font Awesome 5 Brands',
-      'simple-line-icons',
-    ],
-    urls: ['/assets/css/fonts.min.css'],
-  },
-  active() {
-    sessionStorage.fonts = true;
-  },
-});
+
+
 const link = document.createElement('link')
 link.rel = 'stylesheet'
 link.href = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css'

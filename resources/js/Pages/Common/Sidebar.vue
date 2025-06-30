@@ -132,6 +132,20 @@
                 </ul>
               </div>
             </li>
+
+            <!-- Mother Sanction -->
+          <li class="nav-item">
+            <Link :href="route('mother-sanction-list')" class="nav-link">
+              <i class="fas fa-pen-square"></i>
+              <p>Mother Sanction Module</p>
+            </Link>
+          </li>
+          <li class="nav-item active">
+                <Link :href="route('daily-sanction-list')" class="nav-link">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Daily Sanction Module</p>
+                </Link>
+          </li>
               <!-- <li class="nav-section">
                 <span class="sidebar-mini-icon">
                   <i class="fa fa-ellipsis-h"></i>
@@ -190,8 +204,9 @@
 import { Link } from '@inertiajs/vue3'
 </script> -->
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
+// import Collapse from 'bootstrap/js/dist/collapse'
 
 const activeMenu = ref('') // This will store the ID of the currently open menu
 
@@ -199,5 +214,13 @@ const activeMenu = ref('') // This will store the ID of the currently open menu
 const toggleMenu = (menuId) => {
   activeMenu.value = activeMenu.value === menuId ? '' : menuId
 }
+
+
+
+onMounted(() => {
+  document.querySelectorAll('.collapse').forEach(el => {
+    new Collapse(el, { toggle: false })
+  })
+})
 </script>
 

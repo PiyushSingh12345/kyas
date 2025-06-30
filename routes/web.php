@@ -7,6 +7,10 @@ use App\Models\MdUserType;
 use App\Http\Controllers\StateController;
 use App\Http\Controllers\BudgetHeadController;
 use App\Http\Controllers\BudgetPhaseController;
+use App\Http\Controllers\SlsPDComponentController;
+use App\Http\Controllers\FundAllocationController;
+use App\Http\Controllers\MotherSanctionController;
+use App\Http\Controllers\DailySanctionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -58,8 +62,21 @@ Route::get('/state-uts', function () {
 Route::get('/state-uts-pd', function () {
     return Inertia::render('Budget_allocation/StateUTsPD');
 })->middleware(['auth', 'verified'])->name('state-uts-pd');
+Route::get('/mother-sanction', function () {
+    return Inertia::render('mother_sanction/MotherSanction');
+})->middleware(['auth', 'verified'])->name('mother-sanction');
+Route::get('/mother-sanction-list', function () {
+    return Inertia::render('mother_sanction/MotherSanctionList');
+})->middleware(['auth', 'verified'])->name('mother-sanction-list');
 
+Route::get('/daily-sanction-list', function () {
+    return Inertia::render('Daily_sanction/DailySanctionList');
+})->middleware(['auth', 'verified'])->name('daily-sanction-list');
 
+// Route::get('/daily-sanction', function () {
+//     return Inertia::render('Daily_sanction/DailySanction');
+// })->middleware(['auth', 'verified'])->name('dily-sanction');
+// zip_entry_name()
 
 Route::middleware('auth')->group(function () {
 
@@ -84,6 +101,31 @@ Route::middleware('auth')->group(function () {
     Route::post('/budget-phase', [BudgetPhaseController::class, 'store'])->name('budget-phase.store');
 
     Route::get('/api/budget-allocation', [BudgetPhaseController::class, 'fetchActiveBudgetAllocation']);
+
+    Route::get('/pd-sls-list', [SlsPDComponentController::class, 'index'])->name('pd-sls.list');
+    Route::post('/pd-sls-store', [SlsPDComponentController::class, 'store'])->name('pd-sls.store');
+    Route::get('/api/states', [StateController::class, 'getStatesApi']);
+
+    Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
+    Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocation.store');
+
+    Route::get('/api/sls-data/{stateId}', [MotherSanctionController::class, 'getSlsData']);
+
+    Route::get('/api/fund-allocation/{slsId}/{stateId}', [MotherSanctionController::class, 'getFundAllocationData']);
+
+    Route::get('/api/fund-allocation/by-budget', [MotherSanctionController::class, 'getFundAllocationByBudgetHead']);
+
+    Route::post('/api/mother-sanction', [MotherSanctionController::class, 'addMotherSanction'])->name('addMotherSanction');
+
+    Route::get('/api/mother-sanctions-list', [MotherSanctionController::class, 'list'])->name('motherSanctions.list');
+
+    Route::get('/api/mother-sanctions', [DailySanctionController::class, 'getMotherSanctions']);
+    Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
+    // Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
+
+    //   Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
+
+
 
 
 

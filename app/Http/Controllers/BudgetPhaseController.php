@@ -13,6 +13,7 @@ class BudgetPhaseController extends Controller
     // Fetch only active budget heads (status = 1)
     public function fetchActiveBudgetHeads(Request $request)
     {
+
         $phase = $request->query('phase'); // BE/FE/RE
         $year = $request->query('year');   // 2024-2025
 
@@ -100,18 +101,19 @@ class BudgetPhaseController extends Controller
     // Store budget allocation (as draft or final)
     public function store(Request $request)
     {
-
-
+       
 
         $validated = $request->validate([
             'allocations' => 'required|array',
-            'allocations.*.financial_year' => 'required|string',
+            'allocations.*.financial_year' => 'required|string|regex:/^\d{4}-\d{4}$/',
+
             'allocations.*.budget_phase' => 'required|string', // ✅ Add this line
             'allocations.*.budget_head_id' => 'required|exists:budget_heads,id',
             'allocations.*.budget_amount' => 'required|numeric|min:0',
             'allocations.*.status' => 'required|in:0,1',
             'allocations.*.draft_flag' => 'required|in:0,1',
         ]);
+        print_r($validated);
         
         DB::beginTransaction();
         try {
@@ -129,9 +131,12 @@ class BudgetPhaseController extends Controller
                     ]
                 );
             }
-            DB::commit();
+            \Log::info('Saving allocation:', $allocation);
 
-            return back()->with('success', $validated['allocations'][0]['draft_flag'] ? 'Budget submitted successfully.' : 'Draft saved successfully.');
+            DB::commit();
+            \Log::info('Budget saved successfully.');
+
+            return redirect()->back()->with('success', $validated['allocations'][0]['draft_flag'] ? 'Budget submitted successfully.' : 'Draft saved successfully.');
         } catch (\Exception $e) {
             \Log::error('Exception occurred while saving budget:', [
         'message' => $e->getMessage(),
@@ -141,5 +146,9 @@ class BudgetPhaseController extends Controller
             DB::rollBack();
             return back()->with('error', 'Something went wrong. Please try again.');
         }
+    }
+
+    public function addBudget(Request $request){
+        echo "efwkfhkw";
     }
 }
