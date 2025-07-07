@@ -132,6 +132,20 @@
                 </ul>
               </div>
             </li>
+
+            <!-- Mother Sanction -->
+          <li class="nav-item">
+            <Link :href="route('mother-sanction-list')" class="nav-link">
+              <i class="fas fa-pen-square"></i>
+              <p>Mother Sanction Module</p>
+            </Link>
+          </li>
+          <li class="nav-item active">
+                <Link :href="route('daily-sanction-list')" class="nav-link">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Daily Sanction Module</p>
+                </Link>
+          </li>
               <!-- <li class="nav-section">
                 <span class="sidebar-mini-icon">
                   <i class="fa fa-ellipsis-h"></i>
