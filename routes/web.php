@@ -39,13 +39,13 @@ Route::get('/user-listing', function () {
 
 //Budget Allocation Module
 
-Route::get('/daily-sanction', function () {
-    return Inertia::render('Budget_allocation/DailySanction');
-})->middleware(['auth', 'verified'])->name('daily-sanction');
-
 Route::get('/budget-phase', function () {
     return Inertia::render('Budget_allocation/BudgetPhase');
 })->middleware(['auth', 'verified'])->name('budget-phase');
+
+Route::get('/budget-phase-report', function () {
+    return Inertia::render('Reports/BudgetPhaseReport');
+})->middleware(['auth', 'verified'])->name('budget-phase-report');
 
 Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
@@ -62,9 +62,15 @@ Route::get('/state-uts', function () {
 Route::get('/state-uts-pd', function () {
     return Inertia::render('Budget_allocation/StateUTsPD');
 })->middleware(['auth', 'verified'])->name('state-uts-pd');
+
 Route::get('/mother-sanction', function () {
     return Inertia::render('mother_sanction/MotherSanction');
 })->middleware(['auth', 'verified'])->name('mother-sanction');
+
+Route::get('/mother-sanction-report', function () {
+    return Inertia::render('Reports/MotherSanctionReport');
+})->middleware(['auth', 'verified'])->name('mother-sanction-report');
+
 Route::get('/mother-sanction-list', function () {
     return Inertia::render('mother_sanction/MotherSanctionList');
 })->middleware(['auth', 'verified'])->name('mother-sanction-list');
@@ -73,10 +79,10 @@ Route::get('/daily-sanction-list', function () {
     return Inertia::render('Daily_sanction/DailySanctionList');
 })->middleware(['auth', 'verified'])->name('daily-sanction-list');
 
-// Route::get('/daily-sanction', function () {
-//     return Inertia::render('Daily_sanction/DailySanction');
-// })->middleware(['auth', 'verified'])->name('dily-sanction');
-// zip_entry_name()
+Route::get('/daily-sanction', function () {
+    return Inertia::render('Daily_sanction/DailySanction');
+})->middleware(['auth', 'verified'])->name('daily-sanction');
+
 
 Route::middleware('auth')->group(function () {
 
@@ -121,16 +127,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/api/mother-sanctions', [DailySanctionController::class, 'getMotherSanctions']);
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
-    // Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
+    Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
 
-    //   Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
-
-
-
-
-
-
-});
+      Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
+    
+    });
 
 Route::resource('users', UserController::class);
 Route::post('/users', [UserController::class, 'store']);

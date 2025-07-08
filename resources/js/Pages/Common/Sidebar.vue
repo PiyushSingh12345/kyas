@@ -1,7 +1,7 @@
 <template>
-	<!-- Sidebar -->
-		<div class="sidebar">
-			<div class="sidebar-logo">
+  <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-logo">
 
       <!-- Sidebar -->
       <div class="sidebar">
@@ -64,7 +64,7 @@
                 </div>
               </li>
 
-              <!-- Daily Sanction Module -->
+            <!-- Daily Sanction Module -->
             <li class="nav-item ">
               <!-- <a data-bs-toggle="collapse" href="#daily-sanction" class="collapsed" aria-expanded="false"> -->
               <a href="#" @click.prevent="toggleMenu('daily-sanction')">
@@ -126,15 +126,17 @@
               </a>
               <div v-show="activeMenu === 'base'">
                 <ul class="nav nav-collapse">
-                  <li><a href="/components/avatars"><span class="sub-item">Budget Heads</span></a></li>
-                  <li><a href="/components/buttons"><span class="sub-item">State/UTs</span></a></li>
-                  <li><a href="/components/buttons"><span class="sub-item">States/UTs-PD/Component</span></a></li>
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Heads</span></Link></li>
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
+                  
+                  <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">State/UTs</span></Link></li>
+                  <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">States/UTs-PD/Component</span></Link></li>
                 </ul>
               </div>
             </li>
 
             <!-- Mother Sanction -->
-          <li class="nav-item">
+            <li class="nav-item">
             <Link :href="route('mother-sanction-list')" class="nav-link">
               <i class="fas fa-pen-square"></i>
               <p>Mother Sanction Module</p>
@@ -146,50 +148,30 @@
                   <p>Daily Sanction Module</p>
                 </Link>
           </li>
-              <!-- <li class="nav-section">
-                <span class="sidebar-mini-icon">
-                  <i class="fa fa-ellipsis-h"></i>
-                </span>
-                <h4 class="text-section">Components</h4>
-              </li> -->
-              
-              <!-- <li class="nav-item">
-                <a data-bs-toggle="collapse" href="#forms">
-                  <i class="fas fa-pen-square"></i>
-                  <p>States Tagging</p>
-                  <span class="caret"></span>
-                </a>
-                <div class="collapse" id="forms">
-                  <ul class="nav nav-collapse">
-                    <li>
-                      <a href="forms/forms.html">
-                        <span class="sub-item">Link 1</span>
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </li> -->
-              <!-- <li class="nav-item">
-                <a data-bs-toggle="collapse" href="#tables">
-                  <i class="fas fa-table"></i>
-                  <p>Admin List</p>
-                  <span class="caret"></span>
-                </a>
-                <div class="collapse" id="tables">
-                  <ul class="nav nav-collapse">
-                    <li>
-                      <a href="tables/tables.html">
-                        <span class="sub-item">Basic Table</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="tables/datatables.html">
-                        <span class="sub-item">Datatables</span>
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </li> -->
+
+
+
+           <li class="nav-item">
+              <a href="#" @click.prevent="toggleMenu('reports')">
+                <i class="fas fa-layer-group"></i>
+                <p>MIS Reports &amp; Dashboards</p>
+                <span class="caret" :class="{ rotated: activeMenu === 'reports' }"></span>
+              </a>
+              <div v-show="activeMenu === 'reports'">
+                <ul class="nav nav-collapse">
+                  <li><Link :href="route('budget-phase-report')" class="nav-link"><span class="sub-item">Budget phases Summary Report</span></Link></li>
+                  <li><Link :href="route('mother-sanction-report')" class="nav-link"><span class="sub-item">Mother Sanction Summary</span></Link></li>
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Fund Allocation Report</span></Link></li>
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">RoG Report</span></Link></li>
+                  
+                  <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
+                  <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">Mother Sanction List</span></Link></li>
+                </ul>
+              </div>
+            </li>
+
+            
+         
             </ul>
           </div>
         </div>
