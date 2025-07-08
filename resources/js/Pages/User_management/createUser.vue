@@ -254,30 +254,40 @@
       } catch (error) {
         console.error('Failed to fetch user types', error)
       }
+
+      try {
+        const response = await axios.get('/api/user-counts');
+        const data = response.data;
+        statsCards.value[0].count = data.total_users;
+        statsCards.value[1].count = data.total_pd_users;
+        statsCards.value[2].count = data.total_ky_users;
+      } catch (error) {
+        console.error('Failed to fetch user counts', error);
+      }
     })
     
 
     // Dashboard card data
-    const statsCards = [
+    const statsCards = ref([
       {
         title: 'Total User',
-        count: '1,294',
+        count: '-',
         icon: 'fas fa-users',
         iconColor: 'icon-primary',
       },
       {
         title: 'Total PD Users',
-        count: '1,303',
+        count: '-',
         icon: 'fas fa-user-check',
         iconColor: 'icon-info',
       },
       {
         title: 'Total KY Division Users',
-        count: '1,345',
+        count: '-',
         icon: 'fas fa-luggage-cart',
         iconColor: 'icon-success',
       },
-    ]
+    ]);
 
 
     //  Core JS Files

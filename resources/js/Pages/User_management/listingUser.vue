@@ -295,26 +295,26 @@
   const userTypes = ref([])
 
   // Dashboard card data
-  const statsCards = [
+  const statsCards = ref([
     {
       title: 'Total User',
-      count: '1,294',
+      count: '-',
       icon: 'fas fa-users',
       iconColor: 'icon-primary',
     },
     {
       title: 'Total PD Users',
-      count: '1,303',
+      count: '-',
       icon: 'fas fa-user-check',
       iconColor: 'icon-info',
     },
     {
       title: 'Total KY Division Users',
-      count: '1,345',
+      count: '-',
       icon: 'fas fa-luggage-cart',
       iconColor: 'icon-success',
     },
-  ]
+  ]);
 
   // Fetch users from API
   const getUsers = async () => {
@@ -375,6 +375,8 @@
       fetchUsers();
       fetchProgramDivisions();
       fetchUserTypes();
+      // Fetch user counts for dashboard
+      fetchUserCounts();
     });
 
     const fetchUsers = async () => {
@@ -592,5 +594,17 @@
         // closeEditFormModal();
         showMessage('Failed to delete user.', 'danger');
       });
+  };
+
+  const fetchUserCounts = async () => {
+    try {
+      const response = await axios.get('/api/user-counts');
+      const data = response.data;
+      statsCards.value[0].count = data.total_users;
+      statsCards.value[1].count = data.total_pd_users;
+      statsCards.value[2].count = data.total_ky_users;
+    } catch (error) {
+      console.error('Failed to fetch user counts:', error);
+    }
   };
 </script>

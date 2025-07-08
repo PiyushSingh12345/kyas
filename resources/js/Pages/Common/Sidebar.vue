@@ -205,4 +205,11 @@ onMounted(() => {
   })
 })
 </script>
+<style>
+.sidebar-logo .logo-header .logo {
+    /* font-size: 15px; */
+    /* width: 170px; */
+    width: 100%;
+}
+</style>
 

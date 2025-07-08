@@ -28,7 +28,7 @@
                 <div class="card">
                   <div class="card-header">
                     <div class="card-title">Daily Sanction List</div>
-                     <Link :href="route('dily-sanction')" class="btn btn-primary me-1" style="margin-left:91%">ADD</Link>
+                     <Link :href="route('daily-sanction')" class="btn btn-primary me-1" style="margin-left:91%">ADD</Link>
 
                   </div>
                   <div class="card-body">

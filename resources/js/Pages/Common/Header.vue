@@ -117,9 +117,9 @@ import DropdownLink from '@/Components/DropdownLink.vue';
                       </a>
                     </li>
                   </ul> -->
-				  				<div class="avatar-sm">
+				  				<!-- <div class="avatar-sm">
 									<img src="assets/img/profile.jpg" alt="..." class="avatar-img rounded-circle">
-								</div>
+								</div> -->
 							</li>
 
 							<li class="nav-item topbar-user dropdown hidden-caret">

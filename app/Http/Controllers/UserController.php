@@ -287,5 +287,23 @@ class UserController extends Controller
         
     }
 
+    /**
+     * Return user counts for dashboard blocks.
+     */
+    public function userCounts()
+    {
+        $KY_DIVISION_ID = 1;
+
+        $totalUsers = User::count();
+        $totalKYUsers = User::where('program_division_id', $KY_DIVISION_ID)->count();
+        $totalPDUsers = User::where('program_division_id', '!=', $KY_DIVISION_ID)->count();
+
+        return response()->json([
+            'total_users' => $totalUsers,
+            'total_pd_users' => $totalPDUsers,
+            'total_ky_users' => $totalKYUsers,
+        ]);
+    }
+
 
 }

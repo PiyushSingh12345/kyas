@@ -139,6 +139,7 @@ Route::post('/users', [UserController::class, 'store']);
 // Route::get('/users', [UserController::class, 'index'])->name('users.index');
 Route::get('/users', [UserController::class, 'index'])->middleware(['auth', 'verified'])->name('users.index');
 
+Route::get('/api/user-counts', [UserController::class, 'userCounts']);
 
 // Route::get('/md-program-divisions', function () {
 //     return \App\Models\MdProgramDivision::select('id', 'name')->get();
