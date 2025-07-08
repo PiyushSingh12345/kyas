@@ -101,6 +101,7 @@ public function list()
 
     if ($request->hasFile('uc_file_path')) {
         $ucFilePath = $request->file('uc_file_path')->store('mother_sanction', 'public');
+
     }
 
     if ($request->hasFile('signed_copy_path')) {
@@ -151,6 +152,28 @@ public function list()
         'message' => 'Data saved successfully',
         'last_id' => $lastInserted ? $lastInserted: null
     ]);
+}
+
+public function motherSanctionData(Request $req){
+      $query = MotherSanction::query();
+
+    if ($req->filled('year')) {
+        $query->where('financial_year', $req->year);
+    }
+    if ($req->filled('state_id')) {
+        $query->where('state_id', $req->state_id);
+    }
+    if ($req->filled('sanction_date')) {
+        $query->where('sanction_date', $req->sanction_date);
+    }
+    if ($req->filled('ky_ms_no')) {
+        $query->where('ky_ms_no', $req->ky_ms_no);
+    }
+
+    $data = $query->orderBy('sanction_date')->get();
+
+    return response()->json($data);
+
 }
 
 

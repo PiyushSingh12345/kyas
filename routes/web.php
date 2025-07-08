@@ -101,6 +101,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/budget-heads/{id}/toggle-status', [BudgetHeadController::class, 'toggleStatus'])->name('BudgetHead.toggleStatus');
 
     Route::get('/api/budget-heads', [BudgetHeadController::class, 'fetchBudgetHeads']);
+    Route::get('/api/budget-phase-summary', [BudgetPhaseController::class, 'budgetPhaseSummary']);
+
 
     Route::get('/api/budget-heads', [BudgetPhaseController::class, 'fetchActiveBudgetHeads']);
 
@@ -129,9 +131,15 @@ Route::middleware('auth')->group(function () {
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
     Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
 
-      Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
-    
-    });
+    Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
+
+    Route::get('/reports/mother-sanctions-data', [MotherSanctionController::class, 'motherSanctionData']);
+
+
+
+
+
+});
 
 Route::resource('users', UserController::class);
 Route::post('/users', [UserController::class, 'store']);
@@ -155,5 +163,8 @@ Route::get('/md-user-types', function () {
 
 Route::put('/users/{id}', [UserController::class, 'update']);
 Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+
+
 
 require __DIR__.'/auth.php';
