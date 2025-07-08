@@ -9,8 +9,9 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 					<!-- Logo Header -->
 					<div class="logo-header" data-background-color="dark">
 						<a href="index.html" class="logo">
-							<img src="assets/img/kaiadmin/logo_light.svg" alt="navbar brand" class="navbar-brand"
-								height="20">
+							<!-- <img src="assets/img/kaiadmin/logo_light.svg" alt="navbar brand" class="navbar-brand"
+								height="20"> -->
+								KY Automation System
 						</a>
 						<div class="nav-toggle">
 							<button class="btn btn-toggle toggle-sidebar">
@@ -216,3 +217,9 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 				<!-- End Navbar -->
 			</div>
 </template>
+
+<style>
+.main-header-logo a.logo {
+    width: 200px;
+}
+</style>
