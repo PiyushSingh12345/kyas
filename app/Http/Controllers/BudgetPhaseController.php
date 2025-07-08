@@ -54,6 +54,34 @@ class BudgetPhaseController extends Controller
         return response()->json($mergedData);
     }
 
+    public function budgetPhaseSummary(Request $request)
+    {
+        $year = $request->query('year');
+
+        // Get all active budget heads
+        $budgetHeads = BudgetHead::where('status', 1)->get();
+
+        // Fetch all phase-wise allocations for this year
+        $allocations = BudgetPhase::where('financial_year', $year)
+            ->where('status', 1)
+            ->get()
+            ->groupBy(['budget_head_id', 'budget_phase']); // Group by both head and phase
+
+        $result = $budgetHeads->map(function ($head) use ($allocations) {
+            return [
+                'id' => $head->id,
+                'budget' => $head->budget,
+                'description' => $head->description,
+                'be' => optional(optional($allocations[$head->id]['BE'] ?? [])[0])->budget_amount,
+                're' => optional(optional($allocations[$head->id]['RE'] ?? [])[0])->budget_amount,
+                'fe' => optional(optional($allocations[$head->id]['FE'] ?? [])[0])->budget_amount,
+            ];
+        });
+
+        return response()->json($result);
+    }
+
+
     public function fetchActiveBudgetAllocation(Request $request)
     {
         $financialYear = $request->query('financial_year');

@@ -42,6 +42,10 @@ Route::get('/budget-phase', function () {
     return Inertia::render('Budget_allocation/BudgetPhase');
 })->middleware(['auth', 'verified'])->name('budget-phase');
 
+Route::get('/budget-phase-report', function () {
+    return Inertia::render('Reports/BudgetPhaseReport');
+})->middleware(['auth', 'verified'])->name('budget-phase-report');
+
 Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
 })->middleware(['auth', 'verified'])->name('fund-allocation');
@@ -57,9 +61,15 @@ Route::get('/state-uts', function () {
 Route::get('/state-uts-pd', function () {
     return Inertia::render('Budget_allocation/StateUTsPD');
 })->middleware(['auth', 'verified'])->name('state-uts-pd');
+
 Route::get('/mother-sanction', function () {
     return Inertia::render('mother_sanction/MotherSanction');
 })->middleware(['auth', 'verified'])->name('mother-sanction');
+
+Route::get('/mother-sanction-report', function () {
+    return Inertia::render('Reports/MotherSanctionReport');
+})->middleware(['auth', 'verified'])->name('mother-sanction-report');
+
 Route::get('/mother-sanction-list', function () {
     return Inertia::render('mother_sanction/MotherSanctionList');
 })->middleware(['auth', 'verified'])->name('mother-sanction-list');
@@ -90,6 +100,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/budget-heads/{id}/toggle-status', [BudgetHeadController::class, 'toggleStatus'])->name('BudgetHead.toggleStatus');
 
     Route::get('/api/budget-heads', [BudgetHeadController::class, 'fetchBudgetHeads']);
+    Route::get('/api/budget-phase-summary', [BudgetPhaseController::class, 'budgetPhaseSummary']);
+
 
     Route::get('/api/budget-heads', [BudgetPhaseController::class, 'fetchActiveBudgetHeads']);
 
@@ -118,8 +130,9 @@ Route::middleware('auth')->group(function () {
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
     Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
 
-      Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
+    Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
 
+    Route::get('/reports/mother-sanctions-data', [MotherSanctionController::class, 'motherSanctionData']);
 
 
 
@@ -148,5 +161,8 @@ Route::get('/md-user-types', function () {
 
 Route::put('/users/{id}', [UserController::class, 'update']);
 Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+
+
 
 require __DIR__.'/auth.php';

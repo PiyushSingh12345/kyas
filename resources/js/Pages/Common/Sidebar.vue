@@ -1,83 +1,117 @@
 <template>
-  <div class="sidebar">
-    <div class="sidebar-logo">
-      <div class="logo-header">
-        <a href="/login" class="logo">KY Automation System</a>
-        <div class="nav-toggle">
-          <button class="btn btn-toggle toggle-sidebar">
-            <i class="gg-menu-right"></i>
-          </button>
-          <button class="btn btn-toggle sidenav-toggler">
-            <i class="gg-menu-left"></i>
-          </button>
+  <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-logo">
+
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-logo">
+
+          <!-- Logo Header -->
+          <div class="logo-header">
+            <a href="/user-listing" class="logo">
+              KY Automation System
+            </a>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar">
+                <i class="gg-menu-right"></i>
+              </button>
+              <button class="btn btn-toggle sidenav-toggler">
+                <i class="gg-menu-left"></i>
+              </button>
+            </div>
+            <button class="topbar-toggler more">
+              <i class="gg-more-vertical-alt"></i>
+            </button>
+          </div>
+
+          <!-- End Logo Header -->
         </div>
-        <button class="topbar-toggler more">
-          <i class="gg-more-vertical-alt"></i>
-        </button>
-      </div>
-    </div>
+        <div class="sidebar-wrapper scrollbar scrollbar-inner">
+          <div class="sidebar-content">
+            <ul class="nav nav-secondary">
 
-    <div class="sidebar-wrapper scrollbar scrollbar-inner">
-      <div class="sidebar-content">
-        <ul class="nav nav-secondary">
+              <li class="nav-item active">
+                <!-- <a data-bs-toggle="collapse" href="/user-listing" class="collapsed" aria-expanded="false"> -->
+                <!-- <a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false"> -->
+                <a href="#" @click.prevent="toggleMenu('dashboard')">
+                  <i class="fas fa-home"></i>
+                  <p>User Management</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 'dashboard' }"></span>
+                </a>
+                <!-- <div class="collapse" id="dashboard"> -->
+                <div v-show="activeMenu === 'dashboard'">
+                  <ul class="nav nav-collapse">
 
-          <!-- User Management -->
-          <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="collapse" href="#userManagement" role="button" aria-expanded="false" aria-controls="userManagement">
-              <i class="fas fa-home"></i>
-              <p>User Management</p>
-              <span class="caret"></span>
-            </a>
-            <div class="collapse" id="userManagement">
-              <ul class="nav nav-collapse">
-                <li><a href="/dashboard"><span class="sub-item">Dashboard</span></a></li>
-                <li><a href="/create-user"><span class="sub-item">Create User</span></a></li>
-                <li><a href="/update-user"><span class="sub-item">Update/Delete User</span></a></li>
-              </ul>
-            </div>
-          </li>
+                    <li>
+                      <a href="/user-listing">
+                        <span class="sub-item">Dashboard</span>
+                      </a>
+                    </li>
 
-          <!-- Budget Allocation Module -->
-          <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="collapse" href="#budget" role="button" aria-expanded="false" aria-controls="budget">
-              <i class="fas fa-pen-square"></i>
-              <p>Budget Allocation Module</p>
-              <span class="caret"></span>
-            </a>
-            <div class="collapse" id="budget">
-              <ul class="nav nav-collapse">
-                <li>
-                  <Link :href="route('budget-phase')" class="nav-link">
-                    <span class="sub-item">Add details of BE/FE/RE</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link :href="route('fund-allocation')" class="nav-link">
-                    <span class="sub-item">Fund Allocation</span>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </li>
 
-          <!-- Budget Head -->
-          <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="collapse" href="#base" role="button" aria-expanded="false" aria-controls="base">
-              <i class="fas fa-layer-group"></i>
-              <p>Budget Head</p>
-              <span class="caret"></span>
-            </a>
-            <div class="collapse" id="base">
-              <ul class="nav nav-collapse">
-                <li><a href="/components/avatars"><span class="sub-item">Budget Heads</span></a></li>
-                <li><a href="/components/buttons"><span class="sub-item">State/UTs</span></a></li>
-                <li><a href="/components/buttons"><span class="sub-item">States/UTs-PD/Component</span></a></li>
-              </ul>
-            </div>
-          </li>
+                    <li>
+                      <a href="/user-create">
+                        <span class="sub-item">Create User</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a href="/user-listing">
+                        <span class="sub-item">Update/Delete User</span>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </li>
 
-          <!-- Mother Sanction -->
-          <li class="nav-item">
+           
+
+
+
+              <!-- Budget Allocation Module -->
+            <li class="nav-item ">
+              <a href="#" @click.prevent="toggleMenu('budget')">
+                <i class="fas fa-pen-square"></i>
+                <p>Budget Allocation Module</p>
+                <span class="caret" :class="{ rotated: activeMenu === 'budget' }"></span>
+              </a>
+              <div v-show="activeMenu === 'budget'">
+                <ul class="nav nav-collapse">
+                  <li>
+                    <Link :href="route('budget-phase')" class="nav-link">
+                      <span class="sub-item">Add details of BE/FE/RE</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link :href="route('fund-allocation')" class="nav-link">
+                      <span class="sub-item">Fund Allocation</span>
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            </li>
+
+          
+        
+
+            <!-- Budget Head -->
+            <li class="nav-item">
+              <a href="#" @click.prevent="toggleMenu('base')">
+                <i class="fas fa-layer-group"></i>
+                <p>Budget Head</p>
+                <span class="caret" :class="{ rotated: activeMenu === 'base' }"></span>
+              </a>
+              <div v-show="activeMenu === 'base'">
+                <ul class="nav nav-collapse">
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Heads</span></Link></li>
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
+                  
+                  <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">State/UTs</span></Link></li>
+                  <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">States/UTs-PD/Component</span></Link></li>
+                </ul>
+              </div>
+            </li>
+            <li class="nav-item">
             <Link :href="route('mother-sanction-list')" class="nav-link">
               <i class="fas fa-pen-square"></i>
               <p>Mother Sanction Module</p>
@@ -89,20 +123,52 @@
                   <p>Daily Sanction Module</p>
                 </Link>
           </li>
-        </ul>
+
+
+
+           <li class="nav-item">
+              <a href="#" @click.prevent="toggleMenu('reports')">
+                <i class="fas fa-layer-group"></i>
+                <p>MIS Reports &amp; Dashboards</p>
+                <span class="caret" :class="{ rotated: activeMenu === 'reports' }"></span>
+              </a>
+              <div v-show="activeMenu === 'reports'">
+                <ul class="nav nav-collapse">
+                  <li><Link :href="route('budget-phase-report')" class="nav-link"><span class="sub-item">Budget phases Summary Report</span></Link></li>
+                  <li><Link :href="route('mother-sanction-report')" class="nav-link"><span class="sub-item">Mother Sanction Summary</span></Link></li>
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Fund Allocation Report</span></Link></li>
+                  <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">RoG Report</span></Link></li>
+                  
+                  <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
+                  <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">Mother Sanction List</span></Link></li>
+                </ul>
+              </div>
+            </li>
+
+            
+         
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- End Sidebar -->
       </div>
     </div>
-  </div>
 </template>
 
-<script setup>
+<!-- <script setup>
 import { Link } from '@inertiajs/vue3'
-import { onMounted } from 'vue'
-import Collapse from 'bootstrap/js/dist/collapse'
+</script> -->
+<script setup>
+import { ref } from 'vue'
+import { Link } from '@inertiajs/vue3'
 
-onMounted(() => {
-  document.querySelectorAll('.collapse').forEach(el => {
-    new Collapse(el, { toggle: false })
-  })
-})
+const activeMenu = ref('') // This will store the ID of the currently open menu
+
+// Toggle menu on click
+const toggleMenu = (menuId) => {
+  activeMenu.value = activeMenu.value === menuId ? '' : menuId
+}
 </script>
+
