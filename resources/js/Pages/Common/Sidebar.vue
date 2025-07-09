@@ -43,11 +43,11 @@
                 <div v-show="activeMenu === 'dashboard'">
                   <ul class="nav nav-collapse">
 
-                    <li>
+                    <!-- <li>
                       <a href="/user-listing">
                         <span class="sub-item">Dashboard</span>
                       </a>
-                    </li>
+                    </li> -->
 
 
                     <li>
@@ -64,27 +64,19 @@
                 </div>
               </li>
 
-              <!-- Daily Sanction Module -->
-              <li class="nav-item ">
-                <!-- <a data-bs-toggle="collapse" href="#daily-sanction" class="collapsed" aria-expanded="false"> -->
-                <a href="#" @click.prevent="toggleMenu('daily-sanction')">
-                  <i class="fas fa-pen-square"></i>
-                  <p>Daily Sanction Module</p>
-                  <span class="caret" :class="{ rotated: activeMenu === 'daily-sanction' }"></span>
+              <!-- Budget Head -->
+              <li class="nav-item">
+                <a href="#" @click.prevent="toggleMenu('base')">
+                  <i class="fas fa-layer-group"></i>
+                  <p>Budget Head</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 'base' }"></span>
                 </a>
-                <!-- <div class="collapse" id="daily-sanction"> -->
-                <div v-show="activeMenu === 'daily-sanction'">
+                <div v-show="activeMenu === 'base'">
                   <ul class="nav nav-collapse">
-                    <li>
-                      <Link :href="route('daily-sanction')" class="nav-link">
-                        <span class="sub-item">Daily Sanction Form</span>
-                      </Link>
-                    </li>
-                    <!-- <li>
-                      <Link :href="route('fund-allocation')" class="nav-link">
-                        <span class="sub-item">Fund Allocation</span>
-                      </Link>
-                    </li> -->
+                    <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Heads</span></Link></li>
+                    <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
+                    <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">State/UTs</span></Link></li>
+                    <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">States/UTs-PD/Component</span></Link></li>
                   </ul>
                 </div>
               </li>
@@ -93,7 +85,7 @@
               <li class="nav-item ">
                 <a href="#" @click.prevent="toggleMenu('budget')">
                   <i class="fas fa-pen-square"></i>
-                  <p>Budget Allocation Module</p>
+                  <p>Budget Allocation</p>
                   <span class="caret" :class="{ rotated: activeMenu === 'budget' }"></span>
                 </a>
                 <div v-show="activeMenu === 'budget'">
@@ -112,35 +104,36 @@
                 </div>
               </li>
 
-              <!-- Budget Head -->
-              <li class="nav-item">
-                <a href="#" @click.prevent="toggleMenu('base')">
-                  <i class="fas fa-layer-group"></i>
-                  <p>Budget Head</p>
-                  <span class="caret" :class="{ rotated: activeMenu === 'base' }"></span>
+              <!-- Daily Sanction Module -->
+              <!-- <li class="nav-item ">
+                <a href="#" @click.prevent="toggleMenu('daily-sanction')">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Daily Sanction Module</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 'daily-sanction' }"></span>
                 </a>
-                <div v-show="activeMenu === 'base'">
+                <div v-show="activeMenu === 'daily-sanction'">
                   <ul class="nav nav-collapse">
-                    <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Heads</span></Link></li>
-                    <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
-                    
-                    <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">State/UTs</span></Link></li>
-                    <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">States/UTs-PD/Component</span></Link></li>
+                    <li>
+                      <Link :href="route('daily-sanction')" class="nav-link">
+                        <span class="sub-item">Daily Sanction Form</span>
+                      </Link>
+                    </li>
                   </ul>
                 </div>
-              </li>
+              </li> -->
 
+              
               <!-- Mother Sanction -->
               <li class="nav-item">
                 <Link :href="route('mother-sanction-list')" class="nav-link">
                   <i class="fas fa-pen-square"></i>
-                  <p>Mother Sanction Module</p>
+                  <p>Mother Sanction</p>
                 </Link>
               </li>
               <li class="nav-item active">
                     <Link :href="route('daily-sanction-list')" class="nav-link">
                       <i class="fas fa-pen-square"></i>
-                      <p>Daily Sanction Module</p>
+                      <p>Daily Sanction</p>
                     </Link>
               </li>
 
