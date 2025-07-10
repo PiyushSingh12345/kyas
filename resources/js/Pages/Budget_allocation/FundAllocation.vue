@@ -84,6 +84,7 @@
                       </div>
                     </div>
                     <div class="col-md-4 col-lg-4" v-if="['3601', '3602', '2552'].includes(fundAllocationFor)">
+                    <div class="form-group">
                         <label for="stateSelect">Select State</label>
                         <select v-model="selectedState" class="form-select" id="stateSelect">
                           <option value="">--- Select State ---</option>
@@ -92,7 +93,7 @@
                           </option>
                         </select>
                       </div>
-
+</div>
                   </div>
                   
 
@@ -105,11 +106,11 @@
                           <tr>
                             <td></td>
                             <td width="20%">
-                              <label class="highlight_textbox" style="width: 170px;">Amount Avail in {{ budgetPhase }}</label>
+                              <label class="highlight_textbox" >Amount Avail in {{ budgetPhase }}</label>
                             </td>
                             
                             <td v-for="(component, index) in availableComponents" :key="'pd-label-' + index">
-                              <label class="highlight_textbox" style="width: 113px;">
+                              <label class="highlight_textbox" >
                                 {{ component.name }}
                               </label>
                             </td>

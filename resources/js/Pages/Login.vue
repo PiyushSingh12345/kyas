@@ -54,7 +54,7 @@ const submit = () => {
 										<div class="login-box text-center">
 											
 											<!-- Logo -->
-											<img :src="'img/loginlogo.png'" alt="Logo" class="logo">
+											<img :src="'img/loginlogo.png'" alt="Logo" class="logo" style="margin-inline: auto;">
 											<h4 class="mb-4">KY Automation System
 											</h4>
 											<!-- <form> -->
@@ -64,9 +64,9 @@ const submit = () => {
 												<div class="mb-3 text-start">
 													<label class="form-label">User/ Email Id</label>
 													<div class="input-group">
-														<span class="input-group-text">
+														<!-- <span class="input-group-text">
 															<i class="bi bi-envelope-fill"></i>
-														</span>
+														</span> -->
 														<!-- <input type="email" class="form-control" placeholder="name@example.com" required=""> -->
 														 <TextInput
 															id="email"
@@ -85,9 +85,9 @@ const submit = () => {
 												<div class="mb-1 text-start">
 													<label class="form-label">Password</label>
 													<div class="input-group">
-														<span class="input-group-text">
+														<!-- <span class="input-group-text">
 															<i class="bi bi-lock-fill"></i>
-														</span>
+														</span> -->
 														<!-- <input type="password" class="form-control" placeholder="Password" required=""> -->
 														<TextInput
 															id="password"
@@ -141,12 +141,13 @@ const submit = () => {
 												</div> -->
 												
 												<!-- Submit Button -->
-												<div class="d-grid">
+												<!-- <div class="d-grid"> -->
+												<div>
 													<!-- <a href="dashboard.html" class="btn btn-grad w-90">
 														SUBMIT
 													</a> -->
 													<PrimaryButton
-														class="ms-4"
+														class="loginsubmit"
 														:class="{ 'opacity-25': form.processing }"
 														:disabled="form.processing"
 													>

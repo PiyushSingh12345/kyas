@@ -6844,7 +6844,7 @@ body {
 }
 
 .captcha-img {
-  font-family: Beiruti, serif;
+
   color: #fff;
   height: 40px;
   width: 100px;
@@ -6864,11 +6864,12 @@ body {
 }
 
 .login-box h4{
-  font-family: Beiruti, serif;
-  letter-spacing: 1px;
-color: #033909; 
-  text-transform: uppercase;
-  font-size: 25px;
+
+font-weight: 600;
+
+    color: #033909;
+    text-transform: uppercase;
+    font-size: 20px;
 }
 
 .login-box .form-label {
@@ -6883,7 +6884,7 @@ color: #033909;
   font-weight: 400;
   letter-spacing: 1px;
   font-size: 19px;
-  font-family: Beiruti, serif;
+ 
   margin: 10px;
   padding: 9px 45px;
   text-align: center;
@@ -6914,3 +6915,13 @@ color: #033909;
  font-size: 13px !important;
 }
 
+
+.loginsubmit {
+  
+    margin-top: 10px !important;
+    font-size: 15px;
+    text-align: center;
+    width: 100px;
+    height: 40px;
+    background-image: linear-gradient(to right, #124719 0%, #c09001 51%, #d0c21b 100%);
+}
