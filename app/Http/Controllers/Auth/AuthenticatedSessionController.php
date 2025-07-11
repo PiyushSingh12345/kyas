@@ -33,7 +33,30 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // return redirect()->intended(route('dashboard', absolute: false));
+
+        $user = $request->user();
+
+        // Convert user_type_id to array if stored as CSV
+        $userTypes = is_array($user->user_type_id)
+            ? $user->user_type_id
+            : explode(',', $user->user_type_id);
+
+        // Redirect based on user type
+        if (in_array(1, $userTypes)) {
+             return redirect()->intended('/user-listing'); // KY_Admin
+        } elseif (in_array(2, $userTypes)) {
+            return redirect()->intended('/budget-phase'); // KY_User
+        } elseif (in_array(3, $userTypes)) {
+            return redirect()->intended('/budget-phase'); // Master Data User
+        } elseif (in_array(4, $userTypes)) {
+            return redirect()->intended('/budget-phase-report'); // PD Viewer
+        // } elseif (in_array(5, $userTypes)) {
+        //     return redirect()->intended('/csna-user'); // CSNA User
+        } else {
+            return redirect()->intended('/dashboard'); // Default  (need to ask with team)
+        }
+
     }
 
     /**

@@ -31,15 +31,13 @@
           <div class="sidebar-content">
             <ul class="nav nav-secondary">
 
-              <li class="nav-item active">
-                <!-- <a data-bs-toggle="collapse" href="/user-listing" class="collapsed" aria-expanded="false"> -->
-                <!-- <a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false"> -->
+              <li class="nav-item" :class="{ active: activeMenu === 'dashboard' }" v-if="hasRole([1])">
                 <a href="#" @click.prevent="toggleMenu('dashboard')">
                   <i class="fas fa-home"></i>
                   <p>User Management</p>
                   <span class="caret" :class="{ rotated: activeMenu === 'dashboard' }"></span>
                 </a>
-                <!-- <div class="collapse" id="dashboard"> -->
+
                 <div v-show="activeMenu === 'dashboard'">
                   <ul class="nav nav-collapse">
 
@@ -65,13 +63,13 @@
               </li>
 
               <!-- Budget Head -->
-              <li class="nav-item">
-                <a href="#" @click.prevent="toggleMenu('base')">
+              <li class="nav-item" :class="{ active: activeMenu === 'bhead' }" v-if="hasRole([2,3])">
+                <a href="#" @click.prevent="toggleMenu('bhead')">
                   <i class="fas fa-layer-group"></i>
                   <p>Budget Head</p>
-                  <span class="caret" :class="{ rotated: activeMenu === 'base' }"></span>
+                  <span class="caret" :class="{ rotated: activeMenu === 'bhead' }"></span>
                 </a>
-                <div v-show="activeMenu === 'base'">
+                <div v-show="activeMenu === 'bhead'">
                   <ul class="nav nav-collapse">
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Heads</span></Link></li>
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
@@ -82,7 +80,7 @@
               </li>
 
               <!-- Budget Allocation Module -->
-              <li class="nav-item ">
+              <li class="nav-item" :class="{ active: activeMenu === 'budget' }" v-if="hasRole([2])">
                 <a href="#" @click.prevent="toggleMenu('budget')">
                   <i class="fas fa-pen-square"></i>
                   <p>Budget Allocation</p>
@@ -103,41 +101,23 @@
                   </ul>
                 </div>
               </li>
-
-              <!-- Daily Sanction Module -->
-              <!-- <li class="nav-item ">
-                <a href="#" @click.prevent="toggleMenu('daily-sanction')">
-                  <i class="fas fa-pen-square"></i>
-                  <p>Daily Sanction Module</p>
-                  <span class="caret" :class="{ rotated: activeMenu === 'daily-sanction' }"></span>
-                </a>
-                <div v-show="activeMenu === 'daily-sanction'">
-                  <ul class="nav nav-collapse">
-                    <li>
-                      <Link :href="route('daily-sanction')" class="nav-link">
-                        <span class="sub-item">Daily Sanction Form</span>
-                      </Link>
-                    </li>
-                  </ul>
-                </div>
-              </li> -->
-
               
-              <!-- Mother Sanction -->
-              <li class="nav-item">
+              <!-- Mother Sanction Module-->
+              <li class="nav-item" :class="{ active: activeMenu === 'mother-sanction' }" v-if="hasRole([2])">
                 <Link :href="route('mother-sanction-list')" class="nav-link">
                   <i class="fas fa-pen-square"></i>
                   <p>Mother Sanction</p>
                 </Link>
               </li>
-              <li class="nav-item active">
+              <!-- Daily Sanction Module -->
+              <li class="nav-item" :class="{ active: activeMenu === 'daily-sanction' }" v-if="hasRole([2])">
                     <Link :href="route('daily-sanction-list')" class="nav-link">
                       <i class="fas fa-pen-square"></i>
                       <p>Daily Sanction</p>
                     </Link>
               </li>
 
-              <li class="nav-item">
+              <li class="nav-item" :class="{ active: activeMenu === 'reports' }" v-if="hasRole([1,2,4])">
                 <a href="#" @click.prevent="toggleMenu('reports')">
                   <i class="fas fa-layer-group"></i>
                   <p>MIS Reports &amp; Dashboards</p>
@@ -183,13 +163,18 @@
     </div> -->
 </template>
 
-<!-- <script setup>
-import { Link } from '@inertiajs/vue3'
-</script> -->
 <script setup>
+
 import { ref, onMounted } from 'vue'
-import { Link } from '@inertiajs/vue3'
-// import Collapse from 'bootstrap/js/dist/collapse'
+import { Link, usePage } from '@inertiajs/vue3'
+
+
+const userTypeIds = usePage().props.auth.user_type_ids || []
+
+const hasRole = (roles) => {
+  const hasAccess = roles.some(roleId => userTypeIds.includes(Number(roleId)))
+  return hasAccess
+}
 
 const activeMenu = ref('') // This will store the ID of the currently open menu
 
@@ -198,14 +183,41 @@ const toggleMenu = (menuId) => {
   activeMenu.value = activeMenu.value === menuId ? '' : menuId
 }
 
+const path = window.location.pathname
+
+const menuMap = {
+  '/user-listing': 'dashboard',
+  '/user-create': 'dashboard',
+  '/budget-phase': 'bhead',
+  // '/budget-phase': 'budget',
+  '/fund-allocation': 'budget',
+  '/state-uts': 'bhead',
+  '/state-uts-pd': 'bhead',
+  '/daily-sanction-list': 'daily-sanction', // or a separate 'daily-sanction' if you reopen it
+  '/mother-sanction-list': 'mother-sanction',
+  '/budget-phase-report': 'reports',
+  // '/budget-phase': 'reports',
+  '/state-uts': 'reports',
+  '/state-uts-pd': 'mother-sanction',
+}
+
+
+
 
 
 onMounted(() => {
+  // console.log('User Type IDs:', userTypeIds);
+  // const current = window.location.pathname
+  activeMenu.value = menuMap[path] || ''  // fallback: no menu open
+
   document.querySelectorAll('.collapse').forEach(el => {
     new Collapse(el, { toggle: false })
   })
 })
 </script>
+
+
+<!-- style css code  -->
 <style>
 .sidebar-logo .logo-header .logo {
     width: 100%;
