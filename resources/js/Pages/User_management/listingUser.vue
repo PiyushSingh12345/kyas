@@ -99,10 +99,12 @@
 														<!-- <td>{{ user.user_type_id }}</td> -->
 														<td>{{ user.user_type }}</td>
 														<td>
-															<a href="#" @click="openEditModal(user)" class="me-2" data-bs-toggle="modal" data-bs-target="#myModal">
+                              <!-- <a href="#" @click="openEditModal(user)" class="me-2" data-bs-toggle="modal" data-bs-target="#myModal"> -->
+															<a href="#" @click="openEditModal(user)" class="me-2">
 																<i class="fas fa-edit"></i>
 															</a>
-															<a href="#" @click="openDeleteModal(user)" class="me-2" data-bs-toggle="modal" data-bs-target="#myModalDel">
+															<!-- <a href="#" @click="openDeleteModal(user)" class="me-2" data-bs-toggle="modal" data-bs-target="#myModalDel"> -->
+                                <a href="#" @click="openDeleteModal(user)" class="me-2" >
 																<i class="fas fa-trash"></i>
 															</a>
 														</td>
@@ -367,11 +369,17 @@
     };
 
     const hideModal = (id) => {
-      const modal = bootstrap.Modal.getInstance(document.getElementById(id));
-      if (modal) {
-        modal.hide();
+      const modalElement = document.getElementById(id);
+      if (modalElement) {
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+        // removeModalBackdrop();
+        // Remove modal-open class and all modal backdrops to restore scroll
+        document.body.classList.remove('modal-open');
+        document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
       }
-      removeModalBackdrop();
     };
 
     
@@ -382,6 +390,8 @@
       fetchUserTypes();
       // Fetch user counts for dashboard
       fetchUserCounts();
+      document.body.classList.remove('modal-open');
+      document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
     });
 
     const fetchUsers = async () => {
