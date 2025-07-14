@@ -22,8 +22,13 @@
             <a href="/user-create" class="btn btn-primary float-right">Create User</a>
           </div>
           <div class="page-message">
+            <!-- dynamic creates  -->
             <!-- <h2 class="showmsg text-success"></h2>
             <h2 class="showerror text-danger"></h2> -->
+          </div>
+           <!-- flash message -->
+          <div v-if="showSuccess" class="alert alert-success">
+            {{ successMessage }}
           </div>
 
           <!-- Dashboard cards -->
@@ -607,4 +612,22 @@
       console.error('Failed to fetch user counts:', error);
     }
   };
+
+  const page = usePage();
+  const showSuccess = ref(false);
+  const successMessage = ref('');
+
+  watch(
+    () => page.props.flash && page.props.flash.success,
+    (newVal) => {
+      if (newVal) {
+        successMessage.value = newVal;
+        showSuccess.value = true;
+        setTimeout(() => {
+          showSuccess.value = false;
+        }, 5000); // 5 seconds
+      }
+    },
+    { immediate: true }
+  );
 </script>

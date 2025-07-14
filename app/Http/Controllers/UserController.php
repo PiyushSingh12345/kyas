@@ -78,8 +78,11 @@ class UserController extends Controller
 
     public function index()
 {
-    // Retrieve all users
-    $users = User::all();
+    // // Retrieve all users
+    // $users = User::all();
+
+    // Retrieve all users ordered by id descending
+    $users = User::orderBy('id', 'desc')->get();
 
     // Retrieve all user types and map them by their IDs
     $userTypes = MdUserType::pluck('user_type_name', 'md_user_type_id');
@@ -161,7 +164,8 @@ class UserController extends Controller
 
         // return redirect()->route('users.index')->with('success', 'User created successfully.');
         // return redirect()->route('dashboard')->with('success', 'User created successfully.');
-        return redirect()->back()->with('success', 'User created successfully.');
+        // return redirect()->back()->with('success', 'User created successfully.');
+        return redirect()->route('user-listing')->with('success', 'User created successfully!');
     }
 
     /**

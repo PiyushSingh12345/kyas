@@ -155,6 +155,7 @@
     import { onMounted, ref, computed, watch } from 'vue'
     import axios from 'axios'
     import { useScriptTag } from '@vueuse/core'
+    import { router } from '@inertiajs/vue3'
 
     // Correct relative paths (from createUser.vue to Common/)
     import Header from '../Common/Header.vue'
@@ -209,18 +210,30 @@
     const submitForm = () => {
       form.post('/users',
         {
+          // onSuccess: () => {
+          //   // Reset form after successful submission
+          //   form.reset();
+            
+          //   // Success message in the showmsg class of h2 tag in the page-message class div for 3 ms only
+          //   // this.$toast.success('User created successfully!');
+          //   const messageElement = document.querySelector('.showmsg');
+          //   messageElement.textContent = 'User created successfully!';
+          //   setTimeout(() => {
+          //     messageElement.textContent = '';
+          //   }, 3000);
+            
+          // },
+          
           onSuccess: () => {
-            // Reset form after successful submission
-            form.reset();
-            
-            // Success message in the showmsg class of h2 tag in the page-message class div for 3 ms only
-            // this.$toast.success('User created successfully!');
-            const messageElement = document.querySelector('.showmsg');
-            messageElement.textContent = 'User created successfully!';
-            setTimeout(() => {
-              messageElement.textContent = '';
-            }, 3000);
-            
+            router.visit('/user-listing', {
+              method: 'get',
+              preserveState: false,
+              preserveScroll: false,
+              replace: true,
+              only: [],
+              data: {},
+              // flash: { success: 'User created successfully!' }
+            });
           },
           onError: (errors) => {
             console.error('Form submission errors:', errors)

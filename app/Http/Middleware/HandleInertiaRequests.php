@@ -34,9 +34,12 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
-                // 'user_type_ids' => $user ? explode(',', $user->user_type_id) : [], // array of IDs
-                'user_type_ids' => $request->user() ? array_map('intval', explode(',', $request->user()->user_type_id)) : [],
+                'user' => $user,
+                'user_type_ids' => $user ? array_map('intval', explode(',', $user->user_type_id)) : [],
+            ],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ];
     }
