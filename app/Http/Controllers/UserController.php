@@ -134,19 +134,13 @@ class UserController extends Controller
     // }
     public function store(Request $request)
     {
-
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            // email should not be unique for create, so we don't include the unique rule here
             'email' => 'required|email',
-
-            // 'email' => 'required|email',
-            // 'password' => 'required|string|min:6|confirmed',
+            'user_type' => 'required|array', // Ensure user_type is an array
+            'user_type.*' => 'required|integer', // Each user_type must be an integer ID
         ]);
-        
-        // Check if the user already exists
-        // echo "skksks";var_dump($request->user_type);die;
         // Convert the user_type array to a comma-separated string
         $userTypeString = implode(',', $request->user_type);
         User::create([
@@ -158,13 +152,8 @@ class UserController extends Controller
             'program_division_id' => $request->program_division,
             'user_type_id' => $userTypeString,
             'email' => $validated['email'],
-            // 'password' => Hash::make($validated['password']),
             'password' => Hash::make('Test@123'),
         ]);
-
-        // return redirect()->route('users.index')->with('success', 'User created successfully.');
-        // return redirect()->route('dashboard')->with('success', 'User created successfully.');
-        // return redirect()->back()->with('success', 'User created successfully.');
         return redirect()->route('user-listing')->with('success', 'User created successfully!');
     }
 
@@ -239,46 +228,37 @@ class UserController extends Controller
 
     public function update(Request $request, $id)
     {
-        // Retrieve the user or fail if not found
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email',
+            // 'user_type' => 'required|array',
+            // 'user_type.*' => 'required|integer',
+            // Accept both user_type and user_type_id for compatibility
+            'mobile_number' => 'required|numeric',
+            'program_division_id' => 'required|integer',
+            'user_type_id' => 'required|array',
+            'user_type_id.*' => 'required|integer',
+        ]);
         $user = User::findOrFail($id);
-// echo "skksks";var_dump($user);die;
-        // Validate the incoming request data
-        $validatedData = $request->validate([
-            'first_name'            => 'required|string|max:255',
-            'last_name'             => 'required|string|max:255',
-            'designation'        => 'required|string',
-            'mobile_number'         => 'required|integer|digits_between:10,15', // Adjust the min and max length as needed
-            'program_division_id'   => 'required|integer',
-            'user_type_id'          => 'required|array',
-            // email should not be unique for update, so we don't include the unique rule here
-            'email'                 => 'required|email', // Ensure email is valid, but not unique for the current user  
+        
+        $userTypeString = implode(',', $request->user_type_id);
+        // $userTypeString = implode(',', $request->user_type);
 
-
-            // 'email'                 => 'required|email|unique:users,email,' . $user->id, // Uncomment if you want to ensure email uniqueness except for the current user
-            // 'password'              => 'nullable|string|min:6|confirmed', // Password can be nullable if not changing
-            // Add other validation rules as necessary
-        ]);
-
-        // Convert the user_type_id array into a comma-separated string
-        $validatedData['user_type_id'] = implode(',', $validatedData['user_type_id']);
-
-        // Update the user with the validated data
-    //    echo "assaas"; var_dump($user->update($validatedData)); die;
         $user->update([
-            'first_name' => $validatedData['first_name'],
-            'last_name' => $validatedData['last_name'],
-            'name' => $validatedData['first_name'] . ' ' . $validatedData['last_name'], // Assuming you want to update the name field as well
-            'designation_id' => $request->designation, // Assuming you have a designation_id field
-            'mobile_number' => $validatedData['mobile_number'],
-            'program_division_id' => $validatedData['program_division_id'],
-            'user_type_id' => $validatedData['user_type_id'],
-            'email' => $validatedData['email'],
-            'password' => $request->password ? Hash::make($request->password) : $user->password, // Only update password if provided
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+            'designation_id' => $request->designation,
+            'mobile_number' => $validated['mobile_number'],
+            // 'mobile_number' => $request->mobile,
+            // 'program_division_id' => $request->program_division,
+            'program_division_id' => $validated['program_division_id'],
+            'user_type_id' => $userTypeString,
+            'email' => $validated['email'],
+            'password' => $request->password ? Hash::make($request->password) : $user->password,
         ]);
-        // If you need to update the name field as well
-
-        // Redirect back with a success message
-        return redirect()->back()->with('success', 'User updated successfully.');
+        return redirect()->route('user-listing')->with('success', 'User updated successfully!');
     }
 
     public function destroy($id)

@@ -113,7 +113,8 @@
 										<div class="col-md-6 col-lg-4">
 											<div class="form-group">
 												<label for="user_type">User Type</label>
-                        <!-- {{ userTypes }} -->
+
+                                                <!-- {{ userTypes }} -->
                         <!-- Using v-model to bind the selected user types , multiple selection enabled data coming from md_user_types table -->
                         <!-- <select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple> -->
                             <!-- <option value="">--- Select ---</option> -->
@@ -122,12 +123,30 @@
                                 <!-- {{ userType.user_type_name }} -->
                             <!-- </option> -->
                         <!-- </select> -->
-                        <select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple>
+                        <!-- <select name="user_type" id="user_type" class="form-select" v-model="form.user_type" multiple>
                           <option value="">--- Select ---</option>
                           <option v-for="userType in filteredUserTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
                             {{ userType.user_type_name }}
                           </option>
-                        </select>
+                        </select> -->
+
+
+
+                        <!-- Multiselect checkbox design -->
+                        <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                          <div v-for="userType in filteredUserTypes" :key="userType.md_user_type_id" class="form-check">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              :id="'user_type_' + userType.md_user_type_id"
+                              :value="userType.md_user_type_id"
+                              v-model="form.user_type"
+                            >
+                            <label class="form-check-label" :for="'user_type_' + userType.md_user_type_id">
+                              {{ userType.user_type_name }}
+                            </label>
+                          </div>
+                        </div>
 											</div>
 										</div>
 									</div>

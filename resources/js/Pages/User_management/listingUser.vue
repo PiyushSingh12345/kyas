@@ -103,7 +103,6 @@
 															<a href="#" @click="openEditModal(user)" class="me-2">
 																<i class="fas fa-edit"></i>
 															</a>
-															<!-- <a href="#" @click="openDeleteModal(user)" class="me-2" data-bs-toggle="modal" data-bs-target="#myModalDel"> -->
                                 <a href="#" @click="openDeleteModal(user)" class="me-2" >
 																<i class="fas fa-trash"></i>
 															</a>
@@ -209,7 +208,6 @@
               <div class="col-md-6 col-lg-4">
                 <div class="form-group">
                   <label for="email2">Password</label>
-                  <!-- <input type="password" v-model="form.password" class="form-control" placeholder="Enter Password" name="password" id="password"> -->
                   <input type="password" v-model="form.password" class="form-control" placeholder="Leave blank to keep current password" name="password" id="password" autocomplete="new-password">
 
                 </div>
@@ -219,13 +217,35 @@
                 <div class="form-group">
                   <label for="user_type">User Type</label>
 
-                  <select name="user_type" v-model="form.user_type_id" id="user_type" class="form-select" multiple>
+                  <!-- <select name="user_type" v-model="form.user_type_id" id="user_type" class="form-select" multiple>
                       <option value="">--- Select ---</option>
-                      <!-- <option v-for="userType in userTypes" :key="userType.md_user_type_id" :value="userType.md_user_type_id"> -->
-                        <option v-for="userType in getFilteredUserTypes(form.program_division_id)" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
+                      <option v-for="userType in getFilteredUserTypes(form.program_division_id)" :key="userType.md_user_type_id" :value="userType.md_user_type_id">
                           {{ userType.user_type_name }}
                       </option>
-                  </select>
+                  </select> -->
+                 
+
+                  <!-- Multiselect checkbox design -->
+                  <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                    <div v-for="userType in getFilteredUserTypes(form.program_division_id)" :key="userType.md_user_type_id" class="form-check">
+                      
+                      <!-- {{ form.user_type_id }} -->
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        :id="'edit_user_type_' + userType.md_user_type_id"
+                        :value="Number(userType.md_user_type_id)"
+                        v-model="form.user_type_id"
+                       >
+                      <label class="form-check-label" :for="'edit_user_type_' + userType.md_user_type_id">
+                        {{ userType.user_type_name }}
+                      </label>
+                    </div>
+                  </div>
+
+
+
+
                 </div>
               </div>
             </div>
@@ -269,9 +289,8 @@
   </div>
 
 </template>
-
 <script setup>
-  import { ref, onMounted, computed, watch } from 'vue'
+  import { ref, onMounted, computed, watch, nextTick } from 'vue'
   import axios from 'axios'
   import { useForm, usePage, router } from '@inertiajs/vue3'
 
@@ -417,7 +436,7 @@
       // Fetch user types logic
       try {
         const response = await axios.get('/md-user-types')
-        userTypes.value = response.data
+        userTypes.value = response.data        
       } catch (error) {
         console.error('Failed to fetch user types', error)
       }
@@ -482,7 +501,7 @@
     const getFilteredUserTypes = (program_division_id) => {
       const KY_TYPE_IDS = [1, 2];
       const selectedDivision = parseInt(program_division_id);
-// console.log('Selected Division:', selectedDivision);
+console.log('Selected Division:', selectedDivision);
       if (!selectedDivision) {
         // No division selected: show all user types
         return userTypes.value;
@@ -490,6 +509,10 @@
 
       if (selectedDivision === 1) {
         // KY Division selected: show only KY types
+        userTypes.value.forEach(type => {
+          if (KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))) {
+          }
+        });
         return userTypes.value.filter(type =>
           KY_TYPE_IDS.includes(parseInt(type.md_user_type_id))
         );
@@ -501,40 +524,71 @@
       );
     };
 
-    watch(() => form.program_division_id, () => {
-      // form.user_type_id = []; // Ensures previous selection doesn’t persist
-      form.user_type = []; // Ensures previous selection doesn’t persist
+    // // Reset user_type_id when program_division_id changes
+    // watch(() => form.program_division_id, () => {
+    //       // form.user_type_id = []; // Ensures previous selection doesn’t persist
+    //       // form.user_type = []; // Ensures previous selection doesn’t persist
+    //       form.user_type_id = [];
+    // });
+
+    const previousDivisionId = ref(null);
+
+    watch(() => form.program_division_id, (newVal, oldVal) => {
+      // Only reset if the user changes the division after modal is open
+      if (previousDivisionId.value !== null && newVal !== oldVal) {
+        form.user_type_id = [];
+      }
+      previousDivisionId.value = newVal;
     });
   
-    const openEditModal = (user) => {
+    const openEditModal = async (user) => {
+      // Hide modal if already open
+      hideModal('myModal');
+
+      // Wait for userTypes to be loaded
+      if (!userTypes.value.length) {
+        await fetchUserTypes();
+      }
+      form.user_type_id = user.user_type_id
+      ? user.user_type_id.split(',').map(id => Number(id.trim()))
+      : [];
+      // Force all userType IDs to numbers
+      userTypes.value = userTypes.value.map(u => ({
+        ...u,
+        md_user_type_id: Number(u.md_user_type_id)
+      }));
+
       selectedUser.value = user;
       form.id = user.id;
-      form.name = (user.name)? user.name : `${user.first_name} ${user.last_name}`;
-
+      form.name = user.name ? user.name : `${user.first_name} ${user.last_name}`;
       const nameParts = form.name.split(' ');
-      const first_name = (nameParts[0]) ? nameParts[0] : '';
-      const last_name = (nameParts[1]) ? nameParts[1] : '';
-
-      form.first_name = (user.first_name)? user.first_name : first_name;
-      form.last_name = (user.last_name)? user.last_name : last_name;
+      const first_name = nameParts[0] ? nameParts[0] : '';
+      const last_name = nameParts[1] ? nameParts[1] : '';
+      form.first_name = user.first_name ? user.first_name : first_name;
+      form.last_name = user.last_name ? user.last_name : last_name;
       form.email = user.email;
       form.mobile_number = user.mobile_number;
       form.designation = user.designation_id;
-      form.program_division_id = user.program_division_id;  
+      form.program_division_id = user.program_division_id;
+      previousDivisionId.value = user.program_division_id;
       form.program_division = user.program_division;
-      // form.user_type = user.user_type_ids; // Adjust based on your data structure
-      form.user_type = user.user_type; // Adjust based on your data structure
-      // form.user_type_id = user.user_type_id; // Adjust based on your data structure
-      // Convert comma-separated string to array of numbers
-      form.user_type_id = user.user_type_id
-    ? user.user_type_id.split(',').map(id => parseInt(id.trim()))
-    : [];
+      // form.user_type_id = user.user_type_id
+      //   ? user.user_type_id.split(',').map(id => Number(id.trim()))
+      //   : [];
       form.password = user.password;
 
-      // const modal = new bootstrap.Modal(document.getElementById('myModal'));
-      // modal.show();
+      // Debug logs
+      console.log('user.user_type_id:', user.user_type_id, typeof user.user_type_id);
+      console.log('form.user_type_id:', form.user_type_id);
+      console.log('userTypes:', userTypes.value.map(u => ({ id: u.md_user_type_id, type: typeof u.md_user_type_id })));
 
-      showModal('myModal');
+      // Wait for DOM update
+      await nextTick();
+
+      // Use setTimeout to ensure Bootstrap sees the updated DOM
+      setTimeout(() => {
+        showModal('myModal');
+      }, 0);
     };
 
     const submitEditForm = () => {
@@ -641,3 +695,4 @@
     { immediate: true }
   );
 </script>
+
