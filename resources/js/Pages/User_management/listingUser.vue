@@ -411,6 +411,28 @@
       fetchUserCounts();
       document.body.classList.remove('modal-open');
       document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
+
+      // Check for edit_user_id in the query string
+      const urlParams = new URLSearchParams(window.location.search);
+      const editUserId = urlParams.get('edit_user_id');
+      if (editUserId && users.value.length) {
+        // Find the user and open the modal
+        const user = users.value.find(u => String(u.id) === String(editUserId));
+        if (user) {
+          openEditModal(user);
+        }
+      }
+    });
+
+    watch(users, (newUsers) => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const editUserId = urlParams.get('edit_user_id');
+      if (editUserId && newUsers.length) {
+        const user = newUsers.find(u => String(u.id) === String(editUserId));
+        if (user) {
+          openEditModal(user);
+        }
+      }
     });
 
     const fetchUsers = async () => {

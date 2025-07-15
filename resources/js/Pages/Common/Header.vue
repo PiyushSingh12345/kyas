@@ -192,11 +192,17 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 											</template>
 
 											<template #content>
-												<DropdownLink
+												<!-- <DropdownLink
 													:href="route('profile.edit')"
 												>
 													Profile
+												</DropdownLink> -->
+												<DropdownLink
+													:href="`/user-listing?edit_user_id=${$page.props.auth.user.id}`"
+												>
+													Profile
 												</DropdownLink>
+
 												<DropdownLink
 													:href="route('logout')"
 													method="post"
