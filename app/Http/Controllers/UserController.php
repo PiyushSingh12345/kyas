@@ -102,8 +102,8 @@ class UserController extends Controller
         // Process program_division_id
         $user->program_division = $programDivisions[$user->program_division_id] ?? null;
 
-        // Optionally, remove the original ID fields
-        // unset($user->user_type_id, $user->program_division_id);
+        // Do NOT unset user_type_id or program_division_id, so frontend can use them for prefill
+        // (No unset here)
 
         return $user;
     });

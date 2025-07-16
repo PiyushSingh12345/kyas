@@ -567,13 +567,24 @@ console.log('Selected Division:', selectedDivision);
       // Hide modal if already open
       hideModal('myModal');
 
-      // Wait for userTypes to be loaded
+      // Ensure userTypes and programDivisions are loaded before proceeding
       if (!userTypes.value.length) {
         await fetchUserTypes();
       }
-      form.user_type_id = user.user_type_id
-      ? user.user_type_id.split(',').map(id => Number(id.trim()))
-      : [];
+      if (!programDivisions.value.length) {
+        await fetchProgramDivisions();
+      }
+
+      // Prefill user_type_id robustly
+      let userTypeIdRaw = user.user_type_id;
+      if (Array.isArray(userTypeIdRaw)) {
+        form.user_type_id = userTypeIdRaw.map(id => Number(id));
+      } else if (typeof userTypeIdRaw === 'string') {
+        form.user_type_id = userTypeIdRaw.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id));
+      } else {
+        form.user_type_id = [];
+      }
+
       // Force all userType IDs to numbers
       userTypes.value = userTypes.value.map(u => ({
         ...u,
@@ -594,9 +605,6 @@ console.log('Selected Division:', selectedDivision);
       form.program_division_id = user.program_division_id;
       previousDivisionId.value = user.program_division_id;
       form.program_division = user.program_division;
-      // form.user_type_id = user.user_type_id
-      //   ? user.user_type_id.split(',').map(id => Number(id.trim()))
-      //   : [];
       form.password = user.password;
 
       // Debug logs
@@ -604,13 +612,20 @@ console.log('Selected Division:', selectedDivision);
       console.log('form.user_type_id:', form.user_type_id);
       console.log('userTypes:', userTypes.value.map(u => ({ id: u.md_user_type_id, type: typeof u.md_user_type_id })));
 
-      // Wait for DOM update
-      await nextTick();
+      // // Wait for DOM update
+      // await nextTick();
 
-      // Use setTimeout to ensure Bootstrap sees the updated DOM
-      setTimeout(() => {
-        showModal('myModal');
-      }, 0);
+      // // Use setTimeout to ensure Bootstrap sees the updated DOM
+      // setTimeout(() => {
+      //   showModal('myModal');
+      // }, 0);
+
+      nextTick(() => {
+        form.user_type_id = user.user_type_id
+          ? user.user_type_id.split(',').map(id => Number(id.trim()))
+          : [];
+        showModal('myModal'); // Moved inside nextTick to ensure DOM binding
+      });
     };
 
     const submitEditForm = () => {
