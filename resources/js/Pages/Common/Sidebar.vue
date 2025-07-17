@@ -71,7 +71,9 @@
                 </a>
                 <div v-show="activeMenu === 'bhead'">
                   <ul class="nav nav-collapse">
-                    <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Heads</span></Link></li>
+                    <li><Link :href="route('budget-head-list')" class="nav-link">
+                      <span class="sub-item">Budget Heads</span>
+                    </Link></li>
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
                     <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">State/UTs</span></Link></li>
                     <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">States/UTs-PD/Component</span></Link></li>
@@ -88,11 +90,11 @@
                 </a>
                 <div v-show="activeMenu === 'budget'">
                   <ul class="nav nav-collapse">
-                    <li>
+                    <!-- <li>
                       <Link :href="route('budget-phase')" class="nav-link">
                         <span class="sub-item">Add details of BE/FE/RE</span>
                       </Link>
-                    </li>
+                    </li> -->
                     <li>
                       <Link :href="route('fund-allocation')" class="nav-link">
                         <span class="sub-item">Fund Allocation</span>

@@ -97,7 +97,8 @@ Route::middleware('auth')->group(function () {
     ->middleware(['auth', 'verified'])
     ->name('state-uts');
     Route::post('/states', [StateController::class, 'store'])->name('states.store');
-    Route::get('/budget-heads', [BudgetHeadController::class, 'index'])->name('BudgetHead.index');
+    Route::get('/budget-head-list', [BudgetHeadController::class, 'index'])->name('budget-head-list');
+
     Route::post('/budget-heads', [BudgetHeadController::class, 'store'])->name('BudgetHead.store');
     Route::delete('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'destroy'])->name('BudgetHead.destroy');
     Route::put('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'update'])->name('BudgetHead.update');
