@@ -119,6 +119,32 @@
                     </Link>
               </li>
 
+              <!-- Re-Appropriation Module -->
+              <li class="nav-item" :class="{ active: activeMenu === 're-appropriation-of-funds' }" v-if="hasRole([2])">
+                    <Link :href="route('re-appropriation-of-funds')" class="nav-link">
+                      <i class="fas fa-pen-square"></i>
+                      <p>Re-Appropriation</p>
+                    </Link>
+              </li>
+
+              <!-- Re-Appropriation Module -->
+              <!-- <li class="nav-item" :class="{ active: activeMenu === 're-appropriation-of-funds' }" v-if="hasRole([2])">
+                <a href="#" @click.prevent="toggleMenu('re-appropriation-of-funds')">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Re-Appropriation</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 're-appropriation-of-funds' }"></span>
+                </a>
+                <div v-show="activeMenu === 're-appropriation-of-funds'">
+                  <ul class="nav nav-collapse">
+                    <li>
+                      <Link :href="route('re-appropriation-of-funds')" class="nav-link">
+                        <span class="sub-item">Re-Appropriation of Funds</span>
+                      </Link>
+                    </li>        
+                  </ul>
+                </div>
+              </li> -->
+
               <li class="nav-item" :class="{ active: activeMenu === 'reports' }" v-if="hasRole([1,2,4])">
                 <a href="#" @click.prevent="toggleMenu('reports')">
                   <i class="fas fa-layer-group"></i>
@@ -132,7 +158,7 @@
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Fund Allocation Report</span></Link></li>
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">RoG Report</span></Link></li>
                     
-                    <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
+                    <li><Link :href="route('re-appropriation-of-funds')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
                     <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">Mother Sanction List</span></Link></li>
                   </ul>
                 </div>

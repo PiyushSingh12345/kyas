@@ -86,6 +86,10 @@ Route::get('/daily-sanction', function () {
     return Inertia::render('Daily_sanction/DailySanction');
 })->middleware(['auth', 'verified'])->name('daily-sanction');
 
+Route::get('/re-appropriation-of-funds', function () {
+    return Inertia::render('Reappropriation/ReAppropriationOfFunds');
+})->middleware(['auth', 'verified'])->name('re-appropriation-of-funds');
+
 
 Route::middleware('auth')->group(function () {
 
