@@ -5,33 +5,38 @@
     <div class="main-panel ">
       <Header />
 
-      <div class="container-fluid">
+      <div class="container">
         <div class="page-inner allinsideform">
-          <div class="page-header d-flex justify-content-between align-items-center mb-4">
-            <h3 class="fw-bold text-primary mb-0">MIS Reports & Dashboards</h3>
 
-            <nav aria-label="breadcrumb">
-              <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item">
-                  <a href="login.html" class="text-decoration-none text-muted">
-                    <i class="bi bi-house-fill"></i> Home
-                  </a>
-                </li>
-                <li class="breadcrumb-item active" aria-current="page">Mother Sanction Summary</li>
-              </ol>
-            </nav>
+          <div class="page-header">
+            <h3 class="fw-bold mb-3">MIS Reports & Dashboards</h3>
+
+            <ul class="breadcrumbs mb-3">
+              <li class="nav-home">
+                <a href="login.html">
+                  <i class="icon-home"></i>
+                </a>
+              </li>
+              <li class="separator">
+                <i class="icon-arrow-right"></i>
+              </li>
+              <li class="nav-item">
+                <a href="#">Mother Sanction Summary</a>
+              </li>
+               
+            </ul>
           </div>
 
           <div class="row">
-            <div class="col-12">
-              <div class="card shadow-sm rounded border-0">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                  <h5 class="mb-0">Mother Sanction Summary</h5>
-                 
-                </div>
+              <div class="col-md-12">
+                <div class="card">
+                
+                  <div class="card-header">
+                    <div class="card-title">Mother Sanction Summary</div>
+                  </div>
 
                 <div class="card-body">
-                  <div class="row gy-3 mb-4">
+                  <div class="row">
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-3">
                       <label for="financialYear" class="form-label fw-semibold">Financial Year (F.Y.)</label>

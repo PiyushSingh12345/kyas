@@ -58,6 +58,7 @@ Route::get('/budget-heads', function () {
     return Inertia::render('Budget_allocation/BudgetHeads');
 })->middleware(['auth', 'verified'])->name('budget-heads');
 
+
 Route::get('/state-uts', function () {
     return Inertia::render('Budget_allocation/StateUTs');
 })->middleware(['auth', 'verified'])->name('state-uts');
@@ -90,6 +91,21 @@ Route::get('/re-appropriation-of-funds', function () {
     return Inertia::render('Reappropriation/ReAppropriationOfFunds');
 })->middleware(['auth', 'verified'])->name('re-appropriation-of-funds');
 
+Route::get('/re-appropriation-mis-report', function () {
+    return Inertia::render('Reports/ReAppropriationMisReport');
+})->middleware(['auth', 'verified'])->name('re-appropriation-mis-report');
+
+Route::get('/fund-allocation-report', function () {
+    return Inertia::render('Reports/FundAllocationReport');
+})->middleware(['auth', 'verified'])->name('fund-allocation-report');
+
+Route::get('/rog-report', function () {
+    return Inertia::render('Reports/RogReport');
+})->middleware(['auth', 'verified'])->name('rog-report');
+
+Route::get('/mother-sanction-list', function () {
+    return Inertia::render('Reports/MotherSanctionList');
+})->middleware(['auth', 'verified'])->name('mother-sanction-list');
 
 Route::middleware('auth')->group(function () {
 

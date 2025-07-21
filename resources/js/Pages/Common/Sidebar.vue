@@ -155,11 +155,11 @@
                   <ul class="nav nav-collapse">
                     <li><Link :href="route('budget-phase-report')" class="nav-link"><span class="sub-item">Budget phases Summary Report</span></Link></li>
                     <li><Link :href="route('mother-sanction-report')" class="nav-link"><span class="sub-item">Mother Sanction Summary</span></Link></li>
-                    <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Fund Allocation Report</span></Link></li>
-                    <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">RoG Report</span></Link></li>
-                    
-                    <li><Link :href="route('re-appropriation-of-funds')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
-                    <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">Mother Sanction List</span></Link></li>
+                    <li><Link :href="route('fund-allocation-report')" class="nav-link"><span class="sub-item">Fund Allocation Report</span></Link></li>
+                    <li><Link :href="route('rog-report')" class="nav-link"><span class="sub-item">RoG Report</span></Link></li>
+
+                    <li><Link :href="route('re-appropriation-mis-report')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
+                    <li><Link :href="route('mother-sanction-list')" class="nav-link"><span class="sub-item">Mother Sanction List</span></Link></li>
                   </ul>
                 </div>
               </li>
