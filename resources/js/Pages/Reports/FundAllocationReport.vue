@@ -6,7 +6,7 @@
       <div class="container">
 					<div class="page-inner allinsideform">
 						<div class="page-header">
-							<h3 class="fw-bold mb-3">Budget Allocation Module
+							<h3 class="fw-bold mb-3">MIS Reports & Dashboards
 							</h3>
 							<ul class="breadcrumbs mb-3">
 								<li class="nav-home">
@@ -22,7 +22,7 @@
 									<i class="icon-arrow-right"></i>
 								</li>
 								<li class="nav-item">
-									<a href="Fund-Allocation.html">Fund Allocation
+									<a href="Fund-Allocation.html">Fund Allocation Report
 									</a>
 								</li>
 
@@ -33,28 +33,27 @@
 							<div class="col-md-12">
 								<div class="card">
 									<div class="card-header">
-										<div class="card-title">Fund Allocation
-										</div>
+										<div class="card-title">Fund Allocation Report</div>
 									</div>
 									<div class="card-body">
 										<div class="row">
 											
 
-											<div class="col-md-6 col-lg-4">
+											<div class="col-md-4 col-lg-4">
 												<div class="form-group">
-													<label for="email2">F.Y</label>
-													<select class="form-select" id="financialYear">
-														<option value="2024-2025">2024–2025</option>
-														
-														<!-- Add more years as needed -->
+													<label for="financialYearSelect">F.Y</label>
+													<select class="form-select" v-model="financialYear" id="financialYearSelect">
+														<option value="" disabled>Select Financial Year</option>
+														<option v-for="year in financialYears" :key="year" :value="year">{{ year }}</option>
 													</select>
 												</div>
 											</div>
-											<div class="col-md-6 col-lg-4">
+											<div class="col-md-4 col-lg-4">
 												<div class="form-group">
-													<label for="email2">Budget Phase</label>
-													<select class="form-select" id="financialYear">
-														<option selected="">BE/FE/RE</option>
+													<label for="budgetPhaseSelect">Budget Phase</label>
+													<select class="form-select" v-model="budgetPhase" id="budgetPhaseSelect">
+														<option value="" disabled>Budget Phase</option>
+														<option v-for="phase in budgetPhases" :key="phase" :value="phase">{{ phase }}</option>
 													</select>
 												</div>
 											</div>
@@ -64,39 +63,33 @@
 												<div class="form-group">
 													<label>Fund Allocation For</label><br>
 													<div class="d-flex">
+														<div class="form-check me-3">
+															<input class="form-check-input" type="radio" id="f2435" value="2435" v-model="fundAllocationFor" />
+															<label class="form-check-label" for="f2435">2435</label>
+														</div>
+														<div class="form-check me-3">
+															<input class="form-check-input" type="radio" id="f3601" value="3601" v-model="fundAllocationFor" />
+															<label class="form-check-label" for="f3601">3601 & 3602</label>
+														</div>
 														<div class="form-check">
-															<input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault1" checked>
-															<label class="form-check-label" for="flexRadioDefault1">
-															  2435
-															</label>
-														  </div>
-														  
-													  <div class="form-check">
-														<input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault2" >
-														<label class="form-check-label" for="flexRadioDefault2">
-													3601 & 3602
-														</label>
-													  </div>
-
-
-													  <div class="form-check">
-														<input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault2" >
-														<label class="form-check-label" for="flexRadioDefault2">
-												2552
-														</label>
-													  </div>
+															<input class="form-check-input" type="radio" id="f2552" value="2552" v-model="fundAllocationFor" />
+															<label class="form-check-label" for="f2552">2552</label>
+														</div>
 													</div>
-												  </div>
+												</div>
 											</div>
 
 
 
 
-<div class="col-md-6 col-lg-4">
+<div class="col-md-4 col-lg-4" v-if="['3601', '3602', '2552'].includes(fundAllocationFor)">
 												<div class="form-group">
-													<label for="email2">State</label>
-													<select class="form-select" id="financialYear">
-														<option selected="">-- Select --</option>
+													<label for="stateSelect">Select State</label>
+													<select v-model="selectedState" class="form-select" id="stateSelect">
+														<option value="">--- Select State ---</option>
+														<option v-for="state in states" :key="state.id" :value="state.id">
+															{{ state.name }}
+														</option>
 													</select>
 												</div>
 											</div>
@@ -105,104 +98,51 @@
 										</div>
 
 
-										
 										  
 
-										<div class="table-responsive mt-5">
-											<table class="table table-bordered table-head-bg-primary">
-												
-												<tbody>
-
-													<tr>
-														<td ></td>
-														<td ><label for="html" class="highlight_textbox">Amt Avail in BE/RE/FE</label></td>
-														<td><label for="html" class="highlight_textbox">PD/Component1</label></td>
-														<td><label for="html" class="highlight_textbox">PD/Component2</label></td>
-														<td><label for="html" class="highlight_textbox">&nbsp</label></td>
-														<td><label for="html" class="highlight_textbox">&nbsp</label></td>
-												
-													</tr>
-
-													<tr>
-														<td ></td>
-														<td ><input type="text" class="form-control" placeholder="5678890" disabled=""></td>
-														<td ><input type="text" class="form-control" placeholder="896777" disabled=""></td>
-														<td ><input type="text" class="form-control" placeholder="9056789" disabled=""></td>
-														<td ><input type="text" class="form-control" ></td>
-														<td ><input type="text" class="form-control"  ></td>
-												
-													</tr>
-
-
-
+										<div v-if="canShowTable">
+											<div class="table-responsive mt-5">
+												<table class="table table-bordered table-head-bg-primary">
 													
-													<tr >
-													<td colspan="6" class="catgerybg">	Catergory-1</td>
-														
-													</tr>
+													<tbody>
 
-
-													
-													<tr>
-														<td ><input type="text" class="form-control tableform-control-withoutbg" placeholder="Budget Head-1" disabled	></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg" ></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														
-													</tr>
-
-													<tr>
-														<td><input type="text" class="form-control tableform-control-withoutbg" placeholder="Budget Head-2" disabled	></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg" ></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-													
-													</tr>
-													
-												</tbody>
-											</table>
-										</div>
-										
-										<div class="table-responsive mt-3">
-											<table class="table table-bordered table-head-bg-primary">
-												
-												<tbody>
-
-													
-													
-													<tr >
-													<td colspan="7" class="catgerybg">	Catergory-2</td>
-														
-													</tr>
-
-
-													
-													<tr>
-														<td ><input type="text" class="form-control tableform-control-withoutbg" placeholder="Budget Head-1" disabled	></td>
-														<td  width="20%"> <input type="text" class="form-control tableform-control-withoutbg" ></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-													</tr>
-
-													<tr>
-														<td><input type="text" class="form-control tableform-control-withoutbg" placeholder="Budget Head-2" disabled	></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-														<td><input type="text" class="form-control tableform-control-withoutbg"></td>
-													</tr>
-													
-												</tbody>
-											</table>
+														<tr>
+															<td></td>
+															<td width="20%">
+																<label class="highlight_textbox">Amount Avail in {{ budgetPhase }}</label>
+															</td>
+															<td v-for="(component, index) in availableComponents" :key="'pd-label-' + index">
+																<label class="highlight_textbox">{{ component.name }}</label>
+															</td>
+														</tr>
+														<tr>
+															<td></td>
+															<td>
+																<input type="text" class="form-control" :value="budgetData.reduce((total, category) => total + category.budgetArray.reduce((sum, item) => sum + item.amount, 0), 0).toLocaleString()" disabled />
+															</td>
+															<td v-for="(component, pdIndex) in availableComponents" :key="'total-pd-' + pdIndex">
+																<input type="text" class="form-control" :value="budgetData.reduce((categorySum, category) => categorySum + category.budgetArray.reduce((budgetSum, item) => budgetSum + (item.sls_pd && item.sls_pd[component.name] ? item.sls_pd[component.name] : 0), 0), 0)" disabled />
+															</td>
+														</tr>
+														<template v-for="(category, cIdx) in budgetData" :key="'category-' + cIdx">
+															<tr>
+																<td colspan="6" class="catgerybg">{{ category.category }}</td>
+															</tr>
+															<tr v-for="(budget, bIdx) in category.budgetArray" :key="'budget-row-' + cIdx + '-' + bIdx">
+																<td>
+																	<input style="width: 135px;" type="text" class="form-control tableform-control-withoutbg" :placeholder="budget.budget" disabled />
+																</td>
+																<td>
+																	<input type="text" class="form-control tableform-control-withoutbg" :value="budget.amount" disabled />
+																</td>
+																<td v-for="(component, pdIndex) in availableComponents" :key="'pd-input-' + cIdx + '-' + bIdx + '-' + pdIndex">
+																	<input type="text" class="form-control tableform-control-withoutbg" :value="budget.sls_pd && budget.sls_pd[component.name] ? budget.sls_pd[component.name] : 0" disabled />
+																</td>
+															</tr>
+														</template>
+													</tbody>
+												</table>
+											</div>
 										</div>
 
 
@@ -341,47 +281,88 @@
 }
 </style>
 
-<script>
+<script setup>
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
-import { ref, onMounted, watch } from 'vue'
 
-export default {
-  name: 'BudgetPhaseReport',
-  components: {
-    Header,
-    Sidebar,
-    Footer
-  },
-  setup() {
-    const financialYear = ref('2024-2025')
-    const filteredBudgetHeads = ref([])
-    const isLoading = ref(false)
+const fundAllocationFor = ref('2435')
+const financialYear = ref('')
+const budgetPhase = ref('')
+const selectedState = ref('')
+const states = ref([])
+const availableComponents = ref([])
+const budgetData = ref([])
+const isLoading = ref(false)
 
-    const fetchBudgetSummary = async () => {
-      if (!financialYear.value) return
-      isLoading.value = true
+const financialYears = ref([
+  '2024-2025',
+  '2023-2024',
+  '2022-2023',
+  '2021-2022',
+])
+const budgetPhases = ref(['BE', 'FE', 'RE'])
 
-      try {
-        const res = await fetch(`/api/budget-phase-summary?year=${financialYear.value}`)
-        const data = await res.json()
-        filteredBudgetHeads.value = data
-      } catch (error) {
-        console.error('Error fetching budget summary:', error)
-      } finally {
-        isLoading.value = false
-      }
-    }
-
-    onMounted(fetchBudgetSummary)
-    watch(financialYear, fetchBudgetSummary)
-
-    return {
-      financialYear,
-      filteredBudgetHeads,
-      isLoading
-    }
+const fetchStates = async () => {
+  try {
+    const response = await fetch('/api/states')
+    states.value = response.ok ? await response.json() : []
+  } catch (error) {
+    states.value = []
   }
 }
+
+const fetchComponents = async (fund, state = null) => {
+  try {
+    let url = `/api/get-components-by-fund?fund=${fund}`
+    if (state) url += `&state_id=${state}`
+    const res = await fetch(url)
+    availableComponents.value = res.ok ? await res.json() : []
+  } catch (err) {
+    availableComponents.value = []
+  }
+}
+
+const fetchBudgetData = async () => {
+  if (!fundAllocationFor.value || !financialYear.value || !budgetPhase.value) return
+  isLoading.value = true
+  try {
+    let url = `/api/budget-allocation?fund_allocation_for=${fundAllocationFor.value}&financial_year=${financialYear.value}&budget_phase=${budgetPhase.value}`
+    if (['3601', '3602', '2552'].includes(fundAllocationFor.value) && selectedState.value) {
+      url += `&state_id=${selectedState.value}`
+    }
+    const response = await fetch(url)
+    budgetData.value = response.ok ? await response.json() : []
+  } catch (error) {
+    budgetData.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+watch(fundAllocationFor, async (fund) => {
+  if (['3601', '3602', '2552'].includes(fund)) {
+    await fetchStates()
+  } else {
+    states.value = []
+    selectedState.value = ''
+  }
+  await fetchComponents(fund, selectedState.value)
+})
+
+watch([fundAllocationFor, financialYear, budgetPhase, selectedState], async ([fund, year, phase, state]) => {
+  if (!fund || !year || !phase) return
+  if (['3601', '3602', '2552'].includes(fund) && !state) return
+  await fetchComponents(fund, state)
+  await fetchBudgetData()
+})
+
+onMounted(() => {
+  fetchComponents(fundAllocationFor.value)
+})
+
+const canShowTable = computed(() => {
+  return fundAllocationFor.value && financialYear.value && budgetPhase.value && (['2435'].includes(fundAllocationFor.value) || selectedState.value)
+})
 </script>

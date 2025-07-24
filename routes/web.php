@@ -76,8 +76,9 @@ Route::get('/mother-sanction-report', function () {
 })->middleware(['auth', 'verified'])->name('mother-sanction-report');
 
 Route::get('/mother-sanction-list', function () {
-    return Inertia::render('mother_sanction/MotherSanctionList');
+    return Inertia::render('Reports/MotherSanctionList');
 })->middleware(['auth', 'verified'])->name('mother-sanction-list');
+
 
 Route::get('/daily-sanction-list', function () {
     return Inertia::render('Daily_sanction/DailySanctionList');

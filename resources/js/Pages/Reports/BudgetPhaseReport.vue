@@ -5,65 +5,110 @@
       <Header />
       <div class="container py-4">
         <div class="page-inner allinsideform">
-          <div class="page-header d-flex justify-content-between align-items-center mb-4">
-            <h3 class="fw-bold text-primary mb-0">MIS Reports & Dashboards</h3>
-            <nav aria-label="breadcrumb">
-              <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item">
-                  <a href="login.html" class="text-decoration-none text-muted">
-                    <i class="bi bi-house-fill"></i> Home
-                  </a>
-                </li>
-                <li class="breadcrumb-item active" aria-current="page">Budget Phases Summary Report</li>
-              </ol>
-            </nav>
-          </div>
+          <div class="page-header">
+							<h3 class="fw-bold mb-3">MIS Reports & Dashboards
+							</h3>
+							<ul class="breadcrumbs mb-3">
+								<li class="nav-home">
+									<a href="login.html">
+										<i class="icon-home"></i>
+									</a>
+								</li>
+								
+								
 
-          <!-- Financial Year Dropdown -->
-          <div class="row mb-4 gx-4 gy-3">
-            <div class="col-md-6 col-lg-4">
-              <label for="financialYear" class="form-label fw-semibold">Financial Year</label>
-              <select
-                id="financialYear"
-                v-model="financialYear"
-                class="form-select shadow-sm"
-                aria-label="Select Financial Year"
-              >
-                <option value="2024-2025">2024–2025</option>
-                <!-- Add more years if needed -->
-              </select>
+
+								<li class="separator">
+									<i class="icon-arrow-right"></i>
+								</li>
+								<li class="nav-item">
+									<a href="#">Budget phases Summary Report
+									</a>
+								</li>
+
+
+							</ul>
+						</div>
+            <div class="row">
+							<div class="col-md-12">
+								<div class="card">
+									<div class="card-header">
+										<div class="card-title">Budget phases Summary Report</div>
+									</div>
+
+                  <div class="card-body">
+
+
+                  
+                    <!-- <div class="page-header d-flex justify-content-between align-items-center mb-4">
+                      <h3 class="fw-bold text-primary mb-0">MIS Reports & Dashboards</h3>
+                      <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                          <li class="breadcrumb-item">
+                            <a href="login.html" class="text-decoration-none text-muted">
+                              <i class="bi bi-house-fill"></i> Home
+                            </a>
+                          </li>
+                          <li class="breadcrumb-item active" aria-current="page">Budget Phases Summary Report</li>
+                        </ol>
+                      </nav>
+                    </div> -->
+
+
+                    <!-- Financial Year Dropdown -->
+                    <div class="row mb-4 gx-4 gy-3">
+                      <div class="col-md-6 col-lg-4">
+                        <label for="financialYear" class="form-label fw-semibold">Financial Year</label>
+                        <select
+                          id="financialYear"
+                          v-model="financialYear"
+                          class="form-select shadow-sm"
+                          aria-label="Select Financial Year"
+                        >
+                          <option value="2024-2025">2024–2025</option>
+                          <!-- Add more years if needed -->
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Loading Spinner -->
+                    <div v-if="isLoading" class="d-flex justify-content-center my-5">
+                      <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
+                    </div>
+
+                    <!-- Budget Summary Table -->
+                    <div v-if="filteredBudgetHeads.length" class="table-responsive shadow-sm rounded">
+                      <span class="text-muted fst-italic small mb-2 d-block">(In Lakhs)</span>
+                      <table class="table table-hover table-bordered align-middle">
+                        <thead class="table-primary text-primary sticky-header">
+                          <tr>
+                            <th class="fw-semibold">Budget Head</th>
+                            <th class="fw-semibold">Head Description</th>
+                            <th class="fw-semibold text-end">BE Amount</th>
+                            <th class="fw-semibold text-end">RE Amount</th>
+                            <th class="fw-semibold text-end">FE Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="item in filteredBudgetHeads" :key="item.id" class="align-middle">
+                            <td>{{ item.budget }}</td>
+                            <td>{{ item.description }}</td>
+                            <td class="text-end">{{ item.be ?? '—' }}</td>
+                            <td class="text-end">{{ item.re ?? '—' }}</td>
+                            <td class="text-end">{{ item.fe ?? '—' }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <!-- Loading Spinner -->
-          <div v-if="isLoading" class="d-flex justify-content-center my-5">
-            <div class="spinner-border text-primary" role="status" aria-label="Loading"></div>
-          </div>
 
-          <!-- Budget Summary Table -->
-          <div v-if="filteredBudgetHeads.length" class="table-responsive shadow-sm rounded">
-            <span class="text-muted fst-italic small mb-2 d-block">(In Lakhs)</span>
-            <table class="table table-hover table-bordered align-middle">
-              <thead class="table-primary text-primary sticky-header">
-                <tr>
-                  <th class="fw-semibold">Budget Head</th>
-                  <th class="fw-semibold">Head Description</th>
-                  <th class="fw-semibold text-end">BE Amount</th>
-                  <th class="fw-semibold text-end">RE Amount</th>
-                  <th class="fw-semibold text-end">FE Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in filteredBudgetHeads" :key="item.id" class="align-middle">
-                  <td>{{ item.budget }}</td>
-                  <td>{{ item.description }}</td>
-                  <td class="text-end">{{ item.be ?? '—' }}</td>
-                  <td class="text-end">{{ item.re ?? '—' }}</td>
-                  <td class="text-end">{{ item.fe ?? '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+
         </div>
       </div>
       <Footer />

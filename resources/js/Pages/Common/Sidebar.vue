@@ -106,7 +106,7 @@
               
               <!-- Mother Sanction Module-->
               <li class="nav-item" :class="{ active: activeMenu === 'mother-sanction' }" v-if="hasRole([2])">
-                <Link :href="route('mother-sanction-list')" class="nav-link">
+                <Link :href="route('mother-sanction')" class="nav-link">
                   <i class="fas fa-pen-square"></i>
                   <p>Mother Sanction</p>
                 </Link>
