@@ -40,9 +40,13 @@
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-3">
                       <label for="financialYear" class="form-label fw-semibold">Financial Year (F.Y.)</label>
-                      <select class="form-select shadow-sm" v-model="financialYear" id="financialYear">
+                      <!-- <select class="form-select shadow-sm" v-model="financialYear" id="financialYear">
                         <option disabled value="">Select Financial Year</option>
-                        <option value="2024-2025">2024–2025</option>
+                        <option v-for="year in availableYears" :key="year" :value="year">{{ year }}</option>
+                      </select> -->
+                      <select class="form-select" v-model="financialYear" id="financialYear">
+                          <option value="" disabled>Select Financial Year</option>
+                          <option v-for="year in financialYears" :key="year" :value="year">{{ year }}</option>
                       </select>
                     </div>
 
@@ -74,15 +78,15 @@
                     </div>
                      <!-- motherSanctions -->
                     <div class="col-md-6 col-lg-3">
-                      <label for="stateSelect" class="form-label fw-semibold">Mother Sanction</label>
+                      <label for="motherSanctionSelect" class="form-label fw-semibold">Mother Sanction</label>
                       <select 
                         v-model="selectedMotherSanctionsI" 
                         @change="fetchMotherSanctions" 
                         class="form-select shadow-sm" 
-                        id="stateSelect"
+                        id="motherSanctionSelect"
                       >
                         <option value="">--- Select MS ---</option>
-                        <option v-for="motherSanction in motherSanctions" :key="motherSanction.ky_ms_no" :value="motherSanction.ky_ms_no">
+                        <option v-for="motherSanction in filteredMotherSanctions" :key="motherSanction.ky_ms_no" :value="motherSanction.ky_ms_no">
                           {{ motherSanction.ky_ms_no }}
                         </option>
                       </select>
@@ -328,12 +332,19 @@ import { router } from '@inertiajs/vue3'
 const motherSanctions = ref([])
 const reportData = ref([])
 const isLoadingReport = ref(false)
+const fetchError = ref("")
 
 const states = ref([])
 const selectedState = ref('')
 const selectedMotherSanctionsI = ref('')
 const selectedSlsId = ref('')
 const slsData = ref([])
+const financialYears = ref([
+      '2024-2025',
+      '2023-2024',
+      '2022-2023',
+      '2021-2022'
+])
 const financialYear = ref('')
 const msSequenceNo = ref('')
 const sanctionNo = ref('')
@@ -357,16 +368,30 @@ const reappropriations = ref([
 ])
 
 // ------------------------ Computed ------------------------
+const availableYears = computed(() => {
+  // Extract unique years from motherSanctions
+  const years = motherSanctions.value.map(ms => ms.financial_year).filter(Boolean)
+  return [...new Set(years)].sort().reverse()
+})
+
+const filteredMotherSanctions = computed(() => {
+  return motherSanctions.value.filter(ms => {
+    return (
+      (!financialYear.value || ms.financial_year === financialYear.value) &&
+      (!selectedState.value || ms.state_id == selectedState.value) &&
+      (!sanctionDate.value || ms.sanction_date === sanctionDate.value)
+    )
+  })
+})
+
 const kyMsNo = computed(() => {
   if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !selectedSlsId.value) {
     return ''
   }
-
   const yearPart = financialYear.value.split('-')[0].slice(-2)
   const stateCode = selectedState.value
   const sequenceNo = msSequenceNo.value.toString().padStart(2, '0')
   const sls = selectedSlsId.value
-
   return `MS${yearPart}${stateCode}${sequenceNo}${sls}`
 })
 
@@ -383,36 +408,51 @@ const totalSanctionAmount = computed(() => {
 
 // ------------------------ Watchers ------------------------
 watch(
-  [financialYear, selectedState, sanctionDate, selectedMotherSanctionsI],
-  ([newYear, newState, newDate, newMs]) => {
-    if (newYear && newState && newDate && newMs) {
-      fetchMotherSanctions()
+  [financialYear, selectedState, sanctionDate],
+  ([newYear, newState, newDate]) => {
+    // Update mother sanctions when filters change
+    // selectedMotherSanctionsI reset if not in filtered list
+    if (selectedMotherSanctionsI.value && !filteredMotherSanctions.value.some(ms => ms.ky_ms_no === selectedMotherSanctionsI.value)) {
+      selectedMotherSanctionsI.value = ''
     }
+    // Optionally, auto-select if only one
+    // if (filteredMotherSanctions.value.length === 1) {
+    //   selectedMotherSanctionsI.value = filteredMotherSanctions.value[0].ky_ms_no
+    // }
+    fetchMotherSanctions()
   }
 )
+
+watch(selectedMotherSanctionsI, (newMs) => {
+  if (newMs) fetchMotherSanctions()
+})
+
 // ------------------------ Lifecycle ------------------------
 onMounted(async () => {
   try {
+    isLoadingReport.value = true
+    fetchError.value = ""
     const [statesRes, budgetHeadsRes, resp] = await Promise.all([
       fetch('/api/states'),
       fetch('/api/budget-heads'),
       fetch('/api/mother-sanctions-list')
     ])
-
     if (statesRes.ok) states.value = await statesRes.json()
     if (budgetHeadsRes.ok) budgetHeads.value = await budgetHeadsRes.json()
     if (resp.ok) motherSanctions.value = await resp.json()
-
   } catch (error) {
+    fetchError.value = 'Failed to load initial data.'
     console.error('Fetch error:', error)
+  } finally {
+    isLoadingReport.value = false
   }
 })
 
 // ------------------------ Methods ------------------------
 async function fetchMotherSanctions() {
   if (!financialYear.value || !selectedState.value) return;
- 
   isLoadingReport.value = true;
+  fetchError.value = ""
   reportData.value = [];
   try {
     const params = new URLSearchParams({
@@ -425,8 +465,6 @@ async function fetchMotherSanctions() {
     if (res.ok) {
       const data = await res.json();
       reportData.value = data;
-
-      // ✅ Set reappropriations from response
       if (Array.isArray(data) && data.length > 0) {
         reappropriations.value = data.map(item => ({
           budget_head: item.budget_head || '',
@@ -434,22 +472,24 @@ async function fetchMotherSanctions() {
           available_amount: item.available_fund || '',
           sanction_amount: item.mother_sanction_amount || ''
         }));
-        console.log("reappropriations",reappropriations)
-
         ucFileUrl.value = data[0].uc_received_from_state
-    ? `/storage/${data[0].uc_received_from_state}`
-    : null
-
-  sanctionFileUrl.value = data[0].signed_copy_of_mother_sanction
-    ? `/storage/${data[0].signed_copy_of_mother_sanction}`
-    : null
+          ? `/storage/${data[0].uc_received_from_state}`
+          : null
+        sanctionFileUrl.value = data[0].signed_copy_of_mother_sanction
+          ? `/storage/${data[0].signed_copy_of_mother_sanction}`
+          : null
       } else {
         reappropriations.value = [
           { budget_head: '', category: '', available_amount: '', sanction_amount: '' }
         ];
+        ucFileUrl.value = null
+        sanctionFileUrl.value = null
       }
+    } else {
+      fetchError.value = 'Failed to fetch report data.'
     }
   } catch (error) {
+    fetchError.value = 'Error fetching mother sanctions.'
     console.error('Error fetching mother sanctions:', error);
   } finally {
     isLoadingReport.value = false;
@@ -553,4 +593,9 @@ function addReappropriationRow() {
     sanction_amount: ''
   })
 }
+
+// return {
+//       financialYear,
+//       financialYears,
+//     }
 </script>

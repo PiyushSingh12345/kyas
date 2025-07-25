@@ -10,13 +10,14 @@ use App\Http\Controllers\BudgetPhaseController;
 use App\Http\Controllers\SlsPDComponentController;
 use App\Http\Controllers\FundAllocationController;
 use App\Http\Controllers\MotherSanctionController;
+use App\Http\Controllers\MotherSanctionListController;
 use App\Http\Controllers\DailySanctionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    if (auth()->check()) {
+    if (\Illuminate\Support\Facades\Auth::check()) {
         return redirect()->route('user-listing');
     }
     // return Inertia::render('Welcome', [
@@ -104,9 +105,9 @@ Route::get('/rog-report', function () {
     return Inertia::render('Reports/RogReport');
 })->middleware(['auth', 'verified'])->name('rog-report');
 
-Route::get('/mother-sanction-list', function () {
-    return Inertia::render('Reports/MotherSanctionList');
-})->middleware(['auth', 'verified'])->name('mother-sanction-list');
+Route::get('/mother-sanction-list-module', function () {
+    return Inertia::render('mother_sanction/MotherSanctionList');
+})->middleware(['auth', 'verified'])->name('mother-sanction-list-module');
 
 Route::middleware('auth')->group(function () {
 
@@ -151,6 +152,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/mother-sanction', [MotherSanctionController::class, 'addMotherSanction'])->name('addMotherSanction');
 
     Route::get('/api/mother-sanctions-list', [MotherSanctionController::class, 'list'])->name('motherSanctions.list');
+
+    Route::get('/api/mother-sanctions-list-report', [MotherSanctionController::class, 'listReport'])->name('motherSanctions.listReport');
 
     Route::get('/api/mother-sanctions', [DailySanctionController::class, 'getMotherSanctions']);
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);

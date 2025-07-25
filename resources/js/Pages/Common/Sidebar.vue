@@ -105,11 +105,32 @@
               </li>
               
               <!-- Mother Sanction Module-->
-              <li class="nav-item" :class="{ active: activeMenu === 'mother-sanction' }" v-if="hasRole([2])">
+              <!-- <li class="nav-item" :class="{ active: activeMenu === 'mother-sanction' }" v-if="hasRole([2])">
                 <Link :href="route('mother-sanction')" class="nav-link">
                   <i class="fas fa-pen-square"></i>
                   <p>Mother Sanction</p>
                 </Link>
+              </li> -->
+              <li class="nav-item" :class="{ active: activeMenu === 'module-mother-sanction' }" v-if="hasRole([2])">
+                <a href="#" @click.prevent="toggleMenu('module-mother-sanction')">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Mother Sanction Module</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 'module-mother-sanction' }"></span>
+                </a>
+                <div v-show="activeMenu === 'module-mother-sanction'">
+                  <ul class="nav nav-collapse">
+                    <li>
+                      <Link :href="route('mother-sanction')" class="nav-link">
+                        <span class="sub-item">Mother Sanction</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('mother-sanction-list-module')" class="nav-link">
+                        <span class="sub-item">Mother Sanction List</span>
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
               </li>
               <!-- Daily Sanction Module -->
               <li class="nav-item" :class="{ active: activeMenu === 'daily-sanction' }" v-if="hasRole([2])">

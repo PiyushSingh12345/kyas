@@ -94,6 +94,70 @@ public function list()
     return response()->json($data);
 }
 
+public function listReport(Request $request)
+{
+    $query = MotherSanction::with('state')
+        ->where('status', 1)
+        ->orderBy('created_at', 'desc');
+
+    // Filtering
+    if ($request->filled('year')) {
+        $query->where('financial_year', $request->year);
+    }
+    if ($request->filled('program_division')) {
+        $query->where('pd_component', $request->program_division);
+    }
+    if ($request->filled('state_id')) {
+        $query->where('state_id', $request->state_id);
+    }
+    if ($request->filled('sanction_date')) {
+        $query->where('sanction_date', $request->sanction_date);
+    }
+
+    $data = $query->get();
+
+    return response()->json($data);
+}
+
+// public function listReport(Request $request)
+//     {
+//         // Get latest record per group of `last_id`
+//         $subQuery = DB::table('mother_sanction')
+//             ->select(DB::raw('MAX(id) as id'))
+//             ->groupBy('last_id');
+
+//         $query = MotherSanction::with('state')
+//             ->whereIn('id', $subQuery)
+//             ->orderBy('created_at', 'desc');
+
+//         // Filtering
+//         if ($request->filled('year')) {
+//             $query->where('financial_year', $request->year);
+//         }
+//         if ($request->filled('state_id')) {
+//             $query->where('state_id', $request->state_id);
+//         }
+//         if ($request->filled('sanction_date')) {
+//             $query->where('sanction_date', $request->sanction_date);
+//         }
+//         $query->where('status', 1);
+//         // Program Division filter using join with pd_and_sls_comp
+//         if ($request->filled('program_division')) {
+//             $programDivisionId = $request->program_division;
+//             $query->whereExists(function($q) use ($programDivisionId) {
+//                 $q->select(DB::raw(1))
+//                     ->from('pd_and_sls_comp as pd')
+//                     ->whereColumn('pd.name', 'mother_sanction.pd_component')
+//                     ->where('pd.component', 'PD')
+//                     ->where('pd.id', $programDivisionId);
+//             });
+//         }
+
+//         $data = $query->get();
+
+//         return response()->json($data);
+//     }
+
     public function addMotherSanction(Request $request)
 {
     $ucFilePath = null;

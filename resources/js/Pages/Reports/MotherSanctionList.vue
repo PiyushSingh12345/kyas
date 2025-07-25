@@ -33,21 +33,17 @@
                       <div class="form-group">
                         <label for="financialYear">F.Y</label>
                         <select class="form-select" v-model="financialYear" id="financialYear">
-														<option value="" disabled>Select Financial Year</option>
-														<option v-for="year in financialYears" :key="year" :value="year">{{ year }}</option>
-												</select>
-                        <!-- <select class="form-select" id="financialYear" v-model="financialYear">
-                          <option value="2024-2025">2024–2025</option> -->
-                          <!-- Add more years as needed -->
-                        <!-- </select> -->
+                          <option value="" disabled>Select Financial Year</option>
+                          <option v-for="year in financialYears" :key="year" :value="year">{{ year }}</option>
+                        </select>
                       </div>
                     </div>
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
                         <label for="programDivision">Program Division</label>
                         <select class="form-select" id="programDivision" v-model="selectedProgramDivision">
-                          <option value="" selected disabled>Select Program</option>
-                          <option v-for="division in programDivisions" :key="division.division_id" :value="division.division_id">
+                          <option value="" disabled>Select Program</option>
+                          <option v-for="division in programDivisions" :key="division.division_id" :value="division.division_name">
                             {{ division.division_name }}
                           </option>
                         </select>
@@ -57,7 +53,7 @@
                       <div class="form-group">
                         <label for="stateSelect">State</label>
                         <select class="form-select" id="stateSelect" v-model="selectedState">
-                          <option value="" selected disabled>Select State</option>
+                          <option value="" disabled>Select State</option>
                           <option v-for="state in states" :key="state.id" :value="state.id">
                             {{ state.name }}
                           </option>
@@ -70,6 +66,12 @@
                         <input type="date" class="form-control" id="sanctionDate" v-model="sanctionDate">
                       </div>
                     </div>
+                  </div>
+                  <div class="d-flex justify-content-end flex-wrap mb-2">
+                    <button class="btn btn-secondary me-2" @click="resetFilters">Reset Filters</button>
+                  </div>
+                  <div v-if="errorMessage" class="alert alert-danger" role="alert">
+                    {{ errorMessage }}
                   </div>
                   <div class="table-responsive mt-3">
                     <table class="table table-bordered table-head-bg-primary">
@@ -105,7 +107,7 @@
                           <td>{{ item.pd_component }}</td>
                           <td>{{ item.mother_sanction_amount }}</td>
                           <td></td>
-                          <td>{{ item.state && item.state.name ? item.state.name : '' }}</td>
+                          <td>{{ item.state?.name || '' }}</td>
                           <td></td>
                         </tr>
                       </tbody>
@@ -253,6 +255,7 @@ export default {
     // Table data
     const motherSanctions = ref([])
     const isLoading = ref(false)
+    const errorMessage = ref('')
 
     // Fetch dropdowns
     const fetchStates = async () => {
@@ -274,10 +277,7 @@ export default {
 
     // Fetch mother sanction list with filters
     const fetchMotherSanctions = async () => {
-      if (!financialYear.value || !selectedProgramDivision.value) {
-        motherSanctions.value = []
-        return
-      }
+      errorMessage.value = ''
       isLoading.value = true
       try {
         const params = new URLSearchParams()
@@ -285,10 +285,12 @@ export default {
         if (selectedProgramDivision.value) params.append('program_division', selectedProgramDivision.value)
         if (selectedState.value) params.append('state_id', selectedState.value)
         if (sanctionDate.value) params.append('sanction_date', sanctionDate.value)
-        const res = await fetch(`/api/mother-sanctions-list?${params}`)
-        motherSanctions.value = res.ok ? await res.json() : []
+        const res = await fetch(`/api/mother-sanctions-list-report?${params}`)
+        if (!res.ok) throw new Error('Failed to fetch data')
+        motherSanctions.value = await res.json()
       } catch (e) {
         motherSanctions.value = []
+        errorMessage.value = 'Failed to fetch data. Please try again.'
       } finally {
         isLoading.value = false
       }
@@ -302,7 +304,7 @@ export default {
         fetchStates(),
         fetchProgramDivisions()
       ])
-      // Do not fetchMotherSanctions on mount (table should be blank initially)
+      fetchMotherSanctions()
     })
 
     const resetFilters = () => {
@@ -310,6 +312,7 @@ export default {
       selectedProgramDivision.value = ''
       selectedState.value = ''
       sanctionDate.value = ''
+      errorMessage.value = ''
     }
 
     return {
@@ -322,7 +325,8 @@ export default {
       programDivisions,
       motherSanctions,
       isLoading,
-      resetFilters
+      resetFilters,
+      errorMessage
     }
   }
 }
