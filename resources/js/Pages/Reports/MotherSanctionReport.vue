@@ -345,7 +345,7 @@ const financialYears = ref([
       '2022-2023',
       '2021-2022'
 ])
-const financialYear = ref('')
+const financialYear = ref('2024-2025')
 const msSequenceNo = ref('')
 const sanctionNo = ref('')
 const ifdNo = ref('')
