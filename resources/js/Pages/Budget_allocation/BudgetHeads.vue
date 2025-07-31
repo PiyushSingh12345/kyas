@@ -66,6 +66,63 @@
                     </button>
                     <button v-if="editingId" type="button" class="btn btn-secondary" @click="cancelEdit">Cancel</button>
                   </div>
+                  
+                  <!-- File Upload Section -->
+                  <div class="card-body border-top">
+                    <div class="row">
+                      <div class="col-md-12">
+                        <div class="form-group">
+                          <label class="form-label fw-bold">Upload Budget Head Data (PDF)</label>
+                          <div class="input-group">
+                            <input 
+                              type="file" 
+                              class="form-control" 
+                              @change="handleFileUpload"
+                              accept=".pdf"
+                              ref="fileInput"
+                            />
+                            <button 
+                              type="button" 
+                              class="btn btn-success" 
+                              @click="uploadFile"
+                              :disabled="!selectedFile || uploading"
+                            >
+                              <i class="fas fa-upload me-2"></i>
+                              {{ uploading ? 'Uploading...' : 'Upload File' }}
+                            </button>
+                          </div>
+                          <div v-if="selectedFile" class="mt-2">
+                            <small class="text-muted">
+                              Selected file: {{ selectedFile.name }} ({{ formatFileSize(selectedFile.size) }})
+                            </small>
+                          </div>
+                          <div v-if="uploadError" class="alert alert-danger mt-2">
+                            {{ uploadError }}
+                          </div>
+                          <div v-if="uploadSuccess" class="alert alert-success mt-2">
+                            {{ uploadSuccess }}
+                          </div>
+                          
+                          <!-- Debug Info -->
+                          <div v-if="extractedData" class="alert alert-info mt-2">
+                            <strong>Debug:</strong> extractedData is set with {{ extractedData.total_lines }} lines
+                          </div>
+                          
+                          <!-- Show Modal Button -->
+                          <div v-if="extractedData" class="mt-3">
+                            <button 
+                              type="button" 
+                              class="btn btn-primary" 
+                              @click="showPreviewModal"
+                            >
+                              <i class="fas fa-eye me-2"></i>
+                              Preview Extracted Data ({{ extractedData.total_lines }} lines)
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </form>
               </div>
             </div>
@@ -134,6 +191,92 @@
       <Footer />
     </div>
   </div>
+  
+  <!-- Preview Modal -->
+  <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="previewModalLabel">
+            <i class="fas fa-file-pdf me-2"></i>
+            Extracted Budget Data Preview
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>File:</strong> {{ selectedFile?.name || 'Unknown' }} | 
+            <strong>Extracted:</strong> {{ extractedData?.total_items || 0 }} items from "Krishonnati Yojna" to "Rashtriya Krishi Vikas Yojna"
+            <br>
+            <small class="text-muted">
+              <i class="fas fa-database me-1"></i>
+              Clicking "Proceed" will save budget heads to database and create corresponding budget phase records for BE 2025-26.
+            </small>
+          </div>
+          
+          <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-bordered table-striped">
+              <thead class="table-dark sticky-top">
+                <tr>
+                  <th style="width: 30%;">Budget Head</th>
+                  <th style="width: 50%;">Head Description</th>
+                  <!-- <th style="width: 20%;">BE 2024-25</th> -->
+                  <th style="width: 20%;">Budget Amount in Lakhs (2025-2026)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(item, index) in extractedData?.structured_data || []" :key="index">
+                    <td style="font-family: monospace; font-size: 0.9em;">
+                      <strong>{{ item.code }}</strong>
+                    </td>
+                    <td class="text-end fw-bold" style="font-family: monospace;">
+                      {{ item.item }}
+                    </td>
+                  <!-- <td class="text-end fw-bold" style="font-family: monospace;">
+                    {{ formatAmount(item.be_2024_25) }}
+                  </td> -->
+                  <td class="text-end fw-bold" style="font-family: monospace;">
+                    {{ formatAmount(item.be_2025_26) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="d-flex justify-content-between w-100">
+            <div>
+              <small class="text-muted">
+                <i class="fas fa-clock me-1"></i>
+                Extracted on {{ new Date().toLocaleString() }}
+              </small>
+            </div>
+            <div class="btn-group">
+              <button 
+                type="button" 
+                class="btn btn-success" 
+                @click="proceedWithImport"
+                :disabled="processing"
+              >
+                <i class="fas fa-check me-2"></i>
+                {{ processing ? 'Processing...' : 'Proceed' }}
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-secondary" 
+                @click="handleCancel"
+                :disabled="processing"
+              >
+                <i class="fas fa-times me-2"></i>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 <script setup>
 import Header from '../Common/Header.vue'
@@ -167,6 +310,15 @@ const props = defineProps({
 const page = usePage()
 const successMessage = computed(() => page.props.flash?.success || null)
 const editingId = ref(null)
+
+// File upload related reactive variables
+const selectedFile = ref(null)
+const uploading = ref(false)
+const processing = ref(false)
+const uploadError = ref('')
+const uploadSuccess = ref('')
+const extractedData = ref(null)
+const fileInput = ref(null)
 
 const form = useForm({
   budget: '',
@@ -204,5 +356,194 @@ const editBudgetHead = (item) => {
 const cancelEdit = () => {
   editingId.value = null
   form.reset()
+}
+
+// File upload methods
+const handleFileUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // Validate file type
+    const allowedTypes = ['application/pdf']
+    if (!allowedTypes.includes(file.type)) {
+      uploadError.value = 'Please select a valid PDF file.'
+      selectedFile.value = null
+      return
+    }
+    
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      uploadError.value = 'File size must be less than 10MB.'
+      selectedFile.value = null
+      return
+    }
+    
+    selectedFile.value = file
+    uploadError.value = ''
+    uploadSuccess.value = ''
+    extractedData.value = null
+  }
+}
+
+const uploadFile = () => {
+  if (!selectedFile.value) {
+    uploadError.value = 'Please select a file to upload.'
+    return
+  }
+  
+  uploading.value = true
+  uploadError.value = ''
+  uploadSuccess.value = ''
+  
+  const formData = new FormData()
+  formData.append('file', selectedFile.value)
+  
+  // Use fetch instead of router.post for file upload
+  fetch(route('BudgetHead.upload'), {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('Upload success response:', data)
+    if (data.success) {
+      uploadSuccess.value = 'File processed successfully! Preview the extracted data below.'
+      extractedData.value = data.data
+      console.log('Extracted data set:', extractedData.value)
+    } else {
+      uploadError.value = data.message || 'Upload failed. Please try again.'
+    }
+  })
+  .catch(error => {
+    console.log('Upload error:', error)
+    uploadError.value = 'Upload failed. Please try again.'
+  })
+  .finally(() => {
+    uploading.value = false
+  })
+}
+
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// Accept extracted data and import to database
+const acceptExtractedData = () => {
+  if (!extractedData.value) return
+  
+  processing.value = true
+  
+  // Send the extracted data to backend for processing
+  fetch(route('BudgetHead.import'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    },
+    body: JSON.stringify({
+      structured_data: extractedData.value.structured_data,
+      file_name: selectedFile.value?.name || 'Unknown'
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      uploadSuccess.value = data.message || 'Data imported successfully!'
+      // Close the modal after successful import
+      closePreviewModal()
+      // Refresh the budget heads list
+      router.reload({ only: ['BudgetHeads'] })
+    } else {
+      uploadError.value = data.message || 'Import failed. Please try again.'
+    }
+  })
+  .catch(error => {
+    console.log('Import error:', error)
+    uploadError.value = 'Import failed. Please try again.'
+  })
+  .finally(() => {
+    processing.value = false
+  })
+}
+
+// Cancel extracted data preview
+const cancelExtractedData = () => {
+  extractedData.value = null
+  selectedFile.value = null
+  uploadSuccess.value = ''
+  uploadError.value = ''
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+// Modal functions
+const showPreviewModal = () => {
+  // Use Bootstrap modal
+  try {
+    const modalElement = document.getElementById('previewModal')
+    if (modalElement) {
+      const modal = new bootstrap.Modal(modalElement)
+      modal.show()
+    }
+  } catch (error) {
+    console.error('Error showing modal:', error)
+    // Fallback: show alert with data
+    alert('Modal error. Please check console for details.')
+  }
+}
+
+const closePreviewModal = () => {
+  try {
+    const modalElement = document.getElementById('previewModal')
+    if (modalElement) {
+      const modal = bootstrap.Modal.getInstance(modalElement)
+      if (modal) {
+        modal.hide()
+      }
+    }
+  } catch (error) {
+    console.error('Error closing modal:', error)
+  }
+  
+  // Reset file upload data
+  extractedData.value = null
+  selectedFile.value = null
+  uploadSuccess.value = ''
+  uploadError.value = ''
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+const proceedWithImport = () => {
+  acceptExtractedData()
+}
+
+const handleCancel = () => {
+  closePreviewModal()
+}
+
+// Helper function to format amount
+const formatAmount = (amount) => {
+  if (!amount || amount === 'null' || amount === '') {
+    return 'N/A'
+  }
+  
+  // Remove any non-numeric characters except dots and commas
+  const cleanAmount = amount.toString().replace(/[^\d.,]/g, '')
+  
+  if (cleanAmount === '') {
+    return 'N/A'
+  }
+  
+  return cleanAmount
 }
 </script>

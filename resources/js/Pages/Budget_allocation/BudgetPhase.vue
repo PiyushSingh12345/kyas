@@ -35,7 +35,8 @@
                       <div class="form-group">
                         <label for="financialYear">F.Y</label>
                         <select class="form-select" id="financialYear" v-model="financialYear">
-                          <option value="2024-2025">2024–2025</option>
+                          <option value="2025-2026">2025-2026</option>
+                          <option value="2024-2025">2024-2025</option>
                           <!-- Add more years if needed -->
                         </select>
                       </div>
@@ -66,7 +67,9 @@
                       </thead>
                       <tbody>
                         <tr v-for="(item, index) in filteredBudgetHeads" :key="item.id">
+                          {{ item }}
                           <td>
+                            <!-- {{ item }} -->
                             <input
                               type="text"
                               v-model="item.budget"
@@ -83,6 +86,7 @@
                             />
                           </td>
                           <td>
+                            <!-- {{ item.amount }} -->
                             <input
                               v-if="item.draft_flag === 0"
                               type="number"
@@ -139,7 +143,7 @@ export default {
   },
   setup() {
     const selectedPhase = ref('0')
-    const financialYear = ref('2024-2025')
+    const financialYear = ref('2025-2026')
     const filteredBudgetHeads = ref([])
     const isSubmitted = ref(false)
 
@@ -151,9 +155,11 @@ export default {
       }
 
       try {
+        // console.log("Fetching budget heads for phase:", selectedPhase.value, "and year:", financialYear.value);
         const response = await fetch(`/api/budget-heads?phase=${selectedPhase.value}&year=${financialYear.value}`)
         const data = await response.json()
         filteredBudgetHeads.value = data
+        console.log("Fetched budget heads:", data);
 
         // If ALL draft_flag === 1, disable buttons
         isSubmitted.value = data.every(item => item.draft_flag === 1)

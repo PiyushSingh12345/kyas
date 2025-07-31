@@ -111,7 +111,7 @@
                   <p>Mother Sanction</p>
                 </Link>
               </li> -->
-              <li class="nav-item" :class="{ active: activeMenu === 'module-mother-sanction' }" v-if="hasRole([2])">
+              <li class="nav-item" :class="{ active: activeMenu === 'modulemothersanction' }" v-if="hasRole([2])">
                 <a href="#" @click.prevent="toggleMenu('module-mother-sanction')">
                   <i class="fas fa-pen-square"></i>
                   <p>Mother Sanction Module</p>

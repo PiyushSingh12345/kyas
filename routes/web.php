@@ -12,6 +12,7 @@ use App\Http\Controllers\FundAllocationController;
 use App\Http\Controllers\MotherSanctionController;
 use App\Http\Controllers\MotherSanctionListController;
 use App\Http\Controllers\DailySanctionController;
+use App\Http\Controllers\ReAppropritionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -122,15 +123,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/budget-head-list', [BudgetHeadController::class, 'index'])->name('budget-head-list');
 
     Route::post('/budget-heads', [BudgetHeadController::class, 'store'])->name('BudgetHead.store');
+    Route::post('/budget-heads/upload', [BudgetHeadController::class, 'upload'])->name('BudgetHead.upload');
+    Route::post('/budget-heads/import', [BudgetHeadController::class, 'import'])->name('BudgetHead.import');
     Route::delete('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'destroy'])->name('BudgetHead.destroy');
     Route::put('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'update'])->name('BudgetHead.update');
     Route::put('/budget-heads/{id}/toggle-status', [BudgetHeadController::class, 'toggleStatus'])->name('BudgetHead.toggleStatus');
 
-    Route::get('/api/budget-heads', [BudgetHeadController::class, 'fetchBudgetHeads']);
+    // Route::get('/api/budget-heads', [BudgetHeadController::class, 'fetchBudgetHeads']);
     Route::get('/api/budget-phase-summary', [BudgetPhaseController::class, 'budgetPhaseSummary']);
 
 
-    Route::get('/api/budget-heads', [BudgetPhaseController::class, 'fetchActiveBudgetHeads']);
+   Route::get('/api/budget-heads', [BudgetPhaseController::class, 'fetchActiveBudgetHeads']);
 
     Route::post('/budget-phase', [BudgetPhaseController::class, 'store'])->name('budget-phase.store');
 
@@ -141,7 +144,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/states', [StateController::class, 'getStatesApi']);
 
     Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
-    Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocation.store');
+Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocation.store');
+
+// Test route for PDF processing
+Route::get('/test-pdf', function() {
+    try {
+        $parser = new \Smalot\PdfParser\Parser();
+        return response()->json(['status' => 'PDF Parser is working']);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'Error: ' . $e->getMessage()]);
+    }
+});
 
     Route::get('/api/sls-data/{stateId}', [MotherSanctionController::class, 'getSlsData']);
 
@@ -169,6 +182,9 @@ Route::middleware('auth')->group(function () {
 
 });
 
+Route::post('api/reappropriations', [ReAppropritionController::class, 'store']);
+Route::get('api/budget-phase/amount', [ReAppropritionController::class, 'getBudgetAmountByHead']);
+
 Route::resource('users', UserController::class);
 Route::post('/users', [UserController::class, 'store']);
 
@@ -188,6 +204,8 @@ Route::get('/md-program-divisions', function () {
 Route::get('/md-user-types', function () {
     return MdUserType::select('md_user_type_id', 'user_type_name')->get();
 });
+
+
 
 Route::put('/users/{id}', [UserController::class, 'update']);
 Route::delete('/users/{id}', [UserController::class, 'destroy']);
