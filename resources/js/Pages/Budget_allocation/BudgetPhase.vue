@@ -5,7 +5,7 @@
       <Header />
       <div class="container">
         <div class="page-inner allinsideform">
-          <div class="page-header">
+          <!-- <div class="page-header">
             <h3 class="fw-bold">Budget Allocation Module</h3>
             <ul class="breadcrumbs">
               <li class="nav-home">
@@ -20,20 +20,32 @@
                 <a href="#">Add details of BE/FE/RE</a>
               </li>
             </ul>
+          </div> -->
+          <div class="page-header">
+            <h3 class="fw-bold mb-3">Master Data</h3>
+            <ul class="breadcrumbs mb-3">
+              <li class="nav-home">
+                <a href="#"><i class="icon-home"></i></a>
+              </li>
+              <li class="separator"><i class="icon-arrow-right"></i></li>
+              <li class="nav-item">
+                <a href="#">Budget Phase</a>
+              </li>
+            </ul>
           </div>
 
           <div class="row">
             <div class="col-md-12">
               <div class="card">
                 <div class="card-header">
-                  <div class="card-title">Add details of BE/FE/RE</div>
+                  <div class="card-title">Budget Phase</div>
                 </div>
 
                 <div class="card-body">
                   <div class="row">
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label for="financialYear">F.Y</label>
+                        <label for="financialYear">Financial Year</label>
                         <select class="form-select" id="financialYear" v-model="financialYear">
                           <option value="2025-2026">2025-2026</option>
                           <option value="2024-2025">2024-2025</option>
