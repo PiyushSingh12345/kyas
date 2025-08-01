@@ -87,14 +87,14 @@
                           </div>
                         </div>
                       </div>
-                      <div class="col-md-4">
+                      <!-- <div class="col-md-4">
                         <div class="card bg-warning text-white">
                           <div class="card-body text-center">
                             <h5 class="card-title">Remaining Amount</h5>
                             <h3 class="mb-0">{{ remainingAmount.toLocaleString() }} Lakhs</h3>
                           </div>
                         </div>
-                      </div>
+                      </div> -->
                     </div>
                     <table class="table table-bordered table-head-bg-primary">
                       <thead>
@@ -151,8 +151,8 @@
                       </tbody>
                       <tfoot class="table-dark">
                         <tr>
-                          <td colspan="2" class="text-end fw-bold">Total Budget Amount:</td>
-                          <td class="fw-bold text-success">{{ totalBudgetAmount.toLocaleString() }} Lakhs</td>
+                          <!-- <td colspan="2" class="text-end fw-bold">Total Budget Amount:</td>
+                          <td class="fw-bold text-success">{{ totalBudgetAmount.toLocaleString() }} Lakhs</td> -->
                         </tr>
                       </tfoot>
                     </table>

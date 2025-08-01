@@ -13,6 +13,7 @@
         "laravel/sanctum": "*",
         "laravel/tinker": "^2.10.1",
         "smalot/pdfparser": "^2.12",
+        "phpoffice/phpspreadsheet": "^1.29",
         "spatie/laravel-google-fonts": "^1.4",
         "tightenco/ziggy": "^2.0"
     },
