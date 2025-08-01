@@ -6,18 +6,14 @@
       <div class="container">
         <div class="page-inner allinsideform">
           <div class="page-header">
-            <h3 class="fw-bold">Budget Allocation Module</h3>
-            <ul class="breadcrumbs">
+            <h3 class="fw-bold mb-3">Master Data</h3>
+            <ul class="breadcrumbs mb-3">
               <li class="nav-home">
-                <a href="login.html">
-                  <i class="icon-home"></i>
-                </a>
+                <a href="#"><i class="icon-home"></i></a>
               </li>
-              <li class="separator">
-                <i class="icon-arrow-right"></i>
-              </li>
+              <li class="separator"><i class="icon-arrow-right"></i></li>
               <li class="nav-item">
-                <a href="#">Add details of BE/FE/RE</a>
+                <a href="#">Budget Phase</a>
               </li>
             </ul>
           </div>
@@ -26,7 +22,7 @@
             <div class="col-md-12">
               <div class="card">
                 <div class="card-header">
-                  <div class="card-title">Add details of BE/FE/RE</div>
+                  <div class="card-title">Budget Phase</div>
                 </div>
 
                 <div class="card-body">

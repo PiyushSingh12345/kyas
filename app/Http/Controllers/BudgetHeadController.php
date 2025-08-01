@@ -173,23 +173,56 @@ class BudgetHeadController extends Controller
                         }
                     }
                     
-                    // If amounts not found in current line, check next lines
-                    if (!$be_2024_25 && isset($lines[$i + 1])) {
-                        $nextLine = trim($lines[$i + 1]);
-                        if (preg_match('/^\d+\.\d{2}$/', $nextLine)) {
-                            $be_2024_25 = $nextLine;
+                    // Handle multi-line descriptions
+                    $fullDescription = $item;
+                    $nextLineIndex = $i + 1;
+                    
+                    // Continue reading next lines until we find amounts or a new budget code
+                    while ($nextLineIndex < count($lines) && 
+                           isset($lines[$nextLineIndex]) && 
+                           !preg_match('/^(\d{12,15})-(.+)$/', $lines[$nextLineIndex]) && // Not a new budget code
+                           !preg_match('/^\d+\.\d{2}$/', $lines[$nextLineIndex])) { // Not an amount line
+                        
+                        $nextLine = trim($lines[$nextLineIndex]);
+                        
+                        // Skip unwanted lines
+                        if (stripos($nextLine, 'Details of BE 2025-26 under Demand-01 (DA&FW)') !== false ||
+                            stripos($nextLine, 'Rs Lakh') !== false) {
+                            $nextLineIndex++;
+                            continue;
                         }
+                        
+                        // If this line contains amounts, extract them and stop
+                        if (preg_match_all('/\d+\.\d{2}/', $nextLine, $amounts)) {
+                            if (!$be_2024_25 && isset($amounts[0][0])) {
+                                $be_2024_25 = $amounts[0][0];
+                            }
+                            if (!$be_2025_26 && isset($amounts[0][1])) {
+                                $be_2025_26 = $amounts[0][1];
+                            }
+                            break; // Stop reading lines as we found amounts
+                        }
+                        
+                        // Add this line to the description
+                        $fullDescription .= ' ' . $nextLine;
+                        $nextLineIndex++;
                     }
                     
-                    if (!$be_2025_26 && isset($lines[$i + 2])) {
-                        $nextLine = trim($lines[$i + 2]);
-                        if (preg_match('/^\d+\.\d{2}$/', $nextLine)) {
-                            $be_2025_26 = $nextLine;
-                        }
+                    // If amounts not found yet, check the line after description
+                    if (!$be_2024_25 && $nextLineIndex < count($lines) && 
+                        preg_match('/^\d+\.\d{2}$/', trim($lines[$nextLineIndex]))) {
+                        $be_2024_25 = trim($lines[$nextLineIndex]);
+                        $nextLineIndex++;
+                    }
+                    
+                    if (!$be_2025_26 && $nextLineIndex < count($lines) && 
+                        preg_match('/^\d+\.\d{2}$/', trim($lines[$nextLineIndex]))) {
+                        $be_2025_26 = trim($lines[$nextLineIndex]);
+                        $nextLineIndex++;
                     }
                     
                     // Clean the item description by removing amounts and tabs
-                    $cleanItem = preg_replace('/\s*\d+\.\d{2}\s*\d+\.\d{2}.*$/', '', $item);
+                    $cleanItem = preg_replace('/\s*\d+\.\d{2}\s*\d+\.\d{2}.*$/', '', $fullDescription);
                     $cleanItem = preg_replace('/\s*\d+\.\d{2}.*$/', '', $cleanItem);
                     $cleanItem = str_replace("\t", " ", $cleanItem);
                     $cleanItem = trim($cleanItem);
@@ -201,13 +234,8 @@ class BudgetHeadController extends Controller
                         'be_2025_26' => $be_2025_26,
                     ];
                     
-                    // Skip amount lines if they were on separate lines
-                    if ($be_2024_25 && $be_2024_25 === trim($lines[$i + 1] ?? '')) {
-                        $i++;
-                    }
-                    if ($be_2025_26 && $be_2025_26 === trim($lines[$i + 1] ?? '')) {
-                        $i++;
-                    }
+                    // Update index to skip processed lines
+                    $i = $nextLineIndex - 1;
                 }
             }
 
@@ -251,8 +279,56 @@ class BudgetHeadController extends Controller
                     }
                 }
                 
+                // Handle multi-line descriptions for fallback section too
+                $fullDescription = $item;
+                $nextLineIndex = $i + 1;
+                
+                // Continue reading next lines until we find amounts or a new budget code
+                while ($nextLineIndex < count($lines) && 
+                       isset($lines[$nextLineIndex]) && 
+                       !preg_match('/^(\d{12,15})-(.+)$/', $lines[$nextLineIndex]) && // Not a new budget code
+                       !preg_match('/^\d+\.\d{2}$/', $lines[$nextLineIndex])) { // Not an amount line
+                    
+                    $nextLine = trim($lines[$nextLineIndex]);
+                    
+                    // Skip unwanted lines
+                    if (stripos($nextLine, 'Details of BE 2025-26 under Demand-01 (DA&FW)') !== false ||
+                        stripos($nextLine, 'Rs Lakh') !== false) {
+                        $nextLineIndex++;
+                        continue;
+                    }
+                    
+                    // If this line contains amounts, extract them and stop
+                    if (preg_match_all('/\d+\.\d{2}/', $nextLine, $amounts)) {
+                        if (!$be_2024_25 && isset($amounts[0][0])) {
+                            $be_2024_25 = $amounts[0][0];
+                        }
+                        if (!$be_2025_26 && isset($amounts[0][1])) {
+                            $be_2025_26 = $amounts[0][1];
+                        }
+                        break; // Stop reading lines as we found amounts
+                    }
+                    
+                    // Add this line to the description
+                    $fullDescription .= ' ' . $nextLine;
+                    $nextLineIndex++;
+                }
+                
+                // If amounts not found yet, check the line after description
+                if (!$be_2024_25 && $nextLineIndex < count($lines) && 
+                    preg_match('/^\d+\.\d{2}$/', trim($lines[$nextLineIndex]))) {
+                    $be_2024_25 = trim($lines[$nextLineIndex]);
+                    $nextLineIndex++;
+                }
+                
+                if (!$be_2025_26 && $nextLineIndex < count($lines) && 
+                    preg_match('/^\d+\.\d{2}$/', trim($lines[$nextLineIndex]))) {
+                    $be_2025_26 = trim($lines[$nextLineIndex]);
+                    $nextLineIndex++;
+                }
+                
                 // Clean the item description by removing amounts and tabs
-                $cleanItem = preg_replace('/\s*\d+\.\d{2}\s*\d+\.\d{2}.*$/', '', $item);
+                $cleanItem = preg_replace('/\s*\d+\.\d{2}\s*\d+\.\d{2}.*$/', '', $fullDescription);
                 $cleanItem = preg_replace('/\s*\d+\.\d{2}.*$/', '', $cleanItem);
                 $cleanItem = str_replace("\t", " ", $cleanItem);
                 $cleanItem = trim($cleanItem);
@@ -263,6 +339,9 @@ class BudgetHeadController extends Controller
                     'be_2024_25' => $be_2024_25,
                     'be_2025_26' => $be_2025_26,
                 ];
+                
+                // Update index to skip processed lines
+                $i = $nextLineIndex - 1;
             }
         }
         
