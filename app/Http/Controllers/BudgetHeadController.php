@@ -135,7 +135,8 @@ class BudgetHeadController extends Controller
 
         // Extract Krishonnati Yojna section
         $matches = [];
-        if (preg_match('/Krishonnati Yojna(.*?)Rashtriya Krishi Vikas Yojna/s', $text, $matches)) {
+        // if (preg_match('/Krishonnati Yojna(.*?)Rashtriya Krishi Vikas Yojna/s', $text, $matches)) {
+        if (preg_match('/Krishonnati Yojna(.*?)National Mission on Natural Farming/s', $text, $matches)) {
             $section = trim($matches[1]);
 
             // Split lines and clean

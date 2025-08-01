@@ -207,7 +207,7 @@
           <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
             <strong>File:</strong> {{ selectedFile?.name || 'Unknown' }} | 
-            <strong>Extracted:</strong> {{ extractedData?.total_items || 0 }} items from "Krishonnati Yojna" to "Rashtriya Krishi Vikas Yojna"
+            <strong>Extracted:</strong> {{ extractedData?.total_items || 0 }} items from "Krishonnati Yojna" to "National Mission on Natural Farming"
             <br>
             <small class="text-muted">
               <i class="fas fa-database me-1"></i>
