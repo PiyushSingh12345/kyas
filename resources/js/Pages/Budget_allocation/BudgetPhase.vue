@@ -250,6 +250,11 @@ export default {
 
 
   const submit = () => {
+    // Show confirmation dialog
+    if (!confirm('Are you sure to freeze?')) {
+      return // Cancel the operation if user clicks No
+    }
+
     const allocations = filteredBudgetHeads.value
       .filter(item => item.draft_flag === 0 && item.amount !== null && item.amount !== '' && item.amount !== undefined)
       .map(item => ({

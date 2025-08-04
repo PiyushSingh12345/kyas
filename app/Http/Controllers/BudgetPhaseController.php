@@ -7,6 +7,7 @@ use App\Models\BudgetPhase;
 use App\Models\BudgetHead;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class BudgetPhaseController extends Controller
 {
@@ -133,7 +134,7 @@ class BudgetPhaseController extends Controller
 
         $validated = $request->validate([
             'allocations' => 'required|array',
-            'allocations.*.financial_year' => 'required|string|regex:/^\d{4}-\d{4}$/',
+            'allocations.*.financial_year' => 'required|string|regex:/^\d{4}-\d{2}$/',
 
             'allocations.*.budget_phase' => 'required|string', // ✅ Add this line
             'allocations.*.budget_head_id' => 'required|exists:budget_heads,id',
@@ -159,14 +160,14 @@ class BudgetPhaseController extends Controller
                     ]
                 );
             }
-            \Log::info('Saving allocation:', $allocation);
+            Log::info('Saving allocation:', $allocation);
 
             DB::commit();
-            \Log::info('Budget saved successfully.');
+            Log::info('Budget saved successfully.');
 
             return redirect()->back()->with('success', $validated['allocations'][0]['draft_flag'] ? 'Budget submitted successfully.' : 'Draft saved successfully.');
         } catch (\Exception $e) {
-            \Log::error('Exception occurred while saving budget:', [
+            Log::error('Exception occurred while saving budget:', [
         'message' => $e->getMessage(),
         'trace' => $e->getTraceAsString()
     ]);

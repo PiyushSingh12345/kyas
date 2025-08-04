@@ -329,6 +329,11 @@ const form = useForm({
 
 // Submit (Create or Update)
 const submit = () => {
+  // Show confirmation dialog
+  if (!confirm('Are you sure to freeze?')) {
+    return // Cancel the operation if user clicks No
+  }
+
   if (editingId.value) {
     form.put(route('BudgetHead.update', editingId.value), {
       preserveScroll: true,
@@ -524,6 +529,11 @@ const closePreviewModal = () => {
 }
 
 const proceedWithImport = () => {
+  // Show confirmation dialog
+  if (!confirm('Are you sure to freeze?')) {
+    return // Cancel the operation if user clicks No
+  }
+  
   acceptExtractedData()
 }
 
