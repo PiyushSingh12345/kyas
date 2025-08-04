@@ -27,15 +27,17 @@ class BudgetHeadController extends Controller
             'category' => 'required'
         ]);
 
+        // Format the budget head code before saving
+        $formattedBudget = $this->formatBudgetHeadCode($validated['budget']);
+
         BudgetHead::create([
-        ...$validated,
-        'status' => '1',
+            'budget' => $formattedBudget,
+            'description' => $validated['description'],
+            'category' => $validated['category'],
+            'status' => '1',
         ]);
 
-        
-
         return redirect()->back()->with('success', 'Budget Heads added successfully!');
-
     }
 
     public function destroy(BudgetHead $budgetHead)
@@ -54,10 +56,18 @@ class BudgetHeadController extends Controller
             'category' => 'required'
         ]);
 
-        $budgetHead->update($validated);
+        // Format the budget head code before updating
+        $formattedBudget = $this->formatBudgetHeadCode($validated['budget']);
+
+        $budgetHead->update([
+            'budget' => $formattedBudget,
+            'description' => $validated['description'],
+            'category' => $validated['category']
+        ]);
 
         return redirect()->back()->with('success', 'Budget Head updated successfully!');
     }
+
     public function toggleStatus($id, Request $request)
     {
         $budgetHead = BudgetHead::findOrFail($id);
@@ -86,7 +96,7 @@ class BudgetHeadController extends Controller
             $fileName = $file->getClientOriginalName();
             $fileExtension = strtolower($file->getClientOriginalExtension());
             
-            \Log::info('File upload started', [
+            Log::info('File upload started', [
                 'fileName' => $fileName,
                 'fileSize' => $file->getSize(),
                 'fileExtension' => $fileExtension
@@ -96,13 +106,13 @@ class BudgetHeadController extends Controller
             $filePath = $file->storeAs('temp', $fileName, 'local');
             $fullPath = Storage::disk('local')->path($filePath);
             
-            \Log::info('File stored at', ['path' => $fullPath]);
+            Log::info('File stored at', ['path' => $fullPath]);
             
             $extractedData = [];
             
             if ($fileExtension === 'pdf') {
                 $extractedData = $this->processPdfFile($fullPath);
-                \Log::info('PDF processed', ['extractedLines' => count($extractedData['extracted_lines'] ?? [])]);
+                Log::info('PDF processed', ['extractedLines' => count($extractedData['extracted_lines'] ?? [])]);
             }
             
             // Clean up temporary file
@@ -115,7 +125,7 @@ class BudgetHeadController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('File upload error', [
+            Log::error('File upload error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -381,13 +391,16 @@ class BudgetHeadController extends Controller
             $budgetPhaseCount = 0;
             
             foreach ($structuredData as $item) {
+                // Format the budget head code before saving
+                $formattedCode = $this->formatBudgetHeadCode($item['code']);
+                
                 // Check if budget head already exists
-                $existing = BudgetHead::where('budget', $item['code'])->first();
+                $existing = BudgetHead::where('budget', $formattedCode)->first();
                 
                 if (!$existing) {
                     // Create budget head
                     $budgetHead = BudgetHead::create([
-                        'budget' => $item['code'],
+                        'budget' => $formattedCode,
                         'description' => $item['item'],
                         'category' => 'Gen', // Default category
                         'status' => 1
@@ -423,6 +436,32 @@ class BudgetHeadController extends Controller
                 'message' => 'Error importing data: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Format 15-digit budget head code to the specified format
+     * {4 digit}.{2 digit}.{3 digit}.{2 digit}.{2 digit}.{2 digit}
+     * Example: 243560103040004 -> 2435.60.103.04.00.04
+     */
+    private function formatBudgetHeadCode($code)
+    {
+        // Remove any non-digit characters
+        $cleanCode = preg_replace('/[^0-9]/', '', $code);
+        
+        // If the code is not 15 digits, return as is
+        if (strlen($cleanCode) !== 15) {
+            return $code;
+        }
+        
+        // Format the 15-digit code into the specified format
+        $formatted = substr($cleanCode, 0, 4) . '.' . 
+                    substr($cleanCode, 4, 2) . '.' . 
+                    substr($cleanCode, 6, 3) . '.' . 
+                    substr($cleanCode, 9, 2) . '.' . 
+                    substr($cleanCode, 11, 2) . '.' . 
+                    substr($cleanCode, 13, 2);
+        
+        return $formatted;
     }
 
 
