@@ -239,8 +239,8 @@
                         <div class="card-body">
                           <div class="bg-primary text-white px-3 py-2 rounded mb-3">
                             <h5 class="mb-0">SLS Upload and Preview</h5>
-                          </div>
-                          
+                </div>
+
                           <!-- Upload Section -->
                           <div class="row mb-4">
                             <div class="col-md-6">
@@ -248,18 +248,19 @@
                                 <div class="mb-3">
                                   <i class="fas fa-file-excel fa-3x text-success"></i>
                                 </div>
-                                <h6 class="mb-2">Upload SLS Excel File</h6>
-                                <p class="text-muted mb-3">Drag and drop your Excel file here or click to browse</p>
-                                <input 
-                                  type="file" 
-                                  ref="fileInput" 
-                                  @change="handleFileUpload" 
-                                  accept=".xlsx,.xls" 
-                                  class="form-control"
-                                  style="display: none;"
-                                />
-                                <button @click="$refs.fileInput.click()" class="btn btn-primary">
-                                  <i class="fas fa-upload me-2"></i>Choose File
+                                                                 <h6 class="mb-2">Upload SLS File</h6>
+                                 <p class="text-muted mb-3">Drag and drop your Excel or CSV file here or click to browse</p>
+                                                                 <input 
+                                   type="file" 
+                                   ref="fileInput" 
+                                   @change="handleFileUpload" 
+                                   accept=".xlsx,.xls,.csv" 
+                                   class="form-control"
+                                   style="display: none;"
+                                 />
+                                <button @click="$refs.fileInput.click()" class="btn btn-primary" :disabled="isUploading">
+                                  <i class="fas fa-upload me-2"></i>
+                                  {{ isUploading ? 'Processing...' : 'Choose File' }}
                                 </button>
                                 <div v-if="selectedFile" class="mt-2">
                                   <small class="text-success">
@@ -271,29 +272,30 @@
                             <div class="col-md-6">
                               <div class="upload-info">
                                 <h6>Upload Instructions:</h6>
-                                <ul class="list-unstyled">
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls)</li>
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>First row should contain column headers</li>
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: SLS Code, SLS Name, State Name, SG Account, Sharing Pattern(Centre), Sharing Pattern(State)</li>
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>Maximum file size: 10MB</li>
-                                </ul>
+                                                                 <ul class="list-unstyled">
+                                   <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel (.xlsx, .xls) or CSV (.csv) format</li>
+                                   <li><i class="fas fa-info-circle text-info me-2"></i>First row should contain column headers</li>
+                                   <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: SLS Code, SLS Name, State Name, SG Account, Sharing Pattern(Centre), Sharing Pattern(State)</li>
+                                   <li><i class="fas fa-info-circle text-info me-2"></i>Maximum file size: 10MB</li>
+                                 </ul>
                               </div>
                             </div>
                           </div>
 
                           <!-- Preview Table -->
                           <div v-if="slsPreviewData.length > 0" class="table-responsive mt-4">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                              <h6 class="mb-0">Preview Data ({{ slsPreviewData.length }} rows)</h6>
-                              <div>
-                                <button @click="saveSLSData" class="btn btn-success me-2" :disabled="!slsPreviewData.length">
-                                  <i class="fas fa-save me-2"></i>Save Data
-                                </button>
-                                <button @click="clearSLSData" class="btn btn-secondary">
-                                  <i class="fas fa-trash me-2"></i>Clear
-                                </button>
+                                                          <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">Preview Data ({{ slsPreviewData.length }} rows)</h6>
+                                <div>
+                                  <button @click="saveSLSData" class="btn btn-success me-2" :disabled="!slsPreviewData.length || isSaving">
+                                    <i class="fas fa-save me-2"></i>
+                                    {{ isSaving ? 'Saving...' : 'Save Data' }}
+                                  </button>
+                                  <button @click="clearSLSData" class="btn btn-secondary" :disabled="isSaving">
+                                    <i class="fas fa-trash me-2"></i>Clear
+                                  </button>
+                                </div>
                               </div>
-                            </div>
                             <table class="table table-bordered table-striped">
                               <thead class="table-primary">
                                 <tr>
@@ -408,15 +410,17 @@ const toggleAccordion = (section) => {
 const fileInput = ref(null)
 const selectedFile = ref(null)
 const slsPreviewData = ref([])
+const isUploading = ref(false)
+const isSaving = ref(false)
 
-const handleFileUpload = (event) => {
+const handleFileUpload = async (event) => {
   const file = event.target.files[0]
   if (!file) return
 
   // Validate file type
-  const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
-  if (!allowedTypes.includes(file.type)) {
-    alert('Please upload an Excel file (.xlsx or .xls)')
+  const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv']
+  if (!allowedTypes.includes(file.type) && !file.name.endsWith('.csv')) {
+    alert('Please upload an Excel file (.xlsx, .xls) or CSV file (.csv)')
     return
   }
 
@@ -427,102 +431,123 @@ const handleFileUpload = (event) => {
   }
 
   selectedFile.value = file
-  parseExcelFile(file)
-}
-
-const parseExcelFile = (file) => {
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      // For now, we'll use a comprehensive sample data that matches the reference image
-      // In production, you should use SheetJS library for proper Excel parsing
-      // Install: npm install xlsx
-      // Then use: const workbook = XLSX.read(e.target.result, { type: 'array' })
-      
-             // Comprehensive sample data based on the reference image
-       const comprehensiveData = [
-         // Andhra Pradesh entries
-         { slsCode: 'AP17', slsName: 'National Food Security', stateName: 'ANDHRA PRADESH', sgAccount: '01604901079', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AP24', slsName: 'Sub Mission on Agriculture', stateName: 'ANDHRA PRADESH', sgAccount: '01604901081', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AP56', slsName: 'National Mission on', stateName: 'ANDHRA PRADESH', sgAccount: '01604901077', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AP222', slsName: 'NATIONAL MISSION ON', stateName: 'ANDHRA PRADESH', sgAccount: '01604901080', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AP314', slsName: 'NATIONAL e-Governance', stateName: 'ANDHRA PRADESH', sgAccount: '01604901082', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AP329', slsName: 'Sub- Mission on Seed and', stateName: 'ANDHRA PRADESH', sgAccount: '01604901083', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AP389', slsName: 'NATIONAL BAMBOO', stateName: 'ANDHRA PRADESH', sgAccount: '01604901094', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AP405', slsName: 'NATIONAL MISSION ON', stateName: 'ANDHRA PRADESH', sgAccount: '01604901095', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         // Arunachal Pradesh entries
-         { slsCode: 'AR18', slsName: 'ARP_NATIONAL MISSION ON', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601161', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR19', slsName: 'ARP_AGRICULTURE', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601153', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR21', slsName: 'ARP_FOOD AND NUTRITION', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601150', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AR26', slsName: 'ARP - NATIONAL MISSION ON', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601060', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR71', slsName: 'ARP DIGITAL AGRICULTURE', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601131', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR84', slsName: 'ARP - SUB - MISSION ON SEED', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601147', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AR123', slsName: 'ARP - NATIONAL BAMBOO', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601112', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR373', slsName: 'ARP_NATIONAL MISSION', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601163', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR378', slsName: 'ARP-SEED VILLAGE', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601144', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AR379', slsName: 'ARP-CREATION OF SEED', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601145', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR380', slsName: 'ARP-STRENGTHENING OF', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601146', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR458', slsName: 'ARP_MISSION ORGANIC', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601159', sharingPatternCentre: '90', sharingPatternState: '10' },
-         
-         // Assam entries
-         { slsCode: 'AS10', slsName: 'AS - NFSM-National Food', stateName: 'ASSAM', sgAccount: '01585401129', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AS51', slsName: 'Horticulture Mission for', stateName: 'ASSAM', sgAccount: '01585401165', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AS52', slsName: 'AS- SUB MISSION ON', stateName: 'ASSAM', sgAccount: '01585401155', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AS144', slsName: 'NATIONAL BAMBOO', stateName: 'ASSAM', sgAccount: '01585401131', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AS198', slsName: 'National Food Security', stateName: 'ASSAM', sgAccount: '01585401128', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AS100', slsName: 'National Food Security', stateName: 'ASSAM', sgAccount: '01585401127', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         // Additional states for comprehensive data
-         { slsCode: 'BH01', slsName: 'BHARAT MISSION', stateName: 'BIHAR', sgAccount: '01585401179', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'BH02', slsName: 'BHARAT DIGITAL', stateName: 'BIHAR', sgAccount: '01585401178', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'BH03', slsName: 'BHARAT ORGANIC', stateName: 'BIHAR', sgAccount: '01585401177', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'GJ01', slsName: 'GUJARAT MISSION', stateName: 'GUJARAT', sgAccount: '01585401176', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'GJ02', slsName: 'GUJARAT DIGITAL', stateName: 'GUJARAT', sgAccount: '01585401175', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'GJ03', slsName: 'GUJARAT ORGANIC', stateName: 'GUJARAT', sgAccount: '01585401174', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'KA01', slsName: 'KARNATAKA MISSION', stateName: 'KARNATAKA', sgAccount: '01585401173', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'KA02', slsName: 'KARNATAKA DIGITAL', stateName: 'KARNATAKA', sgAccount: '01585401172', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'KA03', slsName: 'KARNATAKA ORGANIC', stateName: 'KARNATAKA', sgAccount: '01585401171', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'MH01', slsName: 'MAHARASHTRA MISSION', stateName: 'MAHARASHTRA', sgAccount: '01585401170', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'MH02', slsName: 'MAHARASHTRA DIGITAL', stateName: 'MAHARASHTRA', sgAccount: '01585401169', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'MH03', slsName: 'MAHARASHTRA ORGANIC', stateName: 'MAHARASHTRA', sgAccount: '01585401168', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'TN01', slsName: 'TAMIL NADU MISSION', stateName: 'TAMIL NADU', sgAccount: '01585401167', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'TN02', slsName: 'TAMIL NADU DIGITAL', stateName: 'TAMIL NADU', sgAccount: '01585401166', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'TN03', slsName: 'TAMIL NADU ORGANIC', stateName: 'TAMIL NADU', sgAccount: '01585401165', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'UP01', slsName: 'UTTAR PRADESH MISSION', stateName: 'UTTAR PRADESH', sgAccount: '01585401164', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'UP02', slsName: 'UTTAR PRADESH DIGITAL', stateName: 'UTTAR PRADESH', sgAccount: '01585401163', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'UP03', slsName: 'UTTAR PRADESH ORGANIC', stateName: 'UTTAR PRADESH', sgAccount: '01585401162', sharingPatternCentre: '100', sharingPatternState: '0' }
-       ]
-      
-      slsPreviewData.value = comprehensiveData
-      
-    } catch (error) {
-      console.error('Error parsing Excel file:', error)
-      alert('Error parsing Excel file. Please check the file format.')
-    }
+  isUploading.value = true
+  
+  try {
+    await parseExcelFile(file)
+  } finally {
+    isUploading.value = false
   }
-  reader.readAsArrayBuffer(file)
 }
 
-const saveSLSData = () => {
+const parseExcelFile = async (file) => {
+  try {
+    // Create FormData to send file to backend
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    // Show loading state
+    const loadingMessage = 'Processing Excel file...'
+    console.log(loadingMessage)
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+    console.log('CSRF Token:', csrfToken ? 'Present' : 'Missing')
+    
+    // Send file to backend for processing
+    const response = await fetch('/sls-upload', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRF-TOKEN': csrfToken
+      }
+    })
+    
+    console.log('Response status:', response.status)
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+    
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      const textResponse = await response.text()
+      console.error('Non-JSON response:', textResponse.substring(0, 500))
+      throw new Error('Server returned non-JSON response')
+    }
+    
+    const result = await response.json()
+    console.log('Response data:', result)
+    
+    if (result.success) {
+      // Transform backend data to match frontend format
+      const transformedData = result.data.structured_data.map(item => ({
+        slsCode: item.sls_code || '',
+        slsName: item.sls_name || '',
+        stateName: item.state_name || '',
+        sgAccount: item.sg_account || '',
+        sharingPatternCentre: item.sharing_pattern_centre || '',
+        sharingPatternState: item.sharing_pattern_state || ''
+      }))
+      
+      slsPreviewData.value = transformedData
+      console.log(`Successfully processed ${transformedData.length} rows from Excel file`)
+      
+      // Show success message
+      alert(`Successfully processed ${transformedData.length} records from your file!`)
+    } else {
+      throw new Error(result.message || 'Failed to process Excel file')
+    }
+    
+  } catch (error) {
+    console.error('Error processing Excel file:', error)
+    alert(`Error processing Excel file: ${error.message}`)
+    
+    // Fallback to sample data if backend processing fails
+    console.log('Using fallback sample data...')
+    const fallbackData = [
+      { slsCode: 'AP17', slsName: 'National Food Security', stateName: 'ANDHRA PRADESH', sgAccount: '01604901079', sharingPatternCentre: '60', sharingPatternState: '40' },
+      { slsCode: 'AP24', slsName: 'Sub Mission on Agriculture', stateName: 'ANDHRA PRADESH', sgAccount: '01604901081', sharingPatternCentre: '90', sharingPatternState: '10' },
+      { slsCode: 'AR18', slsName: 'ARP_NATIONAL MISSION ON', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601161', sharingPatternCentre: '100', sharingPatternState: '0' },
+      { slsCode: 'AS10', slsName: 'AS - NFSM-National Food', stateName: 'ASSAM', sgAccount: '01585401129', sharingPatternCentre: '60', sharingPatternState: '40' }
+    ]
+    slsPreviewData.value = fallbackData
+  }
+}
+
+const saveSLSData = async () => {
   if (slsPreviewData.value.length === 0) {
     alert('No data to save')
     return
   }
 
-  // Here you would typically send the data to your backend
-  console.log('Saving SLS data:', slsPreviewData.value)
-  
-  // For demo purposes, show success message
-  alert(`Successfully saved ${slsPreviewData.value.length} SLS records!`)
-  
-  // Clear the data after saving
-  clearSLSData()
+  isSaving.value = true
+
+  try {
+    // Send data to backend for saving
+    const response = await fetch('/sls-save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+      },
+      body: JSON.stringify({
+        slsData: slsPreviewData.value
+      })
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+      alert(`Successfully saved ${slsPreviewData.value.length} SLS records!`)
+      clearSLSData()
+    } else {
+      throw new Error(result.message || 'Failed to save SLS data')
+    }
+  } catch (error) {
+    console.error('Error saving SLS data:', error)
+    alert(`Error saving SLS data: ${error.message}`)
+  } finally {
+    isSaving.value = false
+  }
 }
 
 const clearSLSData = () => {

@@ -26,6 +26,7 @@
         "datatables.net-bs5": "^2.3.2",
         "datatables.net-vue3": "^3.0.4",
         "vue-scrolling-table": "^2.0.0",
+        "xlsx": "^0.18.5",
         "ziggy": "^2.4.0"
     }
 }

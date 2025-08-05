@@ -214,5 +214,6 @@ Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
 
 Route::post('/sls-upload', [App\Http\Controllers\SLSController::class, 'upload'])->name('sls.upload');
+Route::post('/sls-save', [App\Http\Controllers\SLSController::class, 'save'])->name('sls.save');
 
 require __DIR__.'/auth.php';

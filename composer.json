@@ -12,8 +12,8 @@
         "laravel/framework": "^12.0",
         "laravel/sanctum": "*",
         "laravel/tinker": "^2.10.1",
+        "phpoffice/phpspreadsheet": "^4.5",
         "smalot/pdfparser": "^2.12",
-        "phpoffice/phpspreadsheet": "^1.29",
         "spatie/laravel-google-fonts": "^1.4",
         "tightenco/ziggy": "^2.0"
     },
