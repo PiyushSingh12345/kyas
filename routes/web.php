@@ -242,6 +242,7 @@ Route::post('/debug-excel', function(Request $request) {
 
 });
 
+Route::get('api/reappropriations', [ReAppropritionController::class, 'index']);
 Route::post('api/reappropriations', [ReAppropritionController::class, 'store']);
 Route::get('api/budget-phase/amount', [ReAppropritionController::class, 'getBudgetAmountByHead']);
 
