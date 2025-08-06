@@ -32,6 +32,7 @@ class ReAppropritionController extends Controller
             'section' => 'nullable|string',
             'program_division_id' => 'nullable|integer',
             'from_budget_head_id' => 'nullable|integer',
+            'from_budget_head_remarks' => 'nullable|string',
             'to_budget_head_id' => 'nullable|integer',
             'reappropriation_amount' => 'nullable|numeric',
             'other_details' => 'nullable|string',
@@ -48,12 +49,16 @@ class ReAppropritionController extends Controller
         $reappropriation = ReAppropriation::create($data);
 
         // Update budget amounts using computed values
-        $updatedFromBudget = $fromBE - $reappropriationAmount;
-        $updatedToBudget = $toBE + $reappropriationAmount;
+        // Only deduct from budget if it's not the "Other" option (ID 999)
+        if ($request->from_budget_head_id != 999) {
+            $updatedFromBudget = $fromBE - $reappropriationAmount;
+            
+            // Update DB
+            BudgetPhase::where('budget_head_id', $request->from_budget_head_id)
+                ->update(['budget_amount' => $updatedFromBudget]);
+        }
 
-        // Update DB
-        BudgetPhase::where('budget_head_id', $request->from_budget_head_id)
-            ->update(['budget_amount' => $updatedFromBudget]);
+        $updatedToBudget = $toBE + $reappropriationAmount;
 
         BudgetPhase::where('budget_head_id', $request->to_budget_head_id)
             ->update(['budget_amount' => $updatedToBudget]);

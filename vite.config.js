@@ -4,12 +4,17 @@ import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
     server: {
-        host: '127.0.0.1', // Ensures Vite binds to IPv4 localhost
-        port: 5173,        // Default Vite port (optional unless changed)
+        host: '127.0.0.1',
+        port: 5173,
+        hmr: {
+            host: '127.0.0.1',
+            port: 5173,
+        },
+        cors: true,
     },
     plugins: [
         laravel({
-            input: ['resources/js/app.js'], // Use array to support multiple inputs if needed
+            input: ['resources/js/app.js'],
             refresh: true,
         }),
         vue({
@@ -21,4 +26,9 @@ export default defineConfig({
             },
         }),
     ],
+    resolve: {
+        alias: {
+            '@': '/resources/js',
+        },
+    },
 });

@@ -84,8 +84,19 @@
                         <label>From Budget Head</label>
                         <select class="form-select" v-model="selectedFromBudgetHead">
                           <option value="" disabled>--Select--</option>
+                          <option :value="999">Other</option>
                           <option v-for="head in budgetHeads" :key="head.id" :value="head.id">{{ head.budget }}</option>
                         </select>
+                        <!-- Debug info (temporary) -->
+                        <small class="text-muted">Selected: {{ selectedFromBudgetHead }} (Type: {{ typeof selectedFromBudgetHead }})</small>
+                      </div>
+                    </div>
+
+                    <!-- Budget Head Other (shown when "Other" is selected) -->
+                    <div class="col-md-6 col-lg-4" v-if="showBudgetHeadOther">
+                      <div class="form-group">
+                        <label>Budget Head Other</label>
+                        <input type="text" class="form-control" v-model="fromBudgetHeadRemarks" placeholder="Enter budget head details" />
                       </div>
                     </div>
 
@@ -381,9 +392,15 @@ const entityType = ref('State/UT'); // default selection
 const selectedState = ref('');
 const reasonForAdditionality = ref('');
 const proposalAttractNsNis = ref('Yes');
+const fromBudgetHeadRemarks = ref(''); // New ref for budget head remarks
 
 const fromBudgetAmount = ref(''); // BE amount for From Budget Head
 const toBudgetAmount = ref('');   // BE amount for To Budget Head
+
+const showBudgetHeadOther = computed(() => {
+  console.log('Computing showBudgetHeadOther:', selectedFromBudgetHead.value, 'Type:', typeof selectedFromBudgetHead.value);
+  return selectedFromBudgetHead.value == 999;
+});
 
 const formattedReappropriationAmount = computed(() => {
   if (!reappropriationAmount.value) return '';
@@ -469,10 +486,20 @@ onMounted(async () => {
 
 // Watch selectedFromBudgetHead and fetch BE amount
 watch(selectedFromBudgetHead, async (newVal) => {
+  console.log('selectedFromBudgetHead changed:', newVal, 'Type:', typeof newVal);
+  
   if (!newVal) {
     fromBudgetAmount.value = '';
     return;
   }
+  
+  // If "Other" is selected (ID 999), don't fetch budget amount
+  if (newVal == 999) {
+    console.log('Other option selected, clearing budget amount');
+    fromBudgetAmount.value = '';
+    return;
+  }
+  
   try {
     const response = await axios.get('/api/budget-phase/amount', {
       params: { budget_head_id: newVal }
@@ -515,6 +542,12 @@ const submitForm = async () => {
       entityIds = []; // Empty array for Admin
     }
 
+    // Handle from_be value - if "Other" is selected, set to 0
+    let fromBeValue = 0;
+    if (selectedFromBudgetHead.value != 999) {
+      fromBeValue = Number(fromBudgetAmount.value.replace(/,/g, ''));
+    }
+
     const payload = {
       financial_year: selectedYear.value,
       budget_phase: selectedPhase.value,
@@ -533,8 +566,9 @@ const submitForm = async () => {
       remarks: remarks.value,
       reason_for_additionality: reasonForAdditionality.value,
       proposal_attract_ns_nis: proposalAttractNsNis.value,
-      from_be: Number(fromBudgetAmount.value.replace(/,/g, '')),
+      from_be: fromBeValue,
       to_be: Number(toBudgetAmount.value.replace(/,/g, '')),
+      from_budget_head_remarks: fromBudgetHeadRemarks.value, // Add remarks to payload
     };
 
     await axios.post('/api/reappropriations', payload);
@@ -571,6 +605,7 @@ const resetForm = () => {
   fromRule.value = '';
   toRule.value = '';
   remarks.value = '';
+  fromBudgetHeadRemarks.value = ''; // Reset remarks
 };
 
 

@@ -20,6 +20,20 @@
         @routes
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead
+        
+        <!-- WebSocket Error Handler -->
+        <script>
+            // Suppress WebSocket connection errors in development
+            if (typeof window !== 'undefined') {
+                const originalError = console.error;
+                console.error = function(...args) {
+                    if (args[0] && typeof args[0] === 'string' && args[0].includes('WebSocket')) {
+                        return; // Suppress WebSocket errors
+                    }
+                    originalError.apply(console, args);
+                };
+            }
+        </script>
     </head>
     <body class="font-sans antialiased">
         @inertia

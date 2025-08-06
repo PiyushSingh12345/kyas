@@ -111,6 +111,14 @@ Route::get('/mother-sanction-list-module', function () {
     return Inertia::render('mother_sanction/MotherSanctionList');
 })->middleware(['auth', 'verified'])->name('mother-sanction-list-module');
 
+Route::get('/annual-action-plan-central', function () {
+    return Inertia::render('Annual_action_plan/AapCentral');
+})->middleware(['auth', 'verified'])->name('annual-action-plan-central');
+
+Route::get('/annual-action-plan-state', function () {
+    return Inertia::render('Annual_action_plan/AapState');
+})->middleware(['auth', 'verified'])->name('annual-action-plan-state');
+
 Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -150,13 +158,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
 Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocation.store');
 
-Route::get('/annual-action-plan-central', function () {
-    return Inertia::render('Annual_action_plan/AapCentral');
-})->middleware(['auth', 'verified'])->name('annual-action-plan-central');
-
-Route::get('/annual-action-plan-state', function () {
-    return Inertia::render('Annual_action_plan/AapState');
-})->middleware(['auth', 'verified'])->name('annual-action-plan-state');
 
 // Test route for PDF processing
 Route::get('/test-pdf', function() {
