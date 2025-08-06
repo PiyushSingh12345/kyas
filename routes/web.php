@@ -150,6 +150,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
 Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocation.store');
 
+Route::get('/annual-action-plan-central', function () {
+    return Inertia::render('Annual_action_plan/AapCentral');
+})->middleware(['auth', 'verified'])->name('annual-action-plan-central');
+
+Route::get('/annual-action-plan-state', function () {
+    return Inertia::render('Annual_action_plan/AapState');
+})->middleware(['auth', 'verified'])->name('annual-action-plan-state');
+
 // Test route for PDF processing
 Route::get('/test-pdf', function() {
     try {
@@ -242,6 +250,7 @@ Route::post('/debug-excel', function(Request $request) {
 
 });
 
+Route::get('api/reappropriations', [ReAppropritionController::class, 'index']);
 Route::post('api/reappropriations', [ReAppropritionController::class, 'store']);
 Route::get('api/budget-phase/amount', [ReAppropritionController::class, 'getBudgetAmountByHead']);
 
