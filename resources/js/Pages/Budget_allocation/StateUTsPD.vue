@@ -246,22 +246,25 @@
                             <div class="col-md-6">
                               <div class="upload-area border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                                 <div class="mb-3">
-                                  <i class="fas fa-file-excel fa-3x text-success"></i>
+                                  <i class="fas fa-file-excel fa-3x text-success me-2"></i>
+                                  <i class="fas fa-file-pdf fa-3x text-danger"></i>
                                 </div>
-                                                                 <h6 class="mb-2">Upload SLS File</h6>
-                                 <p class="text-muted mb-3">Drag and drop your Excel or CSV file here or click to browse</p>
-                                                                 <input 
-                                   type="file" 
-                                   ref="fileInput" 
-                                   @change="handleFileUpload" 
-                                   accept=".xlsx,.xls,.csv" 
-                                   class="form-control"
-                                   style="display: none;"
-                                 />
+                                <!--<h6 class="mb-2">Upload SLS Excel/PDF File</h6>-->
+                                <h6 class="mb-2">Upload SLS Excel File</h6>
+                                <!-- <p class="text-muted mb-3">Drag and drop your Excel or PDF file here or click to browse</p> -->
+                                <p class="text-muted mb-3">Drag and drop your Excel file here or click to browse</p>
+                                <input
+                                  type="file"
+                                  ref="fileInput"
+                                  @change="handleFileUpload"
+                                  accept=".xlsx,.xls"
+                                  class="form-control"
+                                  style="display: none;"
+                                />
                                 <button @click="$refs.fileInput.click()" class="btn btn-primary" :disabled="isUploading">
-                                  <i class="fas fa-upload me-2"></i>
-                                  {{ isUploading ? 'Processing...' : 'Choose File' }}
+                                  <i class="fas fa-upload me-2"></i>{{ isUploading ? 'Uploading...' : 'Choose File' }}
                                 </button>
+
                                 <div v-if="selectedFile" class="mt-2">
                                   <small class="text-success">
                                     <i class="fas fa-check me-1"></i>{{ selectedFile.name }}
@@ -272,30 +275,33 @@
                             <div class="col-md-6">
                               <div class="upload-info">
                                 <h6>Upload Instructions:</h6>
-                                                                 <ul class="list-unstyled">
-                                   <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel (.xlsx, .xls) or CSV (.csv) format</li>
-                                   <li><i class="fas fa-info-circle text-info me-2"></i>First row should contain column headers</li>
-                                   <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: SLS Code, SLS Name, State Name, SG Account, Sharing Pattern(Centre), Sharing Pattern(State)</li>
-                                   <li><i class="fas fa-info-circle text-info me-2"></i>Maximum file size: 10MB</li>
-                                 </ul>
+                                <ul class="list-unstyled">
+                                  <!-- <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls) or PDF format (.pdf)</li> -->
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls) format</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>For Excel: First row should contain column headers</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>For PDF: Data should be in structured format with SLS codes and details</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: Controller, Centrally Sponsored Scheme (CSS), State Name, State Linked Scheme (SLS), SG Account, Sharing Pattern</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>SLS column format: CODE - NAME (e.g., AP17 - National Food Security)</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>Maximum file size: 10MB</li>
+                  
+                                </ul>
                               </div>
                             </div>
                           </div>
 
                           <!-- Preview Table -->
                           <div v-if="slsPreviewData.length > 0" class="table-responsive mt-4">
-                                                          <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0">Preview Data ({{ slsPreviewData.length }} rows)</h6>
-                                <div>
-                                  <button @click="saveSLSData" class="btn btn-success me-2" :disabled="!slsPreviewData.length || isSaving">
-                                    <i class="fas fa-save me-2"></i>
-                                    {{ isSaving ? 'Saving...' : 'Save Data' }}
-                                  </button>
-                                  <button @click="clearSLSData" class="btn btn-secondary" :disabled="isSaving">
-                                    <i class="fas fa-trash me-2"></i>Clear
-                                  </button>
-                                </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                              <h6 class="mb-0">Preview Data ({{ slsPreviewData.length }} rows)</h6>
+                              <div>
+                                <button @click="saveSLSData" class="btn btn-success me-2" :disabled="!slsPreviewData.length || isSaving">
+                                  <i class="fas fa-save me-2"></i>{{ isSaving ? 'Saving...' : 'Proceed & Save' }}
+                                </button>
+                                <button @click="clearSLSData" class="btn btn-secondary">
+                                  <i class="fas fa-trash me-2"></i>Clear
+                                </button>
                               </div>
+                            </div>
                             <table class="table table-bordered table-striped">
                               <thead class="table-primary">
                                 <tr>
@@ -305,6 +311,9 @@
                                   <th>SG Account</th>
                                   <th>Sharing Pattern(Centre)</th>
                                   <th>Sharing Pattern(State)</th>
+                                  <!-- <th>Controller</th>
+                                  <th>CSS</th>
+                                  <th>CG Account</th> -->
                                 </tr>
                               </thead>
                               <tbody>
@@ -315,6 +324,9 @@
                                   <td>{{ row.sgAccount }}</td>
                                   <td>{{ row.sharingPatternCentre }}</td>
                                   <td>{{ row.sharingPatternState }}</td>
+                                  <!-- <td>{{ row.controller }}</td>
+                                  <td>{{ row.css }}</td>
+                                  <td>{{ row.cgAccount }}</td> -->
                                 </tr>
                               </tbody>
                             </table>
@@ -322,8 +334,9 @@
 
                           <!-- No Data Message -->
                           <div v-else class="text-center py-4">
-                            <i class="fas fa-file-excel fa-3x text-muted mb-3"></i>
-                            <p class="text-muted">No data to preview. Please upload an Excel file.</p>
+                            <i class="fas fa-file-excel fa-3x text-muted mb-3 me-2"></i>
+                            <i class="fas fa-file-pdf fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No data to preview. Please upload an Excel or PDF file.</p>
                           </div>
                         </div>
                       </div>
@@ -413,14 +426,14 @@ const slsPreviewData = ref([])
 const isUploading = ref(false)
 const isSaving = ref(false)
 
-const handleFileUpload = async (event) => {
+const handleFileUpload = (event) => {
   const file = event.target.files[0]
   if (!file) return
 
   // Validate file type
-  const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv']
-  if (!allowedTypes.includes(file.type) && !file.name.endsWith('.csv')) {
-    alert('Please upload an Excel file (.xlsx, .xls) or CSV file (.csv)')
+  const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'application/pdf']
+  if (!allowedTypes.includes(file.type)) {
+    alert('Please upload an Excel file (.xlsx or .xls) or a PDF file (.pdf)')
     return
   }
 
@@ -431,89 +444,89 @@ const handleFileUpload = async (event) => {
   }
 
   selectedFile.value = file
+  parseFile(file)
+}
+
+
+
+const parseFile = (file) => {
   isUploading.value = true
-  
-  try {
-    await parseExcelFile(file)
-  } finally {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  // Determine the endpoint based on file type
+  const endpoint = file.type === 'application/pdf' ? '/pd-sls/upload-pdf' : '/pd-sls/upload-excel'
+
+  fetch(endpoint, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    }
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.json().then(errorData => {
+        throw new Error(JSON.stringify(errorData));
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
     isUploading.value = false
-  }
-}
-
-const parseExcelFile = async (file) => {
-  try {
-    // Create FormData to send file to backend
-    const formData = new FormData()
-    formData.append('file', file)
-    
-    // Show loading state
-    const loadingMessage = 'Processing Excel file...'
-    console.log(loadingMessage)
-    
-    // Get CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-    console.log('CSRF Token:', csrfToken ? 'Present' : 'Missing')
-    
-    // Send file to backend for processing
-    const response = await fetch('/sls-upload', {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'X-CSRF-TOKEN': csrfToken
+    if (data.success) {
+      slsPreviewData.value = data.data
+      const fileType = file.type === 'application/pdf' ? 'PDF' : 'Excel'
+      let message = `Successfully parsed ${data.totalRows} rows from ${fileType} file`
+      
+      // Show warnings if any
+      if (data.warnings && data.warnings.length > 0) {
+        message += `\n\nWarnings:\n${data.warnings.slice(0, 5).join('\n')}`
+        if (data.warnings.length > 5) {
+          message += `\n... and ${data.warnings.length - 5} more warnings`
+        }
       }
-    })
-    
-    console.log('Response status:', response.status)
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()))
-    
-    // Check if response is JSON
-    const contentType = response.headers.get('content-type')
-    if (!contentType || !contentType.includes('application/json')) {
-      const textResponse = await response.text()
-      console.error('Non-JSON response:', textResponse.substring(0, 500))
-      throw new Error('Server returned non-JSON response')
-    }
-    
-    const result = await response.json()
-    console.log('Response data:', result)
-    
-    if (result.success) {
-      // Transform backend data to match frontend format
-      const transformedData = result.data.structured_data.map(item => ({
-        slsCode: item.sls_code || '',
-        slsName: item.sls_name || '',
-        stateName: item.state_name || '',
-        sgAccount: item.sg_account || '',
-        sharingPatternCentre: item.sharing_pattern_centre || '',
-        sharingPatternState: item.sharing_pattern_state || ''
-      }))
       
-      slsPreviewData.value = transformedData
-      console.log(`Successfully processed ${transformedData.length} rows from Excel file`)
-      
-      // Show success message
-      alert(`Successfully processed ${transformedData.length} records from your file!`)
+      alert(message)
     } else {
-      throw new Error(result.message || 'Failed to process Excel file')
+      let errorMessage = 'Error parsing file: ' + data.message
+      if (data.errors && data.errors.length > 0) {
+        errorMessage += '\n\nFirst few errors:\n' + data.errors.slice(0, 5).join('\n')
+        if (data.errors.length > 5) {
+          errorMessage += `\n... and ${data.errors.length - 5} more errors`
+        }
+      }
+      alert(errorMessage)
+      console.error('Validation errors:', data.errors)
+    }
+  })
+  .catch(error => {
+    isUploading.value = false
+    console.error('Error uploading file:', error)
+    
+    // Try to parse error message
+    let errorMessage = 'Error uploading file. Please try again.'
+    try {
+      const errorData = JSON.parse(error.message)
+      if (errorData.message) {
+        errorMessage = errorData.message
+      }
+      if (errorData.errors && errorData.errors.length > 0) {
+        errorMessage += '\n\nFirst few errors:\n' + errorData.errors.slice(0, 5).join('\n')
+        if (errorData.errors.length > 5) {
+          errorMessage += `\n... and ${errorData.errors.length - 5} more errors`
+        }
+      }
+    } catch (e) {
+      // If parsing fails, use the original error message
+      errorMessage = error.message || errorMessage
     }
     
-  } catch (error) {
-    console.error('Error processing Excel file:', error)
-    alert(`Error processing Excel file: ${error.message}`)
-    
-    // Fallback to sample data if backend processing fails
-    console.log('Using fallback sample data...')
-    const fallbackData = [
-      { slsCode: 'AP17', slsName: 'National Food Security', stateName: 'ANDHRA PRADESH', sgAccount: '01604901079', sharingPatternCentre: '60', sharingPatternState: '40' },
-      { slsCode: 'AP24', slsName: 'Sub Mission on Agriculture', stateName: 'ANDHRA PRADESH', sgAccount: '01604901081', sharingPatternCentre: '90', sharingPatternState: '10' },
-      { slsCode: 'AR18', slsName: 'ARP_NATIONAL MISSION ON', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601161', sharingPatternCentre: '100', sharingPatternState: '0' },
-      { slsCode: 'AS10', slsName: 'AS - NFSM-National Food', stateName: 'ASSAM', sgAccount: '01585401129', sharingPatternCentre: '60', sharingPatternState: '40' }
-    ]
-    slsPreviewData.value = fallbackData
-  }
+    alert(errorMessage)
+  })
 }
 
-const saveSLSData = async () => {
+const saveSLSData = () => {
   if (slsPreviewData.value.length === 0) {
     alert('No data to save')
     return
@@ -521,33 +534,43 @@ const saveSLSData = async () => {
 
   isSaving.value = true
 
-  try {
-    // Send data to backend for saving
-    const response = await fetch('/sls-save', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-      },
-      body: JSON.stringify({
-        slsData: slsPreviewData.value
-      })
-    })
+  // Prepare data for saving
+  const dataToSave = slsPreviewData.value.map(item => ({
+    slsCode: item.slsCode,
+    slsName: item.slsName,
+    stateId: item.stateId,
+    sgAccount: item.sgAccount,
+    sharingPatternCentre: item.sharingPatternCentre,
+    sharingPatternState: item.sharingPatternState
+  }))
 
-    const result = await response.json()
-
-    if (result.success) {
-      alert(`Successfully saved ${slsPreviewData.value.length} SLS records!`)
-      clearSLSData()
-    } else {
-      throw new Error(result.message || 'Failed to save SLS data')
-    }
-  } catch (error) {
-    console.error('Error saving SLS data:', error)
-    alert(`Error saving SLS data: ${error.message}`)
-  } finally {
+  fetch('/pd-sls/save-sls-data', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    },
+    body: JSON.stringify({ data: dataToSave })
+  })
+  .then(response => response.json())
+  .then(data => {
     isSaving.value = false
-  }
+    if (data.success) {
+      alert(`Successfully saved ${data.savedCount} SLS records!`)
+  clearSLSData()
+      fetchSavedData() // Refresh the saved data list
+    } else {
+      alert('Error saving data: ' + data.message)
+      if (data.errors && data.errors.length > 0) {
+        console.error('Save errors:', data.errors)
+      }
+    }
+  })
+  .catch(error => {
+    isSaving.value = false
+    console.error('Error saving data:', error)
+    alert('Error saving data. Please try again.')
+  })
 }
 
 const clearSLSData = () => {
@@ -557,6 +580,8 @@ const clearSLSData = () => {
     fileInput.value.value = ''
   }
 }
+
+
 const fetchSavedData = async () => {
   try {
     const res = await fetch('/pd-sls-list');

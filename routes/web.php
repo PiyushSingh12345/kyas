@@ -16,6 +16,7 @@ use App\Http\Controllers\ReAppropritionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Illuminate\Http\Request;
 
 Route::get('/', function () {
     if (\Illuminate\Support\Facades\Auth::check()) {
@@ -141,6 +142,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/pd-sls-list', [SlsPDComponentController::class, 'index'])->name('pd-sls.list');
     Route::post('/pd-sls-store', [SlsPDComponentController::class, 'store'])->name('pd-sls.store');
+    Route::delete('/pd-sls/{id}', [SlsPDComponentController::class, 'destroy'])->name('pd-sls.destroy');
+    Route::post('/pd-sls/upload-excel', [SlsPDComponentController::class, 'uploadExcel'])->name('pd-sls.upload-excel');
+    Route::post('/pd-sls/save-sls-data', [SlsPDComponentController::class, 'saveSLSData'])->name('pd-sls.save-sls-data');
     Route::get('/api/states', [StateController::class, 'getStatesApi']);
 
     Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
@@ -153,6 +157,62 @@ Route::get('/test-pdf', function() {
         return response()->json(['status' => 'PDF Parser is working']);
     } catch (\Exception $e) {
         return response()->json(['status' => 'Error: ' . $e->getMessage()]);
+    }
+});
+
+// Test route for Excel parsing
+Route::get('/test-excel-parse', function() {
+    try {
+        $sampleData = [
+            ['SLS Code', 'SLS Name', 'State Name', 'SG Account', 'Sharing Pattern(Centre)', 'Sharing Pattern(State)'],
+            ['AP17', 'National Food Security', 'Andhra Pradesh', '01604901079', '60', '40'],
+            ['AP24', 'Sub Mission on Agriculture', 'Andhra Pradesh', '01604901081', '90', '10'],
+            ['AP56', 'National Mission on', 'Andhra Pradesh', '01604901080', '60', '40']
+        ];
+        
+        $controller = new \App\Http\Controllers\SlsPDComponentController();
+        $reflection = new \ReflectionClass($controller);
+        $method = $reflection->getMethod('uploadExcel');
+        $method->setAccessible(true);
+        
+        // Create a mock request
+        $request = new \Illuminate\Http\Request();
+        $request->merge(['file' => 'test.xlsx']);
+        
+        $result = $method->invoke($controller, $request);
+        
+        return response()->json([
+            'status' => 'Excel parsing test successful',
+            'sample_data' => $sampleData
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'Error: ' . $e->getMessage()]);
+    }
+});
+
+// Test route for Excel file structure debugging
+Route::post('/debug-excel', function(Request $request) {
+    try {
+        $file = $request->file('file');
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getPathname());
+        $worksheet = $spreadsheet->getActiveSheet();
+        $rows = $worksheet->toArray();
+        
+        return response()->json([
+            'success' => true,
+            'filename' => $file->getClientOriginalName(),
+            'total_rows' => count($rows),
+            'first_10_rows' => array_slice($rows, 0, 10),
+            'row_count_by_type' => [
+                'empty_rows' => count(array_filter($rows, function($row) { return empty(array_filter($row)); })),
+                'non_empty_rows' => count(array_filter($rows, function($row) { return !empty(array_filter($row)); }))
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
     }
 });
 
@@ -214,6 +274,5 @@ Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
 
 Route::post('/sls-upload', [App\Http\Controllers\SLSController::class, 'upload'])->name('sls.upload');
-Route::post('/sls-save', [App\Http\Controllers\SLSController::class, 'save'])->name('sls.save');
 
 require __DIR__.'/auth.php';
