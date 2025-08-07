@@ -10,7 +10,8 @@
             <ul class="breadcrumbs mb-3">
               <li class="nav-home"><a href="login.html"><i class="icon-home"></i></a></li>
               <li class="separator"><i class="icon-arrow-right"></i></li>
-              <li class="nav-item"><a href="#">States/UTs - PD/Component - SLS IDs Mapping</a></li>
+              <!-- <li class="nav-item"><a href="#">States/UTs - PD/Component - SLS IDs Mapping</a></li> -->
+              <li class="nav-item"><a href="#">States/UTs - PD/Component</a></li>
             </ul>
           </div>
 
@@ -24,7 +25,8 @@
                   <h2 class="accordion-header" id="headingOne">
                     <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section1 }" type="button" @click="toggleAccordion('section1')" aria-expanded="true" aria-controls="collapseOne">
                       <i class="fas fa-map-marker-alt me-2"></i>
-                      State-wise list of PD/Component and SLS
+                      <!-- State-wise list of PD/Component and SLS -->
+                      Add PD/Component and SLS
                     </button>
                   </h2>
                   <div id="collapseOne" class="accordion-collapse" :class="{ 'show': accordionStates.section1 }" aria-labelledby="headingOne" data-bs-parent="#stateUTsAccordion">
@@ -119,107 +121,7 @@
                   </div>
                 </div>
 
-                <!-- Section 2: PD Component List -->
-                <div class="accordion-item">
-                  <h2 class="accordion-header" id="headingTwo">
-                    <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section2 }" type="button" @click="toggleAccordion('section2')" aria-expanded="false" aria-controls="collapseTwo">
-                      <i class="fas fa-list-alt me-2"></i>
-                      PD Component List
-                    </button>
-                  </h2>
-                  <div id="collapseTwo" class="accordion-collapse" :class="{ 'show': accordionStates.section2 }" aria-labelledby="headingTwo" data-bs-parent="#stateUTsAccordion">
-                    <div class="accordion-body" v-show="accordionStates.section2">
-                      <div class="card">
-                        <div class="card-body">
-                          <div class="bg-primary text-white px-3 py-2 rounded mb-3">
-                            <h5 class="mb-0">PD Component List</h5>
-                  </div>
-
-                 <!-- PD Table -->
-                <div class="table-responsive mt-4">
-                  <DataTable :columns="pdColumns" :data="pdData" class="table table-bordered table-striped"
-                    :options="{ responsive: true, pageLength: 5, lengthChange: false }">
-                    <template #thead>
-                      <thead>
-                        <tr>
-                          <th>S. No.</th>
-                          <th>Type</th>
-                          <th>Name</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                    </template>
-
-                    <template #row="{ row, rowIndex }">
-                      <tr>
-                         <td>{{ row.serial }}</td>
-                        <td>{{ row.component }}</td>
-                        <td>{{ row.name }}</td>
-                        <td>
-                          <a class="me-2" @click="deleteRow(row.id)">
-                            <i class="fas fa-trash"></i>
-                          </a>
-                        </td>
-                      </tr>
-                    </template>
-                  </DataTable>
-                </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Section 3: SL Component List -->
-                <div class="accordion-item">
-                  <h2 class="accordion-header" id="headingThree">
-                    <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section3 }" type="button" @click="toggleAccordion('section3')" aria-expanded="false" aria-controls="collapseThree">
-                      <i class="fas fa-layer-group me-2"></i>
-                      SL Component List
-                    </button>
-                  </h2>
-                  <div id="collapseThree" class="accordion-collapse" :class="{ 'show': accordionStates.section3 }" aria-labelledby="headingThree" data-bs-parent="#stateUTsAccordion">
-                    <div class="accordion-body" v-show="accordionStates.section3">
-                      <div class="card">
-                        <div class="card-body">
-                          <div class="bg-primary text-white px-3 py-2 rounded mb-3">
-                            <h5 class="mb-0">SL Component List</h5>
-                </div>
-
-               <!-- SL Table -->
-                <div class="table-responsive mt-4">
-                  <DataTable :columns="slColumns" :data="slData" class="table table-bordered table-striped"
-                    :options="{ responsive: true, pageLength: 5, lengthChange: false }">
-                    <template #thead>
-                      <thead>
-                        <tr>
-                          <th>SLS Code</th>
-                          <th>SLS Name</th>
-                          <th>State Name</th>
-                          <th>Sharing Pattern(Centre)</th>
-                          <th>Sharing Pattern(State)</th>
-                        </tr>
-                      </thead>
-                    </template>
-
-                    <template #row="{ row, rowIndex }">
-                      <tr>
-                        <td>{{ row.sls_code || '-' }}</td>
-                        <td>{{ row.name || '-' }}</td>
-                        <td>{{ row.state?.name || '-' }}</td>
-                        <td>{{ row.sharing_patter_center !== null && row.sharing_patter_center !== undefined ? row.sharing_patter_center : '0' }}</td>
-                        <td>{{ row.sharing_patter_state !== null && row.sharing_patter_state !== undefined ? row.sharing_patter_state : '0' }}</td>
-                      </tr>
-                    </template>
-                  </DataTable>
-                </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Section 4: SLS Upload and Preview -->
+                <!-- Section 2: SLS Upload and Preview -->
                 <div class="accordion-item">
                   <h2 class="accordion-header" id="headingFour">
                     <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section4 }" type="button" @click="toggleAccordion('section4')" aria-expanded="false" aria-controls="collapseFour">
@@ -338,6 +240,108 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Section 3: PD Component List -->
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingTwo">
+                    <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section2 }" type="button" @click="toggleAccordion('section2')" aria-expanded="false" aria-controls="collapseTwo">
+                      <i class="fas fa-list-alt me-2"></i>
+                      PD Component List
+                    </button>
+                  </h2>
+                  <div id="collapseTwo" class="accordion-collapse" :class="{ 'show': accordionStates.section2 }" aria-labelledby="headingTwo" data-bs-parent="#stateUTsAccordion">
+                    <div class="accordion-body" v-show="accordionStates.section2">
+                      <div class="card">
+                        <div class="card-body">
+                          <div class="bg-primary text-white px-3 py-2 rounded mb-3">
+                            <h5 class="mb-0">PD Component List</h5>
+                  </div>
+
+                 <!-- PD Table -->
+                <div class="table-responsive mt-4">
+                  <DataTable :columns="pdColumns" :data="pdData" class="table table-bordered table-striped"
+                    :options="{ responsive: true, pageLength: 5, lengthChange: false }">
+                    <template #thead>
+                      <thead>
+                        <tr>
+                          <th>S. No.</th>
+                          <th>Type</th>
+                          <th>Name</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                    </template>
+
+                    <template #row="{ row, rowIndex }">
+                      <tr>
+                         <td>{{ row.serial }}</td>
+                        <td>{{ row.component }}</td>
+                        <td>{{ row.name }}</td>
+                        <td>
+                          <a class="me-2" @click="deleteRow(row.id)">
+                            <i class="fas fa-trash"></i>
+                          </a>
+                        </td>
+                      </tr>
+                    </template>
+                  </DataTable>
+                </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Section 4: SL Component List -->
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingThree">
+                    <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section3 }" type="button" @click="toggleAccordion('section3')" aria-expanded="false" aria-controls="collapseThree">
+                      <i class="fas fa-layer-group me-2"></i>
+                      SL Component List
+                    </button>
+                  </h2>
+                  <div id="collapseThree" class="accordion-collapse" :class="{ 'show': accordionStates.section3 }" aria-labelledby="headingThree" data-bs-parent="#stateUTsAccordion">
+                    <div class="accordion-body" v-show="accordionStates.section3">
+                      <div class="card">
+                        <div class="card-body">
+                          <div class="bg-primary text-white px-3 py-2 rounded mb-3">
+                            <h5 class="mb-0">SL Component List</h5>
+                </div>
+
+               <!-- SL Table -->
+                <div class="table-responsive mt-4">
+                  <DataTable :columns="slColumns" :data="slData" class="table table-bordered table-striped"
+                    :options="{ responsive: true, pageLength: 5, lengthChange: false }">
+                    <template #thead>
+                      <thead>
+                        <tr>
+                          <th>SLS Code</th>
+                          <th>SLS Name</th>
+                          <th>State Name</th>
+                          <th>Sharing Pattern(Centre)</th>
+                          <th>Sharing Pattern(State)</th>
+                        </tr>
+                      </thead>
+                    </template>
+
+                    <template #row="{ row, rowIndex }">
+                      <tr>
+                        <td>{{ row.sls_code || '-' }}</td>
+                        <td>{{ row.name || '-' }}</td>
+                        <td>{{ row.state?.name || '-' }}</td>
+                        <td>{{ row.sharing_patter_center !== null && row.sharing_patter_center !== undefined ? row.sharing_patter_center : '0' }}</td>
+                        <td>{{ row.sharing_patter_state !== null && row.sharing_patter_state !== undefined ? row.sharing_patter_state : '0' }}</td>
+                      </tr>
+                    </template>
+                  </DataTable>
+                </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                
 
               </div> <!-- End Accordion Container -->
             </div>
