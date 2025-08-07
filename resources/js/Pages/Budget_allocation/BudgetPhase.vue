@@ -143,12 +143,12 @@
                                 class="form-control tableform-control-withoutbg fw-bold text-success"
                                 readonly
                               />
-                              <span v-if="item.amount && item.amount > 0" class="ms-2 badge bg-success">
+                              <!-- <span v-if="item.amount && item.amount > 0" class="ms-2 badge bg-success">
                                 <i class="fas fa-check"></i>
                               </span>
                               <span v-else class="ms-2 badge bg-warning">
                                 <i class="fas fa-exclamation-triangle"></i>
-                              </span>
+                              </span> -->
                             </div>
                           </td>
                         </tr>
