@@ -150,6 +150,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/budget-allocation', [BudgetPhaseController::class, 'fetchActiveBudgetAllocation']);
 
     Route::get('/pd-sls-list', [SlsPDComponentController::class, 'index'])->name('pd-sls.list');
+    Route::get('/pd-components-list', [SlsPDComponentController::class, 'getPDComponents'])->name('pd-components.list');
     Route::post('/pd-sls-store', [SlsPDComponentController::class, 'store'])->name('pd-sls.store');
     Route::delete('/pd-sls/{id}', [SlsPDComponentController::class, 'destroy'])->name('pd-sls.destroy');
     Route::post('/pd-sls/upload-excel', [SlsPDComponentController::class, 'uploadExcel'])->name('pd-sls.upload-excel');

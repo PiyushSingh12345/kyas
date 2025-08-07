@@ -26,7 +26,7 @@
                     <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section1 }" type="button" @click="toggleAccordion('section1')" aria-expanded="true" aria-controls="collapseOne">
                       <i class="fas fa-map-marker-alt me-2"></i>
                       <!-- State-wise list of PD/Component and SLS -->
-                      Add PD/Component and SLS
+                      Add Component PD and/or SLS
                     </button>
                   </h2>
                   <div id="collapseOne" class="accordion-collapse" :class="{ 'show': accordionStates.section1 }" aria-labelledby="headingOne" data-bs-parent="#stateUTsAccordion">
@@ -261,29 +261,21 @@
                 <div class="table-responsive mt-4">
                   <DataTable :columns="pdColumns" :data="pdData" class="table table-bordered table-striped"
                     :options="{ responsive: true, pageLength: 5, lengthChange: false }">
-                    <template #thead>
-                      <thead>
-                        <tr>
-                          <th>S. No.</th>
-                          <th>Type</th>
-                          <th>Name</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                    </template>
+                                         <template #thead>
+                       <thead>
+                         <tr>
+                           <th>S. No.</th>
+                           <th>Division Name</th>
+                         </tr>
+                       </thead>
+                     </template>
 
-                    <template #row="{ row, rowIndex }">
-                      <tr>
-                         <td>{{ row.serial }}</td>
-                        <td>{{ row.component }}</td>
-                        <td>{{ row.name }}</td>
-                        <td>
-                          <a class="me-2" @click="deleteRow(row.id)">
-                            <i class="fas fa-trash"></i>
-                          </a>
-                        </td>
-                      </tr>
-                    </template>
+                     <template #row="{ row, rowIndex }">
+                       <tr>
+                          <td>{{ row.serial }}</td>
+                         <td>{{ row.division_name }}</td>
+                       </tr>
+                     </template>
                   </DataTable>
                 </div>
                         </div>
@@ -369,10 +361,7 @@ import 'datatables.net-bs5/css/dataTables.bootstrap5.css'
 DataTable.use(DataTablesCore)
 const pdColumns = [
   { title: 'S. No.', data: 'serial',width: '1%' },
-
-  { title: 'Type', data: 'component',width: '3%' },
-  { title: 'Name', data: 'name' },
-  
+  { title: 'Division Name', data: 'division_name' }
 ]
 
 const slColumns = [
@@ -384,8 +373,7 @@ const slColumns = [
 ]  
 
 const pdData = computed(() =>
-  savedData.value
-    .filter(i => i.component === 'PD')
+  pdComponentsData.value
     .map((item, index) => ({ ...item, serial: index + 1 }))
 )
 
@@ -397,6 +385,7 @@ const slData = computed(() =>
 
 
 const savedData = ref([]);
+const pdComponentsData = ref([]);
 
 const selectedComponent = ref('')
 
@@ -622,6 +611,19 @@ const fetchSavedData = async () => {
     console.error('Error loading saved data:', err);
   }
 };
+
+const fetchPDComponentsData = async () => {
+  try {
+    const res = await fetch('/pd-components-list');
+    if (res.ok) {
+      pdComponentsData.value = await res.json();
+    } else {
+      console.error('Failed to load PD components data');
+    }
+  } catch (err) {
+    console.error('Error loading PD components data:', err);
+  }
+};
 const formRows = ref([
   {
     state: '',
@@ -635,6 +637,7 @@ const states = ref([])
 
 onMounted(async () => {
   fetchSavedData();
+  fetchPDComponentsData();
   
   try {
     const response = await fetch('/api/states')

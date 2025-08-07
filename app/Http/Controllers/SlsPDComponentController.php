@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\SlsPDComponent;
 use App\Models\State;
+use App\Models\ProgramDivision;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +15,15 @@ class SlsPDComponentController extends Controller
     public function index()
     {
         $data = SlsPDComponent::with('state')->get();
+
+        return response()->json($data);
+    }
+
+    public function getPDComponents()
+    {
+        $data = ProgramDivision::where('is_active', 1)
+            ->orderBy('division_name')
+            ->get();
 
         return response()->json($data);
     }
