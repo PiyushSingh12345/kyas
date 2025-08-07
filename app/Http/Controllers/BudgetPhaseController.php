@@ -130,22 +130,19 @@ class BudgetPhaseController extends Controller
     // Store budget allocation (as draft or final)
     public function store(Request $request)
     {
-       
-
-        $validated = $request->validate([
-            'allocations' => 'required|array',
-            'allocations.*.financial_year' => 'required|string|regex:/^\d{4}-\d{2}$/',
-
-            'allocations.*.budget_phase' => 'required|string', // ✅ Add this line
-            'allocations.*.budget_head_id' => 'required|exists:budget_heads,id',
-            'allocations.*.budget_amount' => 'required|numeric|min:0',
-            'allocations.*.status' => 'required|in:0,1',
-            'allocations.*.draft_flag' => 'required|in:0,1',
-        ]);
-        print_r($validated);
-        
-        DB::beginTransaction();
         try {
+            $validated = $request->validate([
+                'allocations' => 'required|array',
+                'allocations.*.financial_year' => 'required|string|regex:/^\d{4}-\d{2}$/',
+                'allocations.*.budget_phase' => 'required|string',
+                'allocations.*.budget_head_id' => 'required|exists:budget_heads,id',
+                'allocations.*.budget_amount' => 'required|numeric|min:0',
+                'allocations.*.status' => 'required|in:0,1',
+                'allocations.*.draft_flag' => 'required|in:0,1',
+            ]);
+            
+            DB::beginTransaction();
+            
             foreach ($validated['allocations'] as $allocation) {
                 BudgetPhase::updateOrCreate(
                     [
@@ -160,19 +157,55 @@ class BudgetPhaseController extends Controller
                     ]
                 );
             }
-            Log::info('Saving allocation:', $allocation);
+            
+            Log::info('Budget allocation saved successfully:', [
+                'count' => count($validated['allocations']),
+                'draft_flag' => $validated['allocations'][0]['draft_flag']
+            ]);
 
             DB::commit();
-            Log::info('Budget saved successfully.');
-
-            return redirect()->back()->with('success', $validated['allocations'][0]['draft_flag'] ? 'Budget submitted successfully.' : 'Draft saved successfully.');
-        } catch (\Exception $e) {
-            Log::error('Exception occurred while saving budget:', [
-        'message' => $e->getMessage(),
-        'trace' => $e->getTraceAsString()
-    ]);
-
+            
+            $message = $validated['allocations'][0]['draft_flag'] ? 'Budget submitted successfully.' : 'Draft saved successfully.';
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'data' => $validated['allocations']
+                ]);
+            }
+            
+            return redirect()->back()->with('success', $message);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
+            Log::error('Validation error in budget allocation:', $e->errors());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            
+            return back()->withErrors($e->errors())->withInput();
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Exception occurred while saving budget:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Something went wrong. Please try again.',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+            
             return back()->with('error', 'Something went wrong. Please try again.');
         }
     }

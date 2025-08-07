@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 
+
 Route::get('/', function () {
     if (\Illuminate\Support\Facades\Auth::check()) {
         return redirect()->route('user-listing');
@@ -224,6 +225,10 @@ Route::post('/debug-excel', function(Request $request) {
         ]);
     }
 });
+
+
+
+
 
     Route::get('/api/sls-data/{stateId}', [MotherSanctionController::class, 'getSlsData']);
 
