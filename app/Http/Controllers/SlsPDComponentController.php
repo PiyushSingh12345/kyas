@@ -29,17 +29,32 @@ class SlsPDComponentController extends Controller
             'status' => 'required|in:0,1'
         ]);
 
-        foreach ($validated['comValue'] as $entry) {
-            SlsPDComponent::create([
-                'component' => $validated['component'],
-                'state_id' => $entry['state'],
-                'slsPD' => $entry['slsPD'] ?? null,
-                'name' => $entry['name'],
-                'status' => $validated['status']
-            ]);
-        }
+        try {
+            DB::beginTransaction();
 
-        return redirect()->back()->with('success', 'Data stored successfully!');
+            foreach ($validated['comValue'] as $entry) {
+                // For PD component, state_id should be 0 or null
+                $stateId = ($validated['component'] === 'PD') ? null : $entry['state'];
+                
+                SlsPDComponent::create([
+                    'state_id' => $stateId,
+                    'name' => $entry['name'],
+                    'sls_code' => ($validated['component'] === 'SL') ? $entry['name'] : null, // For SL, name is the SLS code
+                    'sharing_patter_center' => null, // Will be set when mapping with SLS data
+                    'sharing_patter_state' => null, // Will be set when mapping with SLS data
+                    'status' => $validated['status']
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Data stored successfully!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Store error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Error storing data: ' . $e->getMessage());
+        }
     }
 
     public function uploadExcel(Request $request)
@@ -400,7 +415,7 @@ class SlsPDComponentController extends Controller
             'data' => 'required|array',
             'data.*.slsCode' => 'required|string',
             'data.*.slsName' => 'required|string',
-            'data.*.stateId' => 'required|integer|exists:states,id',
+            'data.*.stateName' => 'required|string',
             'data.*.sgAccount' => 'nullable|string',
             'data.*.sharingPatternCentre' => 'nullable|string',
             'data.*.sharingPatternState' => 'nullable|string'
@@ -411,26 +426,40 @@ class SlsPDComponentController extends Controller
 
             $savedCount = 0;
             $errors = [];
-
             foreach ($request->data as $item) {
                 try {
-                    // Check if SLS already exists
-                    $existingSLS = SlsPDComponent::where('name', $item['slsCode'])
-                        ->where('component', 'SL')
-                        ->where('state_id', $item['stateId'])
-                        ->first();
-
-                    if ($existingSLS) {
-                        $errors[] = "SLS Code '{$item['slsCode']}' already exists for this state";
+                    // Get state ID by state name
+                    $stateId = $this->getStateIDbyStateName($item['stateName']);
+                    
+                    if (!$stateId) {
+                        $errors[] = "State '{$item['stateName']}' not found in database";
                         continue;
                     }
 
-                    // Create new SLS record
+                    // Check if SLS already exists
+                    $existingSLS = SlsPDComponent::where('sls_code', $item['slsCode'])
+                        ->where('state_id', $stateId)
+                        ->first();
+
+                    if ($existingSLS) {
+                        // Update existing record instead of failing
+                        $existingSLS->update([
+                            'name' => $item['slsName'],
+                            'sharing_patter_center' => $item['sharingPatternCentre'] !== '' ? ($item['sharingPatternCentre'] ?? 0) : 0, // Store 0 for empty/null
+                            'sharing_patter_state' => $item['sharingPatternState'] !== '' ? ($item['sharingPatternState'] ?? 0) : 0, // Store 0 for empty/null
+                            'status' => 1
+                        ]);
+                        $savedCount++;
+                        continue;
+                    }
+
+                    // Create new SLS record with only the fields that exist in the database
                     SlsPDComponent::create([
-                        'component' => 'SL',
-                        'state_id' => $item['stateId'],
-                        'slsPD' => null, // This will be set when mapping with PD
-                        'name' => $item['slsCode'], // Store SLS Code as name
+                        'state_id' => $stateId,
+                        'name' => $item['slsName'], // slsName => name
+                        'sharing_patter_center' => $item['sharingPatternCentre'] !== '' ? ($item['sharingPatternCentre'] ?? 0) : 0, // Store 0 for empty/null
+                        'sharing_patter_state' => $item['sharingPatternState'] !== '' ? ($item['sharingPatternState'] ?? 0) : 0, // Store 0 for empty/null
+                        'sls_code' => $item['slsCode'], // slsCode => sls_code
                         'status' => 1
                     ]);
 
@@ -438,6 +467,11 @@ class SlsPDComponentController extends Controller
 
                 } catch (\Exception $e) {
                     $errors[] = "Error saving SLS '{$item['slsCode']}': " . $e->getMessage();
+                    Log::error("Error saving SLS data: " . $e->getMessage(), [
+                        'slsCode' => $item['slsCode'],
+                        'stateName' => $item['stateName'],
+                        'error' => $e->getMessage()
+                    ]);
                 }
             }
 
@@ -468,6 +502,34 @@ class SlsPDComponentController extends Controller
             ], 500);
         }
     }
+    
+    public function getStateIDbyStateName($stateName)
+    {
+        // Clean the state name
+        $cleanStateName = trim($stateName);
+        
+        // Try exact match first
+        $state = State::where('name', $cleanStateName)->first();
+        
+        if (!$state) {
+            // Try partial match
+            $state = State::where('name', 'LIKE', '%' . $cleanStateName . '%')->first();
+        }
+        
+        if (!$state) {
+            // Try case-insensitive match
+            $state = State::whereRaw('LOWER(name) LIKE ?', ['%' . strtolower($cleanStateName) . '%'])->first();
+        }
+        
+        if (!$state) {
+            Log::warning("State not found for name: {$cleanStateName}");
+            return null;
+        }
+        
+        Log::info("Found state: {$state->name} with ID: {$state->id} for input: {$cleanStateName}");
+        return $state->id;
+    }
+
 
     public function getComponentsByFund(Request $request)
     {

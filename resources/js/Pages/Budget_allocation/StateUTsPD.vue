@@ -193,28 +193,22 @@
                     <template #thead>
                       <thead>
                         <tr>
-                          <th>S. No.</th>
-                          <th>Type</th>
-                          <th>State</th>
-                          <th>PD</th>
-                          <th>Name</th>
-                          <th>Action</th>
+                          <th>SLS Code</th>
+                          <th>SLS Name</th>
+                          <th>State Name</th>
+                          <th>Sharing Pattern(Centre)</th>
+                          <th>Sharing Pattern(State)</th>
                         </tr>
                       </thead>
                     </template>
 
                     <template #row="{ row, rowIndex }">
                       <tr>
-                         <td>{{ row.serial }}</td>
-                        <td>{{ row.component }}</td>
-                <td>{{ row.state?.name || '-' }}</td>
-
-                        <td>{{ row.name }}</td>
-                        <td>
-                          <a class="me-2" @click="deleteRow(row.id)">
-                            <i class="fas fa-trash"></i>
-                          </a>
-                        </td>
+                        <td>{{ row.sls_code || '-' }}</td>
+                        <td>{{ row.name || '-' }}</td>
+                        <td>{{ row.state?.name || '-' }}</td>
+                        <td>{{ row.sharing_patter_center !== null && row.sharing_patter_center !== undefined ? row.sharing_patter_center : '0' }}</td>
+                        <td>{{ row.sharing_patter_state !== null && row.sharing_patter_state !== undefined ? row.sharing_patter_state : '0' }}</td>
                       </tr>
                     </template>
                   </DataTable>
@@ -280,7 +274,7 @@
                                   <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls)</li>
                                   <li><i class="fas fa-info-circle text-info me-2"></i>For Excel: First row should contain column headers</li>
                                   <!-- <li><i class="fas fa-info-circle text-info me-2"></i>For PDF: Data should be in structured format with SLS codes and details</li> -->
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: Controller, Centrally Sponsored Scheme (CSS), State Name, State Linked Scheme (SLS), SG Account, Sharing Pattern</li>
+                                  <!-- <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: Controller, Centrally Sponsored Scheme (CSS), State Name, State Linked Scheme (SLS), SG Account, Sharing Pattern</li> -->
                                   <li><i class="fas fa-info-circle text-info me-2"></i>SLS column format: CODE - NAME (e.g., AP17 - National Food Security)</li>
                                   <li><i class="fas fa-info-circle text-info me-2"></i>Maximum file size: 10MB</li>
                   
@@ -308,7 +302,7 @@
                                   <th>SLS Code</th>
                                   <th>SLS Name</th>
                                   <th>State Name</th>
-                                  <th>SG Account</th>
+                                  <!-- <th>SG Account</th> -->
                                   <th>Sharing Pattern(Centre)</th>
                                   <th>Sharing Pattern(State)</th>
                                   <!-- <th>Controller</th>
@@ -321,7 +315,7 @@
                                   <td>{{ row.slsCode }}</td>
                                   <td>{{ row.slsName }}</td>
                                   <td>{{ row.stateName }}</td>
-                                  <td>{{ row.sgAccount }}</td>
+                                  <!-- <td>{{ row.sgAccount }}</td> -->
                                   <td>{{ row.sharingPatternCentre }}</td>
                                   <td>{{ row.sharingPatternState }}</td>
                                   <!-- <td>{{ row.controller }}</td>
@@ -378,13 +372,11 @@ const pdColumns = [
 ]
 
 const slColumns = [
-
-  { title: 'S. No.', data: 'serial',width: '1%' },
-  { title: 'Type', data: 'component',width: '3%' },
-  { title: 'State', data: 'state.name',width: '5%' },
-  { title: 'PD', data: 'slsPD' },
-  { title: 'Name', data: 'name' },
-  
+  { title: 'SLS Code', data: 'sls_code' },
+  { title: 'SLS Name', data: 'name' },
+  { title: 'State Name', data: 'state.name' },
+  { title: 'Sharing Pattern(Centre)', data: 'sharing_patter_center' },
+  { title: 'Sharing Pattern(State)', data: 'sharing_patter_state' }
 ]  
 
 const pdData = computed(() =>
@@ -395,11 +387,7 @@ const pdData = computed(() =>
 
 const slData = computed(() =>
   savedData.value
-    .filter(i => i.component === 'SL')
-    .map((item, index) => ({
-      ...item,
-      serial: index + 1
-    }))
+    .filter(i => i.component === 'SL' || i.sls_code) // Include records with sls_code (from Excel uploads)
 )
 
 
@@ -456,6 +444,15 @@ const parseFile = (file) => {
   const formData = new FormData()
   formData.append('file', file)
 
+  // Get CSRF token
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+  
+  if (!csrfToken) {
+    isUploading.value = false
+    alert('CSRF token not found. Please refresh the page and try again.')
+    return
+  }
+
   // Determine the endpoint based on file type
   const endpoint = file.type === 'application/pdf' ? '/pd-sls/upload-pdf' : '/pd-sls/upload-excel'
 
@@ -463,11 +460,16 @@ const parseFile = (file) => {
     method: 'POST',
     body: formData,
     headers: {
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      'X-CSRF-TOKEN': csrfToken,
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
     }
   })
   .then(response => {
     if (!response.ok) {
+      if (response.status === 419) {
+        throw new Error('CSRF token mismatch. Please refresh the page and try again.')
+      }
       return response.json().then(errorData => {
         throw new Error(JSON.stringify(errorData));
       });
@@ -491,15 +493,7 @@ const parseFile = (file) => {
       
       alert(message)
     } else {
-      let errorMessage = 'Error parsing file: ' + data.message
-      if (data.errors && data.errors.length > 0) {
-        errorMessage += '\n\nFirst few errors:\n' + data.errors.slice(0, 5).join('\n')
-        if (data.errors.length > 5) {
-          errorMessage += `\n... and ${data.errors.length - 5} more errors`
-        }
-      }
-      alert(errorMessage)
-      console.error('Validation errors:', data.errors)
+      throw new Error(data.message || 'Error parsing file')
     }
   })
   .catch(error => {
@@ -536,36 +530,64 @@ const saveSLSData = () => {
 
   isSaving.value = true
 
+  // Get CSRF token
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+  
+  if (!csrfToken) {
+    isSaving.value = false
+    alert('CSRF token not found. Please refresh the page and try again.')
+    return
+  }
+
   // Prepare data for saving
   const dataToSave = slsPreviewData.value.map(item => ({
     slsCode: item.slsCode,
     slsName: item.slsName,
-    stateId: item.stateId,
+    stateName: item.stateName,
     sgAccount: item.sgAccount,
     sharingPatternCentre: item.sharingPatternCentre,
     sharingPatternState: item.sharingPatternState
   }))
 
+
+
   fetch('/pd-sls/save-sls-data', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      'X-CSRF-TOKEN': csrfToken,
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
     },
     body: JSON.stringify({ data: dataToSave })
   })
-  .then(response => response.json())
+  .then(response => {
+    if (!response.ok) {
+      if (response.status === 419) {
+        throw new Error('CSRF token mismatch. Please refresh the page and try again.')
+      }
+      return response.json().then(errorData => {
+        throw new Error(JSON.stringify(errorData));
+      });
+    }
+    return response.json();
+  })
   .then(data => {
     isSaving.value = false
     if (data.success) {
       alert(`Successfully saved ${data.savedCount} SLS records!`)
-  clearSLSData()
+      clearSLSData()
       fetchSavedData() // Refresh the saved data list
     } else {
-      alert('Error saving data: ' + data.message)
+      let errorMessage = 'Error saving data: ' + data.message
       if (data.errors && data.errors.length > 0) {
-        console.error('Save errors:', data.errors)
+        errorMessage += '\n\nFirst few errors:\n' + data.errors.slice(0, 5).join('\n')
+        if (data.errors.length > 5) {
+          errorMessage += `\n... and ${data.errors.length - 5} more errors`
+        }
       }
+      alert(errorMessage)
+      console.error('Save errors:', data.errors)
     }
   })
   .catch(error => {

@@ -12,12 +12,14 @@ class SlsPDComponent extends Model
     protected $table = 'pd_and_sls_comp'; 
 
     protected $fillable = [
-        'component',
         'state_id',
-        'slsPD',
         'name',
+        'sharing_patter_center',
+        'sharing_patter_state',
+        'sls_code',
         'status'
     ];
+
     public function state()
     {
         return $this->belongsTo(State::class, 'state_id');
