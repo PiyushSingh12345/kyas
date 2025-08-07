@@ -122,6 +122,7 @@ class SlsPDComponentController extends Controller
             $dataRows = array_slice($rows, $dataStartRow);
             
             $parsedData = [];
+            $lastKnownStateName = ''; // Track the last known state name for merged cells
 
             foreach ($dataRows as $index => $row) {
                 // Skip empty rows
@@ -142,6 +143,16 @@ class SlsPDComponentController extends Controller
                     strpos(strtolower($slsData['slsCode']), 'total') !== false ||
                     strpos(strtolower($slsData['slsCode']), 'subtotal') !== false) {
                     continue;
+                }
+
+                // Handle merged state name cells
+                $currentStateName = trim($slsData['stateName']);
+                if (!empty($currentStateName)) {
+                    // If we have a new state name, update our tracking
+                    $lastKnownStateName = $currentStateName;
+                } else {
+                    // If state name is empty, use the last known state name
+                    $slsData['stateName'] = $lastKnownStateName;
                 }
 
                 // Find state ID by name (with fallback)
@@ -272,6 +283,7 @@ class SlsPDComponentController extends Controller
         $dataStartRow = 0;
         $parsedData = [];
         $errors = [];
+        $lastKnownStateName = ''; // Track the last known state name for merged cells
 
         // Look for the first row that contains SLS code patterns
         foreach ($rows as $rowIndex => $row) {
@@ -324,7 +336,17 @@ class SlsPDComponentController extends Controller
             
             $slsCode = trim($parts[0]);
             $slsName = trim($parts[1]);
-            $stateName = trim($row[3] ?? ''); // State Name column (Column 4)
+            $currentStateName = trim($row[3] ?? ''); // State Name column (Column 4)
+            
+            // Handle merged state name cells
+            if (!empty($currentStateName)) {
+                // If we have a new state name, update our tracking
+                $lastKnownStateName = $currentStateName;
+            } else {
+                // If state name is empty, use the last known state name
+                $currentStateName = $lastKnownStateName;
+            }
+            
             $sgAccount = trim($row[6] ?? ''); // SG Account column (Column 7)
             $sharingPatternCentre = trim($row[8] ?? ''); // Centre column of Sharing Pattern (Column 9)
             $sharingPatternState = trim($row[9] ?? ''); // State column of Sharing Pattern (Column 10)
@@ -344,13 +366,13 @@ class SlsPDComponentController extends Controller
             }
 
             // Find state ID by name (with fallback)
-            $state = State::where('name', 'LIKE', '%' . $stateName . '%')->first();
+            $state = State::where('name', 'LIKE', '%' . $currentStateName . '%')->first();
             $stateId = $state ? $state->id : 1; // Default to state ID 1 if not found
 
             $parsedData[] = [
                 'slsCode' => $slsCode,
                 'slsName' => $slsName,
-                'stateName' => $stateName,
+                'stateName' => $currentStateName,
                 'stateId' => $stateId,
                 'sgAccount' => $sgAccount,
                 'sharingPatternCentre' => $sharingPatternCentre,

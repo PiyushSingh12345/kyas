@@ -20,7 +20,7 @@ class SLSController extends Controller
             $fileName = $file->getClientOriginalName();
             $fileExtension = strtolower($file->getClientOriginalExtension());
             
-            \Log::info('SLS File upload started', [
+            Log::info('SLS File upload started', [
                 'fileName' => $fileName,
                 'fileSize' => $file->getSize(),
                 'fileExtension' => $fileExtension
@@ -30,10 +30,10 @@ class SLSController extends Controller
             $filePath = $file->storeAs('temp', $fileName, 'local');
             $fullPath = Storage::disk('local')->path($filePath);
             
-            \Log::info('SLS File stored at', ['path' => $fullPath]);
+            Log::info('SLS File stored at', ['path' => $fullPath]);
             
             $extractedData = $this->processExcelFile($fullPath);
-            \Log::info('SLS Excel processed', ['extractedRows' => count($extractedData['structured_data'] ?? [])]);
+            Log::info('SLS Excel processed', ['extractedRows' => count($extractedData['structured_data'] ?? [])]);
             
             // Clean up temporary file
             Storage::disk('local')->delete($filePath);
@@ -45,7 +45,7 @@ class SLSController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('SLS File upload error', [
+            Log::error('SLS File upload error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -64,10 +64,11 @@ class SLSController extends Controller
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
 
-            \Log::info('Excel file loaded', ['totalRows' => count($rows)]);
+            Log::info('Excel file loaded', ['totalRows' => count($rows)]);
 
             $structured = [];
             $startRow = null;
+            $lastKnownStateName = ''; // Track the last known state name for merged cells
 
             // Find the start of data (skip headers)
             for ($i = 0; $i < count($rows); $i++) {
@@ -88,7 +89,7 @@ class SLSController extends Controller
                 $startRow = 1;
             }
 
-            \Log::info('Data processing started from row', ['startRow' => $startRow]);
+            Log::info('Data processing started from row', ['startRow' => $startRow]);
 
             // Process data rows
             for ($i = $startRow; $i < count($rows); $i++) {
@@ -99,14 +100,24 @@ class SLSController extends Controller
                 }
 
                 // Extract data based on the expected structure
-                $stateName = trim($row[3] ?? ''); // State Name column
+                $currentStateName = trim($row[3] ?? ''); // State Name column
+                
+                // Handle merged state name cells
+                if (!empty($currentStateName)) {
+                    // If we have a new state name, update our tracking
+                    $lastKnownStateName = $currentStateName;
+                } else {
+                    // If state name is empty, use the last known state name
+                    $currentStateName = $lastKnownStateName;
+                }
+                
                 $slsFull = trim($row[4] ?? ''); // State Linked Scheme (SLS) column
                 $sgAccount = trim($row[5] ?? ''); // SG Account column
                 $sharingPatternCentre = trim($row[6] ?? ''); // Sharing Pattern Centre column
                 $sharingPatternState = trim($row[7] ?? ''); // Sharing Pattern State column
 
                 // Skip empty rows
-                if (empty($stateName) && empty($slsFull)) {
+                if (empty($currentStateName) && empty($slsFull)) {
                     continue;
                 }
 
@@ -126,11 +137,11 @@ class SLSController extends Controller
                 }
 
                 // Only add if we have meaningful data
-                if (!empty($stateName) || !empty($slsName)) {
+                if (!empty($currentStateName) || !empty($slsName)) {
                     $structured[] = [
                         'sls_code' => $slsCode,
                         'sls_name' => $slsName,
-                        'state_name' => $stateName,
+                        'state_name' => $currentStateName,
                         'sg_account' => $sgAccount,
                         'sharing_pattern_centre' => $sharingPatternCentre,
                         'sharing_pattern_state' => $sharingPatternState,
@@ -138,7 +149,7 @@ class SLSController extends Controller
                 }
             }
 
-            \Log::info('SLS data extracted', ['structuredCount' => count($structured)]);
+            Log::info('SLS data extracted', ['structuredCount' => count($structured)]);
 
             return [
                 'type' => 'excel',
@@ -147,7 +158,7 @@ class SLSController extends Controller
             ];
 
         } catch (\Exception $e) {
-            \Log::error('Error processing Excel file', [
+            Log::error('Error processing Excel file', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

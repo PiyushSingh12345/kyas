@@ -247,7 +247,7 @@
                               <div class="upload-area border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                                 <div class="mb-3">
                                   <i class="fas fa-file-excel fa-3x text-success me-2"></i>
-                                  <i class="fas fa-file-pdf fa-3x text-danger"></i>
+                                  <!-- <i class="fas fa-file-pdf fa-3x text-danger"></i> -->
                                 </div>
                                 <!--<h6 class="mb-2">Upload SLS Excel/PDF File</h6>-->
                                 <h6 class="mb-2">Upload SLS Excel File</h6>
@@ -277,9 +277,9 @@
                                 <h6>Upload Instructions:</h6>
                                 <ul class="list-unstyled">
                                   <!-- <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls) or PDF format (.pdf)</li> -->
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls) format</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls)</li>
                                   <li><i class="fas fa-info-circle text-info me-2"></i>For Excel: First row should contain column headers</li>
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>For PDF: Data should be in structured format with SLS codes and details</li>
+                                  <!-- <li><i class="fas fa-info-circle text-info me-2"></i>For PDF: Data should be in structured format with SLS codes and details</li> -->
                                   <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: Controller, Centrally Sponsored Scheme (CSS), State Name, State Linked Scheme (SLS), SG Account, Sharing Pattern</li>
                                   <li><i class="fas fa-info-circle text-info me-2"></i>SLS column format: CODE - NAME (e.g., AP17 - National Food Security)</li>
                                   <li><i class="fas fa-info-circle text-info me-2"></i>Maximum file size: 10MB</li>
@@ -335,8 +335,9 @@
                           <!-- No Data Message -->
                           <div v-else class="text-center py-4">
                             <i class="fas fa-file-excel fa-3x text-muted mb-3 me-2"></i>
-                            <i class="fas fa-file-pdf fa-3x text-muted mb-3"></i>
-                            <p class="text-muted">No data to preview. Please upload an Excel or PDF file.</p>
+                            <!-- <i class="fas fa-file-pdf fa-3x text-muted mb-3"></i> -->
+                            <!-- <p class="text-muted">No data to preview. Please upload an Excel or PDF file.</p> -->
+                            <p class="text-muted">No data to preview. Please upload an Excel file.</p>
                           </div>
                         </div>
                       </div>
@@ -433,7 +434,8 @@ const handleFileUpload = (event) => {
   // Validate file type
   const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'application/pdf']
   if (!allowedTypes.includes(file.type)) {
-    alert('Please upload an Excel file (.xlsx or .xls) or a PDF file (.pdf)')
+    alert('Please upload an Excel file (.xlsx or .xls)')
+    // alert('Please upload an Excel file (.xlsx or .xls) or a PDF file (.pdf)')
     return
   }
 
