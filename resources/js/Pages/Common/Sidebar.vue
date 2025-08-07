@@ -185,8 +185,28 @@
                 </div>
               </li>
 
-            
-         
+              <!-- Annual Action plan Module -->
+              <li class="nav-item" :class="{ active: activeMenu === 'annual-action-plan' }" v-if="hasRole([2])">
+                <a href="#" @click.prevent="toggleMenu('annual-action-plan')">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Annual Action Plan</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 'annual-action-plan' }"></span>
+                </a>
+                <div v-show="activeMenu === 'annual-action-plan'">
+                  <ul class="nav nav-collapse">
+                    <li>
+                      <Link :href="route('annual-action-plan-central')" class="nav-link">
+                        <span class="sub-item">Annual Action Plan Central</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('annual-action-plan-state')" class="nav-link">
+                        <span class="sub-item">Annual Action Plan State</span>
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </li>
             </ul>
           </div>
         </div>

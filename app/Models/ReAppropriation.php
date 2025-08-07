@@ -19,6 +19,7 @@ class ReAppropriation extends Model
         'section',
         'program_division_id',
         'from_budget_head_id',
+        'from_budget_head_remarks',
         'to_budget_head_id',
         'reappropriation_amount',
         'other_details',

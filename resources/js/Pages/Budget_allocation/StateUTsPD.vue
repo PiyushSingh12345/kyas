@@ -239,28 +239,32 @@
                         <div class="card-body">
                           <div class="bg-primary text-white px-3 py-2 rounded mb-3">
                             <h5 class="mb-0">SLS Upload and Preview</h5>
-                          </div>
-                          
+                </div>
+
                           <!-- Upload Section -->
                           <div class="row mb-4">
                             <div class="col-md-6">
                               <div class="upload-area border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                                 <div class="mb-3">
-                                  <i class="fas fa-file-excel fa-3x text-success"></i>
+                                  <i class="fas fa-file-excel fa-3x text-success me-2"></i>
+                                  <!-- <i class="fas fa-file-pdf fa-3x text-danger"></i> -->
                                 </div>
+                                <!--<h6 class="mb-2">Upload SLS Excel/PDF File</h6>-->
                                 <h6 class="mb-2">Upload SLS Excel File</h6>
+                                <!-- <p class="text-muted mb-3">Drag and drop your Excel or PDF file here or click to browse</p> -->
                                 <p class="text-muted mb-3">Drag and drop your Excel file here or click to browse</p>
-                                <input 
-                                  type="file" 
-                                  ref="fileInput" 
-                                  @change="handleFileUpload" 
-                                  accept=".xlsx,.xls" 
+                                <input
+                                  type="file"
+                                  ref="fileInput"
+                                  @change="handleFileUpload"
+                                  accept=".xlsx,.xls"
                                   class="form-control"
                                   style="display: none;"
                                 />
-                                <button @click="$refs.fileInput.click()" class="btn btn-primary">
-                                  <i class="fas fa-upload me-2"></i>Choose File
+                                <button @click="$refs.fileInput.click()" class="btn btn-primary" :disabled="isUploading">
+                                  <i class="fas fa-upload me-2"></i>{{ isUploading ? 'Uploading...' : 'Choose File' }}
                                 </button>
+
                                 <div v-if="selectedFile" class="mt-2">
                                   <small class="text-success">
                                     <i class="fas fa-check me-1"></i>{{ selectedFile.name }}
@@ -272,10 +276,14 @@
                               <div class="upload-info">
                                 <h6>Upload Instructions:</h6>
                                 <ul class="list-unstyled">
+                                  <!-- <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls) or PDF format (.pdf)</li> -->
                                   <li><i class="fas fa-info-circle text-info me-2"></i>File should be in Excel format (.xlsx, .xls)</li>
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>First row should contain column headers</li>
-                                  <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: SLS Code, SLS Name, State Name, SG Account, Sharing Pattern(Centre), Sharing Pattern(State)</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>For Excel: First row should contain column headers</li>
+                                  <!-- <li><i class="fas fa-info-circle text-info me-2"></i>For PDF: Data should be in structured format with SLS codes and details</li> -->
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>Required columns: Controller, Centrally Sponsored Scheme (CSS), State Name, State Linked Scheme (SLS), SG Account, Sharing Pattern</li>
+                                  <li><i class="fas fa-info-circle text-info me-2"></i>SLS column format: CODE - NAME (e.g., AP17 - National Food Security)</li>
                                   <li><i class="fas fa-info-circle text-info me-2"></i>Maximum file size: 10MB</li>
+                  
                                 </ul>
                               </div>
                             </div>
@@ -286,8 +294,8 @@
                             <div class="d-flex justify-content-between align-items-center mb-3">
                               <h6 class="mb-0">Preview Data ({{ slsPreviewData.length }} rows)</h6>
                               <div>
-                                <button @click="saveSLSData" class="btn btn-success me-2" :disabled="!slsPreviewData.length">
-                                  <i class="fas fa-save me-2"></i>Save Data
+                                <button @click="saveSLSData" class="btn btn-success me-2" :disabled="!slsPreviewData.length || isSaving">
+                                  <i class="fas fa-save me-2"></i>{{ isSaving ? 'Saving...' : 'Proceed & Save' }}
                                 </button>
                                 <button @click="clearSLSData" class="btn btn-secondary">
                                   <i class="fas fa-trash me-2"></i>Clear
@@ -303,6 +311,9 @@
                                   <th>SG Account</th>
                                   <th>Sharing Pattern(Centre)</th>
                                   <th>Sharing Pattern(State)</th>
+                                  <!-- <th>Controller</th>
+                                  <th>CSS</th>
+                                  <th>CG Account</th> -->
                                 </tr>
                               </thead>
                               <tbody>
@@ -313,6 +324,9 @@
                                   <td>{{ row.sgAccount }}</td>
                                   <td>{{ row.sharingPatternCentre }}</td>
                                   <td>{{ row.sharingPatternState }}</td>
+                                  <!-- <td>{{ row.controller }}</td>
+                                  <td>{{ row.css }}</td>
+                                  <td>{{ row.cgAccount }}</td> -->
                                 </tr>
                               </tbody>
                             </table>
@@ -320,7 +334,9 @@
 
                           <!-- No Data Message -->
                           <div v-else class="text-center py-4">
-                            <i class="fas fa-file-excel fa-3x text-muted mb-3"></i>
+                            <i class="fas fa-file-excel fa-3x text-muted mb-3 me-2"></i>
+                            <!-- <i class="fas fa-file-pdf fa-3x text-muted mb-3"></i> -->
+                            <!-- <p class="text-muted">No data to preview. Please upload an Excel or PDF file.</p> -->
                             <p class="text-muted">No data to preview. Please upload an Excel file.</p>
                           </div>
                         </div>
@@ -408,15 +424,18 @@ const toggleAccordion = (section) => {
 const fileInput = ref(null)
 const selectedFile = ref(null)
 const slsPreviewData = ref([])
+const isUploading = ref(false)
+const isSaving = ref(false)
 
 const handleFileUpload = (event) => {
   const file = event.target.files[0]
   if (!file) return
 
   // Validate file type
-  const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
+  const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'application/pdf']
   if (!allowedTypes.includes(file.type)) {
     alert('Please upload an Excel file (.xlsx or .xls)')
+    // alert('Please upload an Excel file (.xlsx or .xls) or a PDF file (.pdf)')
     return
   }
 
@@ -427,86 +446,86 @@ const handleFileUpload = (event) => {
   }
 
   selectedFile.value = file
-  parseExcelFile(file)
+  parseFile(file)
 }
 
-const parseExcelFile = (file) => {
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      // For now, we'll use a comprehensive sample data that matches the reference image
-      // In production, you should use SheetJS library for proper Excel parsing
-      // Install: npm install xlsx
-      // Then use: const workbook = XLSX.read(e.target.result, { type: 'array' })
-      
-             // Comprehensive sample data based on the reference image
-       const comprehensiveData = [
-         // Andhra Pradesh entries
-         { slsCode: 'AP17', slsName: 'National Food Security', stateName: 'ANDHRA PRADESH', sgAccount: '01604901079', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AP24', slsName: 'Sub Mission on Agriculture', stateName: 'ANDHRA PRADESH', sgAccount: '01604901081', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AP56', slsName: 'National Mission on', stateName: 'ANDHRA PRADESH', sgAccount: '01604901077', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AP222', slsName: 'NATIONAL MISSION ON', stateName: 'ANDHRA PRADESH', sgAccount: '01604901080', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AP314', slsName: 'NATIONAL e-Governance', stateName: 'ANDHRA PRADESH', sgAccount: '01604901082', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AP329', slsName: 'Sub- Mission on Seed and', stateName: 'ANDHRA PRADESH', sgAccount: '01604901083', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AP389', slsName: 'NATIONAL BAMBOO', stateName: 'ANDHRA PRADESH', sgAccount: '01604901094', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AP405', slsName: 'NATIONAL MISSION ON', stateName: 'ANDHRA PRADESH', sgAccount: '01604901095', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         // Arunachal Pradesh entries
-         { slsCode: 'AR18', slsName: 'ARP_NATIONAL MISSION ON', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601161', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR19', slsName: 'ARP_AGRICULTURE', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601153', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR21', slsName: 'ARP_FOOD AND NUTRITION', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601150', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AR26', slsName: 'ARP - NATIONAL MISSION ON', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601060', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR71', slsName: 'ARP DIGITAL AGRICULTURE', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601131', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR84', slsName: 'ARP - SUB - MISSION ON SEED', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601147', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AR123', slsName: 'ARP - NATIONAL BAMBOO', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601112', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR373', slsName: 'ARP_NATIONAL MISSION', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601163', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR378', slsName: 'ARP-SEED VILLAGE', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601144', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AR379', slsName: 'ARP-CREATION OF SEED', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601145', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AR380', slsName: 'ARP-STRENGTHENING OF', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601146', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AR458', slsName: 'ARP_MISSION ORGANIC', stateName: 'ARUNACHAL PRADESH', sgAccount: '01586601159', sharingPatternCentre: '90', sharingPatternState: '10' },
-         
-         // Assam entries
-         { slsCode: 'AS10', slsName: 'AS - NFSM-National Food', stateName: 'ASSAM', sgAccount: '01585401129', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AS51', slsName: 'Horticulture Mission for', stateName: 'ASSAM', sgAccount: '01585401165', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AS52', slsName: 'AS- SUB MISSION ON', stateName: 'ASSAM', sgAccount: '01585401155', sharingPatternCentre: '100', sharingPatternState: '0' },
-         { slsCode: 'AS144', slsName: 'NATIONAL BAMBOO', stateName: 'ASSAM', sgAccount: '01585401131', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'AS198', slsName: 'National Food Security', stateName: 'ASSAM', sgAccount: '01585401128', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'AS100', slsName: 'National Food Security', stateName: 'ASSAM', sgAccount: '01585401127', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         // Additional states for comprehensive data
-         { slsCode: 'BH01', slsName: 'BHARAT MISSION', stateName: 'BIHAR', sgAccount: '01585401179', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'BH02', slsName: 'BHARAT DIGITAL', stateName: 'BIHAR', sgAccount: '01585401178', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'BH03', slsName: 'BHARAT ORGANIC', stateName: 'BIHAR', sgAccount: '01585401177', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'GJ01', slsName: 'GUJARAT MISSION', stateName: 'GUJARAT', sgAccount: '01585401176', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'GJ02', slsName: 'GUJARAT DIGITAL', stateName: 'GUJARAT', sgAccount: '01585401175', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'GJ03', slsName: 'GUJARAT ORGANIC', stateName: 'GUJARAT', sgAccount: '01585401174', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'KA01', slsName: 'KARNATAKA MISSION', stateName: 'KARNATAKA', sgAccount: '01585401173', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'KA02', slsName: 'KARNATAKA DIGITAL', stateName: 'KARNATAKA', sgAccount: '01585401172', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'KA03', slsName: 'KARNATAKA ORGANIC', stateName: 'KARNATAKA', sgAccount: '01585401171', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'MH01', slsName: 'MAHARASHTRA MISSION', stateName: 'MAHARASHTRA', sgAccount: '01585401170', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'MH02', slsName: 'MAHARASHTRA DIGITAL', stateName: 'MAHARASHTRA', sgAccount: '01585401169', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'MH03', slsName: 'MAHARASHTRA ORGANIC', stateName: 'MAHARASHTRA', sgAccount: '01585401168', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'TN01', slsName: 'TAMIL NADU MISSION', stateName: 'TAMIL NADU', sgAccount: '01585401167', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'TN02', slsName: 'TAMIL NADU DIGITAL', stateName: 'TAMIL NADU', sgAccount: '01585401166', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'TN03', slsName: 'TAMIL NADU ORGANIC', stateName: 'TAMIL NADU', sgAccount: '01585401165', sharingPatternCentre: '100', sharingPatternState: '0' },
-         
-         { slsCode: 'UP01', slsName: 'UTTAR PRADESH MISSION', stateName: 'UTTAR PRADESH', sgAccount: '01585401164', sharingPatternCentre: '60', sharingPatternState: '40' },
-         { slsCode: 'UP02', slsName: 'UTTAR PRADESH DIGITAL', stateName: 'UTTAR PRADESH', sgAccount: '01585401163', sharingPatternCentre: '90', sharingPatternState: '10' },
-         { slsCode: 'UP03', slsName: 'UTTAR PRADESH ORGANIC', stateName: 'UTTAR PRADESH', sgAccount: '01585401162', sharingPatternCentre: '100', sharingPatternState: '0' }
-       ]
-      
-      slsPreviewData.value = comprehensiveData
-      
-    } catch (error) {
-      console.error('Error parsing Excel file:', error)
-      alert('Error parsing Excel file. Please check the file format.')
+
+
+const parseFile = (file) => {
+  isUploading.value = true
+  const formData = new FormData()
+  formData.append('file', file)
+
+  // Determine the endpoint based on file type
+  const endpoint = file.type === 'application/pdf' ? '/pd-sls/upload-pdf' : '/pd-sls/upload-excel'
+
+  fetch(endpoint, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
     }
-  }
-  reader.readAsArrayBuffer(file)
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.json().then(errorData => {
+        throw new Error(JSON.stringify(errorData));
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    isUploading.value = false
+    if (data.success) {
+      slsPreviewData.value = data.data
+      const fileType = file.type === 'application/pdf' ? 'PDF' : 'Excel'
+      let message = `Successfully parsed ${data.totalRows} rows from ${fileType} file`
+      
+      // Show warnings if any
+      if (data.warnings && data.warnings.length > 0) {
+        message += `\n\nWarnings:\n${data.warnings.slice(0, 5).join('\n')}`
+        if (data.warnings.length > 5) {
+          message += `\n... and ${data.warnings.length - 5} more warnings`
+        }
+      }
+      
+      alert(message)
+    } else {
+      let errorMessage = 'Error parsing file: ' + data.message
+      if (data.errors && data.errors.length > 0) {
+        errorMessage += '\n\nFirst few errors:\n' + data.errors.slice(0, 5).join('\n')
+        if (data.errors.length > 5) {
+          errorMessage += `\n... and ${data.errors.length - 5} more errors`
+        }
+      }
+      alert(errorMessage)
+      console.error('Validation errors:', data.errors)
+    }
+  })
+  .catch(error => {
+    isUploading.value = false
+    console.error('Error uploading file:', error)
+    
+    // Try to parse error message
+    let errorMessage = 'Error uploading file. Please try again.'
+    try {
+      const errorData = JSON.parse(error.message)
+      if (errorData.message) {
+        errorMessage = errorData.message
+      }
+      if (errorData.errors && errorData.errors.length > 0) {
+        errorMessage += '\n\nFirst few errors:\n' + errorData.errors.slice(0, 5).join('\n')
+        if (errorData.errors.length > 5) {
+          errorMessage += `\n... and ${errorData.errors.length - 5} more errors`
+        }
+      }
+    } catch (e) {
+      // If parsing fails, use the original error message
+      errorMessage = error.message || errorMessage
+    }
+    
+    alert(errorMessage)
+  })
 }
 
 const saveSLSData = () => {
@@ -515,14 +534,45 @@ const saveSLSData = () => {
     return
   }
 
-  // Here you would typically send the data to your backend
-  console.log('Saving SLS data:', slsPreviewData.value)
-  
-  // For demo purposes, show success message
-  alert(`Successfully saved ${slsPreviewData.value.length} SLS records!`)
-  
-  // Clear the data after saving
+  isSaving.value = true
+
+  // Prepare data for saving
+  const dataToSave = slsPreviewData.value.map(item => ({
+    slsCode: item.slsCode,
+    slsName: item.slsName,
+    stateId: item.stateId,
+    sgAccount: item.sgAccount,
+    sharingPatternCentre: item.sharingPatternCentre,
+    sharingPatternState: item.sharingPatternState
+  }))
+
+  fetch('/pd-sls/save-sls-data', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    },
+    body: JSON.stringify({ data: dataToSave })
+  })
+  .then(response => response.json())
+  .then(data => {
+    isSaving.value = false
+    if (data.success) {
+      alert(`Successfully saved ${data.savedCount} SLS records!`)
   clearSLSData()
+      fetchSavedData() // Refresh the saved data list
+    } else {
+      alert('Error saving data: ' + data.message)
+      if (data.errors && data.errors.length > 0) {
+        console.error('Save errors:', data.errors)
+      }
+    }
+  })
+  .catch(error => {
+    isSaving.value = false
+    console.error('Error saving data:', error)
+    alert('Error saving data. Please try again.')
+  })
 }
 
 const clearSLSData = () => {
@@ -532,6 +582,8 @@ const clearSLSData = () => {
     fileInput.value.value = ''
   }
 }
+
+
 const fetchSavedData = async () => {
   try {
     const res = await fetch('/pd-sls-list');

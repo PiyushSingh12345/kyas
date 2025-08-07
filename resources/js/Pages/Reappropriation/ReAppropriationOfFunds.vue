@@ -84,8 +84,19 @@
                         <label>From Budget Head</label>
                         <select class="form-select" v-model="selectedFromBudgetHead">
                           <option value="" disabled>--Select--</option>
+                          <option :value="999">Other</option>
                           <option v-for="head in budgetHeads" :key="head.id" :value="head.id">{{ head.budget }}</option>
                         </select>
+                        <!-- Debug info (temporary) -->
+                        <small class="text-muted">Selected: {{ selectedFromBudgetHead }} (Type: {{ typeof selectedFromBudgetHead }})</small>
+                      </div>
+                    </div>
+
+                    <!-- Budget Head Other (shown when "Other" is selected) -->
+                    <div class="col-md-6 col-lg-4" v-if="showBudgetHeadOther">
+                      <div class="form-group">
+                        <label>Budget Head Other</label>
+                        <input type="text" class="form-control" v-model="fromBudgetHeadRemarks" placeholder="Enter budget head details" />
                       </div>
                     </div>
 
@@ -210,31 +221,47 @@
                         </div>
 
                         <!-- Select Entity -->
-                         <!-- Select Entity -->
-<div class="col-md-6 col-lg-4">
-  <div class="form-group">
-    <label @click="showEntityList = !showEntityList" style="cursor: pointer;">
-      Select Entity <span v-if="showEntityList">▲</span><span v-else>▼</span>
-    </label>
+                        <div class="col-md-6 col-lg-4" v-if="entityType !== 'Admin'">
+                          <div class="form-group">
+                            <label @click="showEntityList = !showEntityList" style="cursor: pointer;">
+                              Select Entity <span v-if="showEntityList">▲</span><span v-else>▼</span>
+                            </label>
 
-    <div
-      v-if="showEntityList"
-      class="checkbox-list"
-      style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px;"
-    >
-      <div v-for="state in states" :key="state.id" class="form-check">
-        <input
-          class="form-check-input"
-          type="checkbox"
-          :id="'entity_' + state.id"
-          :value="state.id"
-          v-model="selectedEntities"
-        />
-        <label class="form-check-label" :for="'entity_' + state.id">{{ state.name }}</label>
-      </div>
-    </div>
-  </div>
-</div>
+                            <div
+                              v-if="showEntityList"
+                              class="checkbox-list"
+                              style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px;"
+                            >
+                              <!-- Show States when entityType is State/UT -->
+                              <div v-if="entityType === 'State/UT'" v-for="state in states" :key="state.id" class="form-check">
+                                <input
+                                  class="form-check-input"
+                                  type="checkbox"
+                                  :id="'entity_' + state.id"
+                                  :value="state.id"
+                                  v-model="selectedEntities"
+                                />
+                                <label class="form-check-label" :for="'entity_' + state.id">{{ state.name }}</label>
+                              </div>
+                              
+                              <!-- Show PDs when entityType is Agency -->
+                              <div v-if="entityType === 'Agency'">
+                                <div v-for="pd in programDivisions" :key="pd.division_id" class="form-check">
+                                  <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    :id="'entity_' + pd.division_id"
+                                    :value="pd.division_id"
+                                    v-model="selectedEntities"
+                                  />
+                                  <label class="form-check-label" :for="'entity_' + pd.division_id">
+                                    {{ pd.division_name }}
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
 
                          <div class="col-md-6 col-lg-4">
                           <div class="form-group">
@@ -365,9 +392,15 @@ const entityType = ref('State/UT'); // default selection
 const selectedState = ref('');
 const reasonForAdditionality = ref('');
 const proposalAttractNsNis = ref('Yes');
+const fromBudgetHeadRemarks = ref(''); // New ref for budget head remarks
 
 const fromBudgetAmount = ref(''); // BE amount for From Budget Head
 const toBudgetAmount = ref('');   // BE amount for To Budget Head
+
+const showBudgetHeadOther = computed(() => {
+  console.log('Computing showBudgetHeadOther:', selectedFromBudgetHead.value, 'Type:', typeof selectedFromBudgetHead.value);
+  return selectedFromBudgetHead.value == 999;
+});
 
 const formattedReappropriationAmount = computed(() => {
   if (!reappropriationAmount.value) return '';
@@ -378,6 +411,7 @@ const getBudgetHeadName = (id) => {
   const head = budgetHeads.value.find((h) => h.id === id);
   return head ? head.budget : '';
 };
+
 const currentEntry = computed(() => ({
   fromHOA: getBudgetHeadName(selectedFromBudgetHead.value),
   fromRule: fromRule.value,
@@ -386,23 +420,50 @@ const currentEntry = computed(() => ({
   toEntityNames: getEntityNames(selectedEntities.value).join(', '),
   toRule: toRule.value,
 }));
+
 const getEntityNames = (ids) => {
   if (!Array.isArray(ids)) return [];
-  return ids
-    .map((id) => {
-      const entity = states.value.find((s) => s.id === id);
-      return entity ? entity.name : '';
-    })
-    .filter((name) => name);
+  
+  if (entityType.value === 'State/UT') {
+    return ids
+      .map((id) => {
+        const entity = states.value.find((s) => s.id === id);
+        return entity ? entity.name : '';
+      })
+      .filter((name) => name);
+  } else if (entityType.value === 'Agency') {
+    return ids
+      .map((id) => {
+        const entity = programDivisions.value.find((pd) => pd.division_id === id);
+        return entity ? entity.division_name : '';
+      })
+      .filter((name) => name);
+  }
+  
+  return [];
 };
+
+// Watch entityType changes to reset selected entities and show/hide entity list
 watch(entityType, (newType) => {
   selectedEntities.value = [];
+  showEntityList.value = false;
 });
+
+const loadReappropriations = async () => {
+  try {
+    const response = await axios.get('/api/reappropriations');
+    reappropriations.value = response.data;
+  } catch (error) {
+    console.error('Error loading reappropriations:', error);
+    reappropriations.value = [];
+  }
+};
 onMounted(async () => {
   try {
     const resDivisions = await axios.get('/md-program-divisions');
     programDivisions.value = resDivisions.data;
-  } catch {
+  } catch (error) {
+    console.error('Error loading program divisions:', error);
     programDivisions.value = [];
   }
 
@@ -425,10 +486,20 @@ onMounted(async () => {
 
 // Watch selectedFromBudgetHead and fetch BE amount
 watch(selectedFromBudgetHead, async (newVal) => {
+  console.log('selectedFromBudgetHead changed:', newVal, 'Type:', typeof newVal);
+  
   if (!newVal) {
     fromBudgetAmount.value = '';
     return;
   }
+  
+  // If "Other" is selected (ID 999), don't fetch budget amount
+  if (newVal == 999) {
+    console.log('Other option selected, clearing budget amount');
+    fromBudgetAmount.value = '';
+    return;
+  }
+  
   try {
     const response = await axios.get('/api/budget-phase/amount', {
       params: { budget_head_id: newVal }
@@ -461,29 +532,44 @@ watch(selectedToBudgetHead, async (newVal) => {
 
 const submitForm = async () => {
   try {
- const payload = {
-  financial_year: selectedYear.value,
-  budget_phase: selectedPhase.value,
-  ro_date: roDate.value,
-  type: type.value,
-  section: section.value,
-  program_division_id: selectedDivision.value,
-  from_budget_head_id: selectedFromBudgetHead.value,
-  
-  to_budget_head_id: selectedToBudgetHead.value,
-  reappropriation_amount: parseFloat(reappropriationAmount.value),
-  other_details: otherDetails.value,
-  entity_type: entityType.value,
-  selected_entity_ids: selectedEntities.value, // selected states/entities
-  from_rule: fromRule.value,
-  to_rule: toRule.value,
-  remarks:remarks.value,
-  reason_for_additionality: reasonForAdditionality.value,
-  proposal_attract_ns_nis: proposalAttractNsNis.value,
-   from_be: Number(fromBudgetAmount.value.replace(/,/g, '')),
-  to_be: Number(toBudgetAmount.value.replace(/,/g, '')),
-};
+    // Prepare selected entity IDs based on entity type
+    let entityIds = [];
+    if (entityType.value === 'State/UT') {
+      entityIds = selectedEntities.value; // State IDs
+    } else if (entityType.value === 'Agency') {
+      entityIds = selectedEntities.value; // PD IDs
+    } else if (entityType.value === 'Admin') {
+      entityIds = []; // Empty array for Admin
+    }
 
+    // Handle from_be value - if "Other" is selected, set to 0
+    let fromBeValue = 0;
+    if (selectedFromBudgetHead.value != 999) {
+      fromBeValue = Number(fromBudgetAmount.value.replace(/,/g, ''));
+    }
+
+    const payload = {
+      financial_year: selectedYear.value,
+      budget_phase: selectedPhase.value,
+      ro_date: roDate.value,
+      type: type.value,
+      section: section.value,
+      program_division_id: selectedDivision.value,
+      from_budget_head_id: selectedFromBudgetHead.value,
+      to_budget_head_id: selectedToBudgetHead.value,
+      reappropriation_amount: parseFloat(reappropriationAmount.value),
+      other_details: otherDetails.value,
+      entity_type: entityType.value,
+      selected_entity_ids: entityIds, // Save the appropriate IDs based on entity type
+      from_rule: fromRule.value,
+      to_rule: toRule.value,
+      remarks: remarks.value,
+      reason_for_additionality: reasonForAdditionality.value,
+      proposal_attract_ns_nis: proposalAttractNsNis.value,
+      from_be: fromBeValue,
+      to_be: Number(toBudgetAmount.value.replace(/,/g, '')),
+      from_budget_head_remarks: fromBudgetHeadRemarks.value, // Add remarks to payload
+    };
 
     await axios.post('/api/reappropriations', payload);
 
@@ -492,7 +578,7 @@ const submitForm = async () => {
     resetForm();
   } catch (error) {
     console.error(error);
-    //alert('Error inserting data');
+    alert('Error inserting data');
   }
 };
 
@@ -504,6 +590,7 @@ const resetForm = () => {
   section.value = '';
   selectedDivision.value = '';
   selectedEntities.value = [];
+  showEntityList.value = false;
 
   selectedFromBudgetHead.value = '';
   selectedToBudgetHead.value = '';
@@ -515,6 +602,10 @@ const resetForm = () => {
   proposalAttractNsNis.value = 'Yes';
   fromBudgetAmount.value = '';
   toBudgetAmount.value = '';
+  fromRule.value = '';
+  toRule.value = '';
+  remarks.value = '';
+  fromBudgetHeadRemarks.value = ''; // Reset remarks
 };
 
 
