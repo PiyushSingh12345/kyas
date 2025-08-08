@@ -351,6 +351,95 @@
         </div>
       </div>
 
+      <!-- Reappropriation List Section -->
+      <div class="container mt-4">
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card">
+              <div class="card-header">
+                <h5 class="mb-0">Reappropriation List</h5>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-bordered table-striped">
+                    <thead class="table-primary">
+                      <tr>
+                        <th>Date</th>
+                        <th>From HOA</th>
+                        <th>To HOA</th>
+                        <th>Entity Type</th>
+                        <th>Entity Name</th>
+                        <th>Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="reapp in paginatedReappropriations" :key="reapp.id">
+                        <td>{{ formatDate(reapp.ro_date) }}</td>
+                        <td>{{ getBudgetHeadNameWithDots(reapp.from_budget_head_id) }}</td>
+                        <td>{{ getBudgetHeadNameWithDots(reapp.to_budget_head_id) }}</td>
+                        <td>{{ reapp.entity_type }}</td>
+                        <td>{{ getEntityNamesForReapp(reapp.selected_entity_ids, reapp.entity_type) }}</td>
+                        <td>{{ reapp.reason_for_additionality || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  
+                  <!-- Pagination Controls -->
+                  <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="d-flex align-items-center">
+                      <label class="me-2">Show:</label>
+                      <select v-model="itemsPerPage" class="form-select form-select-sm" style="width: 70px;">
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                      </select>
+                      <span class="ms-2">entries</span>
+                    </div>
+                    
+                    <div class="d-flex align-items-center">
+                      <span class="me-3">
+                        Showing {{ startIndex + 1 }} to {{ endIndex }} of {{ reappropriationList.length }} entries
+                      </span>
+                      
+                      <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                          <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                            <button class="page-link" @click="goToPage(1)" :disabled="currentPage === 1">
+                              <i class="fas fa-angle-double-left"></i>
+                            </button>
+                          </li>
+                          <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                            <button class="page-link" @click="goToPage(currentPage - 1)" :disabled="currentPage === 1">
+                              <i class="fas fa-angle-left"></i>
+                            </button>
+                          </li>
+                          
+                          <li v-for="page in visiblePages" :key="page" class="page-item" :class="{ active: page === currentPage }">
+                            <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                          </li>
+                          
+                          <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                            <button class="page-link" @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages">
+                              <i class="fas fa-angle-right"></i>
+                            </button>
+                          </li>
+                          <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                            <button class="page-link" @click="goToPage(totalPages)" :disabled="currentPage === totalPages">
+                              <i class="fas fa-angle-double-right"></i>
+                            </button>
+                          </li>
+                        </ul>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <Footer />
     </div>
   </div>
@@ -396,6 +485,11 @@ const fromBudgetHeadRemarks = ref(''); // New ref for budget head remarks
 
 const fromBudgetAmount = ref(''); // BE amount for From Budget Head
 const toBudgetAmount = ref('');   // BE amount for To Budget Head
+const reappropriationList = ref([]); // Reappropriation list data
+
+// Pagination variables
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
 
 const showBudgetHeadOther = computed(() => {
   console.log('Computing showBudgetHeadOther:', selectedFromBudgetHead.value, 'Type:', typeof selectedFromBudgetHead.value);
@@ -421,6 +515,59 @@ const currentEntry = computed(() => ({
   toRule: toRule.value,
 }));
 
+// Pagination computed properties
+const totalPages = computed(() => {
+  return Math.ceil(reappropriationList.value.length / itemsPerPage.value);
+});
+
+const startIndex = computed(() => {
+  return (currentPage.value - 1) * itemsPerPage.value;
+});
+
+const endIndex = computed(() => {
+  return Math.min(startIndex.value + itemsPerPage.value, reappropriationList.value.length);
+});
+
+const paginatedReappropriations = computed(() => {
+  const start = startIndex.value;
+  const end = start + itemsPerPage.value;
+  return reappropriationList.value.slice(start, end);
+});
+
+const visiblePages = computed(() => {
+  const pages = [];
+  const total = totalPages.value;
+  const current = currentPage.value;
+  
+  // Always show first page
+  pages.push(1);
+  
+  // Show pages around current page
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  
+  if (start > 2) {
+    pages.push('...');
+  }
+  
+  for (let i = start; i <= end; i++) {
+    if (i > 1 && i < total) {
+      pages.push(i);
+    }
+  }
+  
+  if (end < total - 1) {
+    pages.push('...');
+  }
+  
+  // Always show last page if there are more than 1 page
+  if (total > 1) {
+    pages.push(total);
+  }
+  
+  return pages;
+});
+
 const getEntityNames = (ids) => {
   if (!Array.isArray(ids)) return [];
   
@@ -443,19 +590,98 @@ const getEntityNames = (ids) => {
   return [];
 };
 
+// Functions for reappropriation list
+const getBudgetHeadNameWithDots = (budgetId) => {
+  const head = budgetHeads.value.find((h) => h.id === budgetId);
+  if (!head) return '-';
+  
+  // Format budget head with dots (15 digits)
+  const budgetCode = head.budget || '';
+  if (budgetCode.length >= 15) {
+    return budgetCode.replace(/(\d{3})(\d{3})(\d{3})(\d{3})(\d{3})/, '$1.$2.$3.$4.$5');
+  }
+  return budgetCode;
+};
+
+const getEntityNamesForReapp = (selectedEntityIds, entityType) => {
+  if (!selectedEntityIds || !Array.isArray(selectedEntityIds)) return '-';
+  
+  if (entityType === 'State/UT') {
+    return selectedEntityIds
+      .map((id) => {
+        const state = states.value.find((s) => s.id === id);
+        return state ? state.name : '';
+      })
+      .filter((name) => name)
+      .join(', ');
+  } else if (entityType === 'Agency') {
+    return selectedEntityIds
+      .map((id) => {
+        const entity = programDivisions.value.find((pd) => pd.division_id === id);
+        return entity ? entity.division_name : '';
+      })
+      .filter((name) => name)
+      .join(', ');
+  } else if (entityType === 'Admin') {
+    return 'Admin';
+  }
+  
+  return '-';
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-IN');
+};
+
 // Watch entityType changes to reset selected entities and show/hide entity list
 watch(entityType, (newType) => {
   selectedEntities.value = [];
   showEntityList.value = false;
 });
 
+// Watch itemsPerPage changes to reset to first page
+watch(itemsPerPage, () => {
+  currentPage.value = 1;
+});
+
 const loadReappropriations = async () => {
   try {
     const response = await axios.get('/api/reappropriations');
-    reappropriations.value = response.data;
+    reappropriationList.value = response.data;
+    // Reset to first page when data is loaded
+    currentPage.value = 1;
   } catch (error) {
     console.error('Error loading reappropriations:', error);
-    reappropriations.value = [];
+    reappropriationList.value = [];
+  }
+};
+
+// Pagination functions
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page;
+  }
+};
+
+const goToFirstPage = () => {
+  currentPage.value = 1;
+};
+
+const goToLastPage = () => {
+  currentPage.value = totalPages.value;
+};
+
+const goToPreviousPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+  }
+};
+
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
   }
 };
 onMounted(async () => {
