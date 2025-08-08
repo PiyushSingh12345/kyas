@@ -14,7 +14,8 @@ class SlsPDComponentController extends Controller
 
     public function index()
     {
-        $data = SlsPDComponent::with('state')->get();
+        $data = SlsPDComponent::with('state')->get()->toArray();
+        // print_r($data);die();
 
         return response()->json($data);
     }
@@ -626,6 +627,80 @@ class SlsPDComponentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error deleting record: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function updatePDSLSMappings(Request $request)
+    {
+        $request->validate([
+            'mappings' => 'required|array',
+            'mappings.*.pd_name' => 'required|string',
+            'mappings.*.sls_id' => 'required|integer'
+        ]);
+// var_dump($request->mappings);
+// die;
+        try {
+            DB::beginTransaction();
+
+            $updatedCount = 0;
+            $errors = [];
+
+            foreach ($request->mappings as $mapping) {
+                try {
+                    // Find the SLS record by ID
+                    $slsRecord = SlsPDComponent::find($mapping['sls_id']);
+
+                    if ($slsRecord) {
+                        // Update the existing record with the new PD mapping
+                        $slsRecord->update([
+                            'slsPD' => $mapping['pd_name'],
+                            'updated_at' => now()
+                        ]);
+                        $updatedCount++;
+                    } else {
+                        // Log error if SLS record not found
+                        $errors[] = "SLS record with ID {$mapping['sls_id']} not found";
+                        Log::error("SLS record not found", [
+                            'sls_id' => $mapping['sls_id'],
+                            'pd_name' => $mapping['pd_name']
+                        ]);
+                    }
+
+                } catch (\Exception $e) {
+                    $errors[] = "Error updating mapping for SLS ID {$mapping['sls_id']}: " . $e->getMessage();
+                    Log::error("Error updating PD-SLS mapping: " . $e->getMessage(), [
+                        'sls_id' => $mapping['sls_id'],
+                        'pd_name' => $mapping['pd_name'],
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            if (!empty($errors)) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Some mappings could not be updated',
+                    'errors' => $errors,
+                    'updatedCount' => $updatedCount
+                ], 400);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully updated {$updatedCount} PD-SLS mappings",
+                'updatedCount' => $updatedCount
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('PD-SLS mapping update error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating mappings: ' . $e->getMessage()
             ], 500);
         }
     }

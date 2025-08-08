@@ -293,7 +293,7 @@
                   <h2 class="accordion-header" id="headingThree">
                     <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section3 }" type="button" @click="toggleAccordion('section3')" aria-expanded="false" aria-controls="collapseThree">
                       <i class="fas fa-layer-group me-2"></i>
-                      SL Component List
+                      SLS Component List
                     </button>
                   </h2>
                   <div id="collapseThree" class="accordion-collapse" :class="{ 'show': accordionStates.section3 }" aria-labelledby="headingThree" data-bs-parent="#stateUTsAccordion">
@@ -301,7 +301,7 @@
                       <div class="card">
                         <div class="card-body">
                           <div class="bg-primary text-white px-3 py-2 rounded mb-3">
-                            <h5 class="mb-0">SL Component List</h5>
+                            <h5 class="mb-0">SLS Component List</h5>
                 </div>
 
                <!-- SL Table -->
@@ -313,6 +313,7 @@
                         <tr>
                           <th>SLS Code</th>
                           <th>SLS Name</th>
+                          <th>PD Name</th>
                           <th>State Name</th>
                           <th>Sharing Pattern(Centre)</th>
                           <th>Sharing Pattern(State)</th>
@@ -324,6 +325,7 @@
                       <tr>
                         <td>{{ row.sls_code || '-' }}</td>
                         <td>{{ row.name || '-' }}</td>
+                        <td>{{ row.slsPD || '-' }}</td>
                         <td>{{ row.state?.name || '-' }}</td>
                         <td>{{ row.sharing_patter_center !== null && row.sharing_patter_center !== undefined ? row.sharing_patter_center : '0' }}</td>
                         <td>{{ row.sharing_patter_state !== null && row.sharing_patter_state !== undefined ? row.sharing_patter_state : '0' }}</td>
@@ -341,7 +343,7 @@
                 <!-- Section 5: PD Components and SLS Mapping -->
                 <div class="accordion-item">
                   <h2 class="accordion-header" id="headingOne">
-                    <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section5 }" type="button" @click="toggleAccordion('section5')" aria-expanded="true" aria-controls="collapseOne">
+                    <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section5 }" type="button" @click="toggleAccordionAndLoadSLS('section5')" aria-expanded="true" aria-controls="collapseOne">
                       <i class="fas fa-map-marker-alt me-2"></i>
                       <!-- State-wise list of PD/Component and SLS -->
                       PD Components and SLS Mapping
@@ -361,9 +363,6 @@
                                 <tr>
                                   <th>PD List</th>
                                   <th>SLS List</th>
-                                  <!-- <th v-if="selectedComponent === 'PD'">PD/Component</th>
-                                  <th v-if="selectedComponent === 'SL'">SLS Code</th>
-                                  <th v-if="selectedComponent === 'SL'">SLS Name</th> -->
                                 </tr>
                               </thead>
                               <tbody>
@@ -384,41 +383,39 @@
                                   </td>
 
                                   <td>
-                                    <!-- <select v-model="row.slsPD" class="form-select">
-
-                                      <option value="">--- Select State ---</option>
-                                      <option v-for="state in states" :key="state.id" :value="state.id">
-                                        {{ state.name }}
+                                    <!-- SLS List Dropdown -->
+                                    <!-- <select v-model="row.slsList" class="form-select">
+                                      <option value="">--- Select SLS ---</option>
+                                      <option
+                                        v-for="sls in slsDataForDropdown"
+                                        :key="sls.id"
+                                        :value="sls.sls_code"
+                                      >
+                                        {{ sls.sls_code }} - {{ sls.name }}
                                       </option>
                                     </select> -->
-                                    <!-- Select Entity -->
-                                    <div class="col-md-6 col-lg-4" v-if="entityType !== 'Admin'">
-                                      <div class="form-group">
-                                        <label @click="showEntityList = !showEntityList" style="cursor: pointer;">
-                                          Select Entity <span v-if="showEntityList">▲</span><span v-else>▼</span>
-                                        </label>
 
-                                        <div
-                                          class="checkbox-list"
-                                          style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px;"
-                                        >
-                                          
-                                          
-                                          <!-- Show SLS List -->
-                                          <div>
-                                            <div v-for="pd in programDivisions" :key="pd.division_id" class="form-check">
-                                              <input
-                                                class="form-check-input"
-                                                type="checkbox"
-                                                :id="'entity_' + pd.division_id"
-                                                :value="pd.division_id"
-                                                v-model="selectedEntities"
-                                              />
-                                              <label class="form-check-label" :for="'entity_' + pd.division_id">
-                                                {{ pd.division_name }}
-                                              </label>
-                                            </div>
-                                          </div>
+
+
+                                    <div
+                                     
+                                      class="checkbox-list"
+                                      style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px;"
+                                    >
+                                            <!-- {{ slsDataForDropdown }}                            -->
+                                       <!-- Show PDs when entityType is Agency -->
+                                      <div>
+                                        <div v-for="sls in slsDataForDropdown" :key="sls.id"  class="form-check">
+                                          <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            :id="sls.id"
+                                            :value="sls.id"
+                                            v-model="selectedEntities"
+                                          />
+                                          <label class="form-check-label" :for="sls.id">
+                                            {{ sls.name }}
+                                          </label>
                                         </div>
                                       </div>
                                     </div>
@@ -435,9 +432,9 @@
                             </table>
 
                             <!-- Add Row -->
-                            <div class="col-md-12 col-lg-12">
+                            <!-- <div class="col-md-12 col-lg-12">
                               <button class="btn btn-primary me-1 mb-4" @click="addRow">+ Add New</button>
-                            </div>
+                            </div> -->
                           </div>
 
                           <!-- Buttons -->
@@ -496,6 +493,7 @@ const pdColumns = [
 const slColumns = [
   { title: 'SLS Code', data: 'sls_code' },
   { title: 'SLS Name', data: 'name' },
+  { title: 'PD Name', data: 'slsPD' },
   { title: 'State Name', data: 'state.name' },
   { title: 'Sharing Pattern(Centre)', data: 'sharing_patter_center' },
   { title: 'Sharing Pattern(State)', data: 'sharing_patter_state' }
@@ -515,6 +513,9 @@ const slData = computed(() =>
 
 const savedData = ref([]);
 const pdComponentsData = ref([]);
+const slsDataForDropdown = ref([]);
+const programDivisions = ref([]);
+const selectedEntities = ref([]);
 
 const selectedComponent = ref('')
 
@@ -529,6 +530,15 @@ const accordionStates = ref({
 
 const toggleAccordion = (section) => {
   accordionStates.value[section] = !accordionStates.value[section]
+}
+
+const toggleAccordionAndLoadSLS = (section) => {
+  accordionStates.value[section] = !accordionStates.value[section]
+  
+  // If section5 is being expanded, load SLS data
+  if (section === 'section5' && accordionStates.value[section]) {
+    fetchSLSDataForDropdown()
+  }
 }
 
 // SLS Upload functionality
@@ -767,12 +777,44 @@ const fetchPDComponentsForDropdown = async () => {
     console.error('Error loading PD components for dropdown:', err);
   }
 };
+
+const fetchSLSDataForDropdown = async () => {
+  try {
+    const res = await fetch('/pd-sls-list');
+    console.log(res);
+    // // return false;
+    if (res.ok) {
+      const data = await res.json();
+      // Filter only SLS records (those with sls_code)
+      slsDataForDropdown.value = data.filter(item => item.sls_code);
+      console.log(slsDataForDropdown.value);
+    } else {
+      console.error('Failed to load SLS data for dropdown');
+    }
+  } catch (err) {
+    console.error('Error loading SLS data for dropdown:', err);
+  }
+};
+
+const fetchProgramDivisions = async () => {
+  try {
+    const res = await fetch('/pd-components-dropdown');
+    if (res.ok) {
+      programDivisions.value = await res.json();
+    } else {
+      console.error('Failed to load program divisions');
+    }
+  } catch (err) {
+    console.error('Error loading program divisions:', err);
+  }
+};
 const formRows = ref([
   {
     state: '',
     pdComponent: '',
     slsPD: '',
-    slsId: ''
+    slsId: '',
+    slsList: ''
   }
 ])
 
@@ -783,6 +825,8 @@ onMounted(async () => {
   fetchSavedData();
   fetchPDComponentsData();
   fetchPDComponentsForDropdown();
+  fetchSLSDataForDropdown();
+  fetchProgramDivisions();
   
   try {
     const response = await fetch('/api/states')
@@ -802,7 +846,8 @@ const addRow = () => {
     pdComponent: '',
     slsPD: '',
     slsId: '',
-    slsName: ''
+    slsName: '',
+    slsList: ''
   })
 }
 
@@ -814,7 +859,8 @@ watch(selectedComponent, (newValue, oldValue) => {
         pdComponent: '',
         slsPD: '',
         slsId: '',
-        slsName: ''
+        slsName: '',
+        slsList: ''
       }
     ]
     
@@ -840,6 +886,177 @@ const deleteRow = (id) => {
 }
 
 const submit = () => {
+  // Check if we're in the PD Components and SLS Mapping section
+  if (accordionStates.value.section5) {
+    // submitPDSLSMapping()
+    submitPDSLSMappinglist()
+  } else {
+    submitRegularForm()
+  }
+}
+const submitPDSLSMapping = () => {
+  // Validate that all required fields are filled
+  const validRows = formRows.value.filter(row => 
+    row.slsPD && row.slsList
+  )
+
+  console.log( validRows)
+  if (validRows.length === 0) {
+    alert('Please fill in all required fields (PD and SLS)')
+    return
+  }
+
+  console.log('Valid rows for mapping:', validRows)
+
+  const payload = {
+    mappings: validRows.map(row => ({
+      pd_name: row.slsPD,
+      // state_id: row.state,
+      sls_code: row.slsList
+    }))
+  }
+console.log( "===============payload===============")
+console.log( payload)   
+  // Get CSRF token
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+  
+  if (!csrfToken) {
+    alert('CSRF token not found. Please refresh the page and try again.')
+    return
+  }
+
+  fetch('/pd-sls/update-mappings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': csrfToken,
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(response => {
+    console.log( "===============response===============")
+    console.log( response);
+    if (!response.ok) {
+      if (response.status === 419) {
+        throw new Error('CSRF token mismatch. Please refresh the page and try again.')
+      }
+      return response.json().then(errorData => {
+        throw new Error(JSON.stringify(errorData));
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      alert(`Successfully updated ${data.updatedCount} mappings!`)
+      // Reset form
+      formRows.value = [
+        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '', slsList: '' }
+      ]
+      fetchSavedData()
+      fetchSLSDataForDropdown()
+    } else {
+      let errorMessage = 'Error updating mappings: ' + data.message
+      if (data.errors && data.errors.length > 0) {
+        errorMessage += '\n\nFirst few errors:\n' + data.errors.slice(0, 5).join('\n')
+        if (data.errors.length > 5) {
+          errorMessage += `\n... and ${data.errors.length - 5} more errors`
+        }
+      }
+      alert(errorMessage)
+    }
+  })
+  .catch(error => {
+    console.error('Error updating mappings:', error)
+    alert('Error updating mappings. Please try again.')
+  })
+}
+
+const submitPDSLSMappinglist = () => {
+  console.log( "===============formRows===============")
+  console.log(formRows.value);
+  
+  // Get selected SLS IDs from checkboxes
+  const selectedSLSIds = selectedEntities.value;
+  
+  if (!formRows.value[0].slsPD) {
+    alert('Please select a PD')
+    return
+  }
+  
+  if (selectedSLSIds.length === 0) {
+    alert('Please select at least one SLS')
+    return
+  }
+
+  console.log('Selected PD:', formRows.value[0].slsPD)
+  console.log('Selected SLS IDs:', selectedSLSIds)
+
+  const payload = {
+    mappings: selectedSLSIds.map(slsId => ({
+      pd_name: formRows.value[0].slsPD,
+      sls_id: slsId
+    }))
+  }
+
+  // Get CSRF token
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+  
+  if (!csrfToken) {
+    alert('CSRF token not found. Please refresh the page and try again.')
+    return
+  }
+
+  fetch('/pd-sls/update-mappings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': csrfToken,
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(response => {
+    if (!response.ok) {
+      if (response.status === 419) {
+        throw new Error('CSRF token mismatch. Please refresh the page and try again.')
+      }
+      return response.json().then(errorData => {
+        throw new Error(JSON.stringify(errorData));
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      alert(`Successfully updated ${data.updatedCount} mappings!`)
+      // Reset form
+      formRows.value = [
+        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '', slsList: '' }
+      ]
+      fetchSavedData()
+      fetchSLSDataForDropdown()
+    } else {
+      let errorMessage = 'Error updating mappings: ' + data.message
+      if (data.errors && data.errors.length > 0) {
+        errorMessage += '\n\nFirst few errors:\n' + data.errors.slice(0, 5).join('\n')
+        if (data.errors.length > 5) {
+          errorMessage += `\n... and ${data.errors.length - 5} more errors`
+        }
+      }
+      alert(errorMessage)
+    }
+  })
+  .catch(error => {
+    console.error('Error updating mappings:', error)
+    alert('Error updating mappings. Please try again.')
+  })
+}
+
+const submitRegularForm = () => {
   const payload = {
     component: selectedComponent.value,
     comValue: [],
@@ -862,7 +1079,7 @@ const submit = () => {
     onSuccess: () => {
       selectedComponent.value = ''
       formRows.value = [
-        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '' }
+        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '', slsList: '' }
       ]
       fetchSavedData()
       fetchPDComponentsData() // Refresh PD components list as well

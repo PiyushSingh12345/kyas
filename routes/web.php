@@ -156,6 +156,7 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::delete('/pd-sls/{id}', [SlsPDComponentController::class, 'destroy'])->name('pd-sls.destroy');
     Route::post('/pd-sls/upload-excel', [SlsPDComponentController::class, 'uploadExcel'])->name('pd-sls.upload-excel');
     Route::post('/pd-sls/save-sls-data', [SlsPDComponentController::class, 'saveSLSData'])->name('pd-sls.save-sls-data');
+    Route::post('/pd-sls/update-mappings', [SlsPDComponentController::class, 'updatePDSLSMappings'])->name('pd-sls.update-mappings');
     Route::get('/api/states', [StateController::class, 'getStatesApi']);
 
     Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
