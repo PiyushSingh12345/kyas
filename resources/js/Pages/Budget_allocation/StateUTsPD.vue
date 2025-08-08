@@ -11,7 +11,7 @@
               <li class="nav-home"><a href="login.html"><i class="icon-home"></i></a></li>
               <li class="separator"><i class="icon-arrow-right"></i></li>
               <!-- <li class="nav-item"><a href="#">States/UTs - PD/Component - SLS IDs Mapping</a></li> -->
-              <li class="nav-item"><a href="#">States/UTs - PD/Component</a></li>
+              <li class="nav-item"><a href="#">PD Component / SLS</a></li>
             </ul>
           </div>
 
@@ -26,99 +26,99 @@
                     <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section1 }" type="button" @click="toggleAccordion('section1')" aria-expanded="true" aria-controls="collapseOne">
                       <i class="fas fa-map-marker-alt me-2"></i>
                       <!-- State-wise list of PD/Component and SLS -->
-                      Add Component PD and/or SLS (Manually)
+                      Add PD Component / SLS
                     </button>
                   </h2>
                   <div id="collapseOne" class="accordion-collapse" :class="{ 'show': accordionStates.section1 }" aria-labelledby="headingOne" data-bs-parent="#stateUTsAccordion">
                     <div class="accordion-body" v-show="accordionStates.section1">
-              <div class="card">
-                <div class="card-body">
-                  <!-- First Table: Static with Component Dropdown -->
-                  <div class="table-responsive mt-1" style="width: 50%;">
-                    <table class="table table-bordered table-head-bg-primary">
-                      <thead>
-                        <tr>
-                          <th>Component</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>
-                            <select v-model="selectedComponent" class="form-select">
-                              <option value="">--- Select ---</option>
-                              <option value="PD">PD Component</option>
-                              <option value="SL">SLS ID</option>
-                            </select>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                      <div class="card">
+                        <div class="card-body">
+                          <!-- First Table: Static with Component Dropdown -->
+                          <div class="table-responsive mt-1" style="width: 50%;">
+                            <table class="table table-bordered table-head-bg-primary">
+                              <thead>
+                                <tr>
+                                  <th>Component</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td>
+                                    <select v-model="selectedComponent" class="form-select">
+                                      <option value="">--- Select ---</option>
+                                      <option value="PD">PD Component</option>
+                                      <option value="SL">SLS</option>
+                                    </select>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
 
-                  <!-- Second Table: Conditionally rendered -->
-                  <div class="table-responsive mt-1" v-if="selectedComponent">
-                    <table class="table table-bordered table-head-bg-primary">
-                      <thead>
-                        <tr>
-                          <th v-if="selectedComponent === 'SL'">PD</th>
-                          <th v-if="selectedComponent === 'SL'">State/UT</th>
-                          <th v-if="selectedComponent === 'PD'">PD/Component</th>
-                          <th v-if="selectedComponent === 'SL'">SLS Code</th>
-                          <th v-if="selectedComponent === 'SL'">SLS Name</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(row, index) in formRows" :key="index">
-                          <td v-if="selectedComponent === 'SL'">
-                           <select v-model="row.slsPD" class="form-select">
-                              <option value="">--- Select PD ---</option>
-                              <option
-                                v-for="item in pdComponentsForDropdown"
-                                :key="item.division_id"
-                                :value="item.division_name"
-                              >
-                                {{ item.division_name }}
-                              </option>
+                          <!-- Second Table: Conditionally rendered -->
+                          <div class="table-responsive mt-1" v-if="selectedComponent">
+                            <table class="table table-bordered table-head-bg-primary">
+                              <thead>
+                                <tr>
+                                  <th v-if="selectedComponent === 'SL'">PD</th>
+                                  <th v-if="selectedComponent === 'SL'">State/UT</th>
+                                  <th v-if="selectedComponent === 'PD'">PD/Component</th>
+                                  <th v-if="selectedComponent === 'SL'">SLS Code</th>
+                                  <th v-if="selectedComponent === 'SL'">SLS Name</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr v-for="(row, index) in formRows" :key="index">
+                                  <td v-if="selectedComponent === 'SL'">
+                                  <select v-model="row.slsPD" class="form-select">
+                                      <option value="">--- Select PD ---</option>
+                                      <option
+                                        v-for="item in pdComponentsForDropdown"
+                                        :key="item.division_id"
+                                        :value="item.division_name"
+                                      >
+                                        {{ item.division_name }}
+                                      </option>
 
-                            </select>
+                                    </select>
 
-                          </td>
+                                  </td>
 
-                          <td v-if="selectedComponent === 'SL'">
-                           <select v-model="row.state" class="form-select">
+                                  <td v-if="selectedComponent === 'SL'">
+                                  <select v-model="row.state" class="form-select">
 
-                              <option value="">--- Select State ---</option>
-                              <option v-for="state in states" :key="state.id" :value="state.id">
-                                {{ state.name }}
-                              </option>
-                            </select>
-                          </td>
+                                      <option value="">--- Select State ---</option>
+                                      <option v-for="state in states" :key="state.id" :value="state.id">
+                                        {{ state.name }}
+                                      </option>
+                                    </select>
+                                  </td>
 
-                          <td v-if="selectedComponent === 'PD'">
-                            <input v-model="row.pdComponent" type="text" class="form-control" placeholder="Enter PD/Component" />
-                          </td>
+                                  <td v-if="selectedComponent === 'PD'">
+                                    <input v-model="row.pdComponent" type="text" class="form-control" placeholder="Enter PD/Component" />
+                                  </td>
 
-                          <td v-if="selectedComponent === 'SL'">
-                            <input v-model="row.slsId" type="text" class="form-control" placeholder="Enter Code" />
-                          </td>
-                          <td v-if="selectedComponent === 'SL'">
-                            <input v-model="row.slsName" type="text" class="form-control" placeholder="Enter SLS Name" />
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                                  <td v-if="selectedComponent === 'SL'">
+                                    <input v-model="row.slsId" type="text" class="form-control" placeholder="Enter Code" />
+                                  </td>
+                                  <td v-if="selectedComponent === 'SL'">
+                                    <input v-model="row.slsName" type="text" class="form-control" placeholder="Enter SLS Name" />
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
 
-                    <!-- Add Row -->
-                    <div class="col-md-12 col-lg-12">
-                      <button class="btn btn-primary me-1 mb-4" @click="addRow">+ Add New</button>
-                    </div>
-                  </div>
+                            <!-- Add Row -->
+                            <div class="col-md-12 col-lg-12">
+                              <button class="btn btn-primary me-1 mb-4" @click="addRow">+ Add New</button>
+                            </div>
+                          </div>
 
-                  <!-- Buttons -->
-                  <div class="col-12 d-flex justify-content-center">
-                    <button class="btn btn-success me-1" @click="submit">Submit</button>
-                    <button class="btn btn-danger me-1">Reset</button>
-                  </div>
+                          <!-- Buttons -->
+                          <div class="col-12 d-flex justify-content-center">
+                            <button class="btn btn-success me-1" @click="submit">Submit</button>
+                            <button class="btn btn-danger me-1">Reset</button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -269,7 +269,7 @@
                        <thead>
                          <tr>
                            <th>S. No.</th>
-                           <th>Division Name</th>
+                           <th>PD Name</th>
                          </tr>
                        </thead>
                      </template>
@@ -337,6 +337,120 @@
                   </div>
                 </div>
 
+
+                <!-- Section 5: PD Components and SLS Mapping -->
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingOne">
+                    <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section5 }" type="button" @click="toggleAccordion('section5')" aria-expanded="true" aria-controls="collapseOne">
+                      <i class="fas fa-map-marker-alt me-2"></i>
+                      <!-- State-wise list of PD/Component and SLS -->
+                      PD Components and SLS Mapping
+                    </button>
+                  </h2>
+                  <div id="collapseOne" class="accordion-collapse" :class="{ 'show': accordionStates.section5 }" aria-labelledby="headingOne" data-bs-parent="#stateUTsMapAccordion">
+                    <div class="accordion-body" v-show="accordionStates.section5">
+                      <div class="card">
+                        <div class="card-body">
+                          <!-- First Table: Static with Component Dropdown -->
+                          
+
+                          <!-- Second Table: Conditionally rendered -->
+                          <div class="table-responsive mt-1" >
+                            <table class="table table-bordered table-head-bg-primary">
+                              <thead>
+                                <tr>
+                                  <th>PD List</th>
+                                  <th>SLS List</th>
+                                  <!-- <th v-if="selectedComponent === 'PD'">PD/Component</th>
+                                  <th v-if="selectedComponent === 'SL'">SLS Code</th>
+                                  <th v-if="selectedComponent === 'SL'">SLS Name</th> -->
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr v-for="(row, index) in formRows" :key="index">
+                                  <td>
+                                  <select v-model="row.slsPD" class="form-select">
+                                      <option value="">--- Select PD ---</option>
+                                      <option
+                                        v-for="item in pdComponentsForDropdown"
+                                        :key="item.division_id"
+                                        :value="item.division_name"
+                                      >
+                                        {{ item.division_name }}
+                                      </option>
+
+                                    </select>
+
+                                  </td>
+
+                                  <td>
+                                    <!-- <select v-model="row.slsPD" class="form-select">
+
+                                      <option value="">--- Select State ---</option>
+                                      <option v-for="state in states" :key="state.id" :value="state.id">
+                                        {{ state.name }}
+                                      </option>
+                                    </select> -->
+                                    <!-- Select Entity -->
+                                    <div class="col-md-6 col-lg-4" v-if="entityType !== 'Admin'">
+                                      <div class="form-group">
+                                        <label @click="showEntityList = !showEntityList" style="cursor: pointer;">
+                                          Select Entity <span v-if="showEntityList">▲</span><span v-else>▼</span>
+                                        </label>
+
+                                        <div
+                                          class="checkbox-list"
+                                          style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px;"
+                                        >
+                                          
+                                          
+                                          <!-- Show SLS List -->
+                                          <div>
+                                            <div v-for="pd in programDivisions" :key="pd.division_id" class="form-check">
+                                              <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                :id="'entity_' + pd.division_id"
+                                                :value="pd.division_id"
+                                                v-model="selectedEntities"
+                                              />
+                                              <label class="form-check-label" :for="'entity_' + pd.division_id">
+                                                {{ pd.division_name }}
+                                              </label>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <!-- <td v-if="selectedComponent === 'SL'">
+                                    <input v-model="row.slsId" type="text" class="form-control" placeholder="Enter Code" />
+                                  </td>
+                                  <td v-if="selectedComponent === 'SL'">
+                                    <input v-model="row.slsName" type="text" class="form-control" placeholder="Enter SLS Name" />
+                                  </td> -->
+                                </tr>
+                              </tbody>
+                            </table>
+
+                            <!-- Add Row -->
+                            <div class="col-md-12 col-lg-12">
+                              <button class="btn btn-primary me-1 mb-4" @click="addRow">+ Add New</button>
+                            </div>
+                          </div>
+
+                          <!-- Buttons -->
+                          <div class="col-12 d-flex justify-content-center">
+                            <button class="btn btn-success me-1" @click="submit">Submit</button>
+                            <button class="btn btn-danger me-1">Reset</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 
 
               </div> <!-- End Accordion Container -->
@@ -361,6 +475,17 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import 'datatables.net-bs5/css/dataTables.bootstrap5.css'
 // Note: For production, install and import SheetJS: npm install xlsx
 // import * as XLSX from 'xlsx'
+
+const getEntityNames = (ids) => {
+  
+    return ids
+      .map((id) => {
+        const entity = programDivisions.value.find((pd) => pd.division_id === id);
+        return entity ? entity.division_name : '';
+      })
+      .filter((name) => name);
+
+};
 
 DataTable.use(DataTablesCore)
 const pdColumns = [
@@ -398,7 +523,8 @@ const accordionStates = ref({
   section1: true,  // First section expanded by default
   section2: false, // Second section collapsed by default
   section3: false, // Third section collapsed by default
-  section4: false  // Fourth section collapsed by default
+  section4: false,  // Fourth section collapsed by default
+  section5: false  // Fifth section collapsed by default
 })
 
 const toggleAccordion = (section) => {
@@ -721,10 +847,12 @@ const submit = () => {
   }
 
   formRows.value.forEach(row => {
+    // console.log(row);
     payload.comValue.push({
       state: selectedComponent.value === 'PD' ? 0 : row.state,
       name: selectedComponent.value === 'PD' ? row.pdComponent : row.slsId,
-      slsPD: selectedComponent.value === 'PD' ? null : row.slsPD, // Send slsPD only for SL type
+      // slsPD: selectedComponent.value === 'PD' ? null : row.slsPD, // Send slsPD only for SL type
+      slsPD: row.slsPD, // Send slsPD only for SL type
       slsCode: selectedComponent.value === 'PD' ? null : row.slsId, // Send slsCode for SL type
       slsName: selectedComponent.value === 'PD' ? null : row.slsName // Send slsName for SL type
     })

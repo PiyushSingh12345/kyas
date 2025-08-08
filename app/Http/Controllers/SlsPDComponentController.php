@@ -22,7 +22,7 @@ class SlsPDComponentController extends Controller
     public function getPDComponents()
     {
         $data = ProgramDivision::where('is_active', 1)
-            ->orderBy('division_name')
+            ->orderBy('division_id','desc')
             ->get();
 
         return response()->json($data);
@@ -63,12 +63,15 @@ class SlsPDComponentController extends Controller
                         'created_at' => now()
                     ]);
                 } else {
+                    // print_r($entry);
+                    // die();
                     // Save SL components to pd_and_sls_comp table with duplicate checking
                     $stateId = $entry['state'];
                     $slsCode = $entry['slsCode'] ?? $entry['name']; // Use slsCode if provided, otherwise fallback to name
                     $slsName = $entry['slsName'] ?? $entry['name']; // Use slsName if provided, otherwise fallback to name
                     $pdId = $entry['slsPD'] ?? null;
-                    
+                    // print_r($pdId);
+                    // die();
                     // Check if record already exists (by sls_code and state_id)
                     $existingRecord = SlsPDComponent::where('sls_code', $slsCode)
                         ->where('state_id', $stateId)
@@ -79,6 +82,7 @@ class SlsPDComponentController extends Controller
                         $existingRecord->update([
                             'name' => $slsName,
                             'sls_code' => $slsCode,
+                            'slsPD' => $pdId,
                             'sharing_patter_center' => 0,
                             'sharing_patter_state' => 0,
                             'status' => $validated['status']
@@ -88,6 +92,7 @@ class SlsPDComponentController extends Controller
                         SlsPDComponent::create([
                             'state_id' => $stateId,
                             'name' => $slsName,
+                            'slsPD' => $pdId,
                             'sls_code' => $slsCode,
                             'sharing_patter_center' => 0,
                             'sharing_patter_state' => 0,

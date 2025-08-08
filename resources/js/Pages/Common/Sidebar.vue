@@ -76,7 +76,7 @@
                     </Link></li>
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
                     <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">State/UTs</span></Link></li>
-                    <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">States/UTs-PD/Component</span></Link></li>
+                    <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">PD Component / SLS</span></Link></li>
                   </ul>
                 </div>
               </li>
