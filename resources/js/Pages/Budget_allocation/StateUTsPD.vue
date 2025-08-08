@@ -26,7 +26,7 @@
                     <button class="accordion-button" :class="{ 'collapsed': !accordionStates.section1 }" type="button" @click="toggleAccordion('section1')" aria-expanded="true" aria-controls="collapseOne">
                       <i class="fas fa-map-marker-alt me-2"></i>
                       <!-- State-wise list of PD/Component and SLS -->
-                      Add Component PD and/or SLS
+                      Add Component PD and/or SLS (Manually)
                     </button>
                   </h2>
                   <div id="collapseOne" class="accordion-collapse" :class="{ 'show': accordionStates.section1 }" aria-labelledby="headingOne" data-bs-parent="#stateUTsAccordion">
@@ -63,7 +63,8 @@
                           <th v-if="selectedComponent === 'SL'">PD</th>
                           <th v-if="selectedComponent === 'SL'">State/UT</th>
                           <th v-if="selectedComponent === 'PD'">PD/Component</th>
-                          <th v-if="selectedComponent === 'SL'">SLS ID</th>
+                          <th v-if="selectedComponent === 'SL'">SLS Code</th>
+                          <th v-if="selectedComponent === 'SL'">SLS Name</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -72,11 +73,11 @@
                            <select v-model="row.slsPD" class="form-select">
                               <option value="">--- Select PD ---</option>
                               <option
-                                v-for="(item, index) in savedData.filter(i => i.component === 'PD')"
-                                :key="item.id"
-                                :value="item.name"
+                                v-for="item in pdComponentsForDropdown"
+                                :key="item.division_id"
+                                :value="item.division_name"
                               >
-                                {{ item.name }}
+                                {{ item.division_name }}
                               </option>
 
                             </select>
@@ -98,7 +99,10 @@
                           </td>
 
                           <td v-if="selectedComponent === 'SL'">
-                            <input v-model="row.slsId" type="text" class="form-control" placeholder="Enter SLS ID" />
+                            <input v-model="row.slsId" type="text" class="form-control" placeholder="Enter Code" />
+                          </td>
+                          <td v-if="selectedComponent === 'SL'">
+                            <input v-model="row.slsName" type="text" class="form-control" placeholder="Enter SLS Name" />
                           </td>
                         </tr>
                       </tbody>
@@ -624,6 +628,19 @@ const fetchPDComponentsData = async () => {
     console.error('Error loading PD components data:', err);
   }
 };
+
+const fetchPDComponentsForDropdown = async () => {
+  try {
+    const res = await fetch('/pd-components-dropdown');
+    if (res.ok) {
+      pdComponentsForDropdown.value = await res.json();
+    } else {
+      console.error('Failed to load PD components for dropdown');
+    }
+  } catch (err) {
+    console.error('Error loading PD components for dropdown:', err);
+  }
+};
 const formRows = ref([
   {
     state: '',
@@ -634,10 +651,12 @@ const formRows = ref([
 ])
 
 const states = ref([])
+const pdComponentsForDropdown = ref([])
 
 onMounted(async () => {
   fetchSavedData();
   fetchPDComponentsData();
+  fetchPDComponentsForDropdown();
   
   try {
     const response = await fetch('/api/states')
@@ -656,7 +675,8 @@ const addRow = () => {
     state: '',
     pdComponent: '',
     slsPD: '',
-    slsId: ''
+    slsId: '',
+    slsName: ''
   })
 }
 
@@ -667,9 +687,15 @@ watch(selectedComponent, (newValue, oldValue) => {
         state: '',
         pdComponent: '',
         slsPD: '',
-        slsId: ''
+        slsId: '',
+        slsName: ''
       }
     ]
+    
+    // If SLS ID is selected, fetch PD components for dropdown
+    if (newValue === 'SL') {
+      fetchPDComponentsForDropdown();
+    }
   }
 })
 const deleteRow = (id) => {
@@ -698,7 +724,9 @@ const submit = () => {
     payload.comValue.push({
       state: selectedComponent.value === 'PD' ? 0 : row.state,
       name: selectedComponent.value === 'PD' ? row.pdComponent : row.slsId,
-      slsPD: selectedComponent.value === 'PD' ? null : row.slsPD // Send slsPD only for SL type
+      slsPD: selectedComponent.value === 'PD' ? null : row.slsPD, // Send slsPD only for SL type
+      slsCode: selectedComponent.value === 'PD' ? null : row.slsId, // Send slsCode for SL type
+      slsName: selectedComponent.value === 'PD' ? null : row.slsName // Send slsName for SL type
     })
   })
 
@@ -706,9 +734,10 @@ const submit = () => {
     onSuccess: () => {
       selectedComponent.value = ''
       formRows.value = [
-        { state: '', pdComponent: '', slsId: '', slsPD: '' }
+        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '' }
       ]
       fetchSavedData()
+      fetchPDComponentsData() // Refresh PD components list as well
       alert('Saved successfully!')
     },
     onError: (errors) => {

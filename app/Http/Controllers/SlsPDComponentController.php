@@ -28,14 +28,26 @@ class SlsPDComponentController extends Controller
         return response()->json($data);
     }
 
+    public function getPDComponentsForDropdown()
+    {
+        $data = ProgramDivision::select('division_id', 'division_name')
+            ->where('is_active', 1)
+            ->orderBy('division_name')
+            ->get();
+
+        return response()->json($data);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'component' => 'required|in:PD,SL',
             'comValue' => 'required|array',
-            'comValue.*.state' => 'required|integer',
+            'comValue.*.state' => 'nullable|integer',
             'comValue.*.name' => 'required|string',
             'comValue.*.slsPD' => 'nullable|string',
+            'comValue.*.slsCode' => 'nullable|string',
+            'comValue.*.slsName' => 'nullable|string',
             'status' => 'required|in:0,1'
         ]);
 
@@ -43,17 +55,46 @@ class SlsPDComponentController extends Controller
             DB::beginTransaction();
 
             foreach ($validated['comValue'] as $entry) {
-                // For PD component, state_id should be 0 or null
-                $stateId = ($validated['component'] === 'PD') ? null : $entry['state'];
-                
-                SlsPDComponent::create([
-                    'state_id' => $stateId,
-                    'name' => $entry['name'],
-                    'sls_code' => ($validated['component'] === 'SL') ? $entry['name'] : null, // For SL, name is the SLS code
-                    'sharing_patter_center' => null, // Will be set when mapping with SLS data
-                    'sharing_patter_state' => null, // Will be set when mapping with SLS data
-                    'status' => $validated['status']
-                ]);
+                if ($validated['component'] === 'PD') {
+                    // Save PD components to md_program_divisions table
+                    ProgramDivision::create([
+                        'division_name' => $entry['name'],
+                        'is_active' => $validated['status'],
+                        'created_at' => now()
+                    ]);
+                } else {
+                    // Save SL components to pd_and_sls_comp table with duplicate checking
+                    $stateId = $entry['state'];
+                    $slsCode = $entry['slsCode'] ?? $entry['name']; // Use slsCode if provided, otherwise fallback to name
+                    $slsName = $entry['slsName'] ?? $entry['name']; // Use slsName if provided, otherwise fallback to name
+                    $pdId = $entry['slsPD'] ?? null;
+                    
+                    // Check if record already exists (by sls_code and state_id)
+                    $existingRecord = SlsPDComponent::where('sls_code', $slsCode)
+                        ->where('state_id', $stateId)
+                        ->first();
+                    
+                    if ($existingRecord) {
+                        // Update existing record
+                        $existingRecord->update([
+                            'name' => $slsName,
+                            'sls_code' => $slsCode,
+                            'sharing_patter_center' => 0,
+                            'sharing_patter_state' => 0,
+                            'status' => $validated['status']
+                        ]);
+                    } else {
+                        // Create new record
+                        SlsPDComponent::create([
+                            'state_id' => $stateId,
+                            'name' => $slsName,
+                            'sls_code' => $slsCode,
+                            'sharing_patter_center' => 0,
+                            'sharing_patter_state' => 0,
+                            'status' => $validated['status']
+                        ]);
+                    }
+                }
             }
 
             DB::commit();

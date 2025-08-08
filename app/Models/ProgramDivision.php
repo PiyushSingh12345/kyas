@@ -14,12 +14,13 @@ class ProgramDivision extends Model
     
     protected $fillable = [
         'division_name',
-        'is_active'
+        'is_active',
+        'created_at'
     ];
 
-    // Disable updated_at since the table doesn't have it
-    public $timestamps = false;
+    // Only use created_at, not updated_at
+    const CREATED_AT = 'created_at';
+    const UPDATED_AT = null;
     
-    // But we still want to use created_at
     protected $dates = ['created_at'];
 }
