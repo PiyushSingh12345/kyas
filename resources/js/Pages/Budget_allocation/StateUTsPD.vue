@@ -202,6 +202,24 @@
                                 </button>
                               </div>
                             </div>
+                            
+                            <!-- Pagination Info and Controls -->
+                            <div v-if="slsPreviewData.length > 0" class="d-flex justify-content-between align-items-center mb-3">
+                              <div class="d-flex align-items-center">
+                                <label class="me-2">Show:</label>
+                                <select v-model="itemsPerPage" class="form-select form-select-sm" style="width: 70px;" @change="changePerPage">
+                                  <option value="5">5</option>
+                                  <option value="10">10</option>
+                                  <option value="25">25</option>
+                                  <option value="50">50</option>
+                                </select>
+                                <span class="ms-2">entries</span>
+                                <span class="ms-3">
+                                  Showing {{ startIndex }} to {{ endIndex }} of {{ slsPreviewData.length }} entries
+                                </span>
+                              </div>
+                            </div>
+                            
                             <table class="table table-bordered table-striped">
                               <thead class="table-primary">
                                 <tr>
@@ -217,7 +235,7 @@
                                 </tr>
                               </thead>
                               <tbody>
-                                <tr v-for="(row, index) in slsPreviewData" :key="index">
+                                <tr v-for="(row, index) in paginatedSlsPreviewData" :key="index">
                                   <td>{{ row.slsCode }}</td>
                                   <td>{{ row.slsName }}</td>
                                   <td>{{ row.stateName }}</td>
@@ -230,6 +248,40 @@
                                 </tr>
                               </tbody>
                             </table>
+                            
+                            <!-- Pagination Controls -->
+                            <div v-if="slsPreviewData.length > 0 && totalPages > 1" class="d-flex justify-content-center mt-3">
+                              <nav>
+                                <ul class="pagination pagination-sm mb-0">
+                                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                                    <button class="page-link" @click="goToFirstPage" :disabled="currentPage === 1">
+                                      <i class="fas fa-angle-double-left"></i>
+                                    </button>
+                                  </li>
+                                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                                    <button class="page-link" @click="goToPreviousPage" :disabled="currentPage === 1">
+                                      <i class="fas fa-angle-left"></i>
+                                    </button>
+                                  </li>
+                                  
+                                  <li v-for="page in visiblePages" :key="page" class="page-item" :class="{ active: page === currentPage, disabled: page === '...' }">
+                                    <button v-if="page !== '...'" class="page-link" @click="goToPage(page)">{{ page }}</button>
+                                    <span v-else class="page-link">{{ page }}</span>
+                                  </li>
+                                  
+                                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                                    <button class="page-link" @click="goToNextPage" :disabled="currentPage === totalPages">
+                                      <i class="fas fa-angle-right"></i>
+                                    </button>
+                                  </li>
+                                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                                    <button class="page-link" @click="goToLastPage" :disabled="currentPage === totalPages">
+                                      <i class="fas fa-angle-double-right"></i>
+                                    </button>
+                                  </li>
+                                </ul>
+                              </nav>
+                            </div>
                           </div>
 
                           <!-- No Data Message -->
@@ -548,6 +600,101 @@ const slsPreviewData = ref([])
 const isUploading = ref(false)
 const isSaving = ref(false)
 
+// Pagination variables for SLS Preview Data
+const currentPage = ref(1)
+const itemsPerPage = ref(10)
+
+// Pagination computed properties for SLS Preview Data
+const totalPages = computed(() => {
+  return Math.ceil(slsPreviewData.value.length / itemsPerPage.value)
+})
+
+const paginatedSlsPreviewData = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value
+  const end = start + itemsPerPage.value
+  return slsPreviewData.value.slice(start, end)
+})
+
+const startIndex = computed(() => {
+  return (currentPage.value - 1) * itemsPerPage.value + 1
+})
+
+const endIndex = computed(() => {
+  return Math.min(currentPage.value * itemsPerPage.value, slsPreviewData.value.length)
+})
+
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  const pages = []
+  
+  if (total <= 7) {
+    // If total pages is 7 or less, show all pages
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    // Always show first page
+    pages.push(1)
+    
+    if (current > 3) {
+      pages.push('...')
+    }
+    
+    // Show pages around current page
+    const start = Math.max(2, current - 1)
+    const end = Math.min(total - 1, current + 1)
+    
+    for (let i = start; i <= end; i++) {
+      if (i !== 1 && i !== total) {
+        pages.push(i)
+      }
+    }
+    
+    if (current < total - 2) {
+      pages.push('...')
+    }
+    
+    // Always show last page
+    if (total > 1) {
+      pages.push(total)
+    }
+  }
+  
+  return pages
+})
+
+// Pagination functions for SLS Preview Data
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+const goToFirstPage = () => {
+  goToPage(1)
+}
+
+const goToLastPage = () => {
+  goToPage(totalPages.value)
+}
+
+const goToPreviousPage = () => {
+  if (currentPage.value > 1) {
+    goToPage(currentPage.value - 1)
+  }
+}
+
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    goToPage(currentPage.value + 1)
+  }
+}
+
+const changePerPage = () => {
+  currentPage.value = 1 // Reset to first page when changing per page
+}
+
 const handleFileUpload = (event) => {
   const file = event.target.files[0]
   if (!file) return
@@ -613,6 +760,8 @@ const parseFile = (file) => {
     isUploading.value = false
     if (data.success) {
       slsPreviewData.value = data.data
+      // Reset pagination to first page when new data is loaded
+      currentPage.value = 1
       const fileType = file.type === 'application/pdf' ? 'PDF' : 'Excel'
       let message = `Successfully parsed ${data.totalRows} rows from ${fileType} file`
       
@@ -736,6 +885,8 @@ const clearSLSData = () => {
   if (fileInput.value) {
     fileInput.value.value = ''
   }
+  // Reset pagination
+  currentPage.value = 1
 }
 
 
@@ -1092,7 +1243,14 @@ const submitRegularForm = () => {
   })
 }
 
-
+// Watch for changes in slsPreviewData to reset pagination
+watch(slsPreviewData, (newData) => {
+  if (newData.length === 0) {
+    currentPage.value = 1
+  } else if (currentPage.value > Math.ceil(newData.length / itemsPerPage.value)) {
+    currentPage.value = Math.ceil(newData.length / itemsPerPage.value)
+  }
+})
 
 </script>
 
