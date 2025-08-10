@@ -24,7 +24,7 @@ class BudgetHeadController extends Controller
         $validated = $request->validate([
             'budget' => 'required|max:255',
             'description' => 'required|string|max:255',
-            'category' => 'required'
+            'category' => 'required|in:GN,SC,ST,Capital-GN,Capital-SC,Capital-ST,others'
         ]);
 
         // Format the budget head code before saving
@@ -53,7 +53,7 @@ class BudgetHeadController extends Controller
         $validated = $request->validate([
             'budget' => 'required|max:255',
             'description' => 'required|string|max:255',
-            'category' => 'required'
+            'category' => 'required|in:GN,SC,ST,Capital-GN,Capital-SC,Capital-ST,others'
         ]);
 
         // Format the budget head code before updating
@@ -398,11 +398,14 @@ class BudgetHeadController extends Controller
                 $existing = BudgetHead::where('budget', $formattedCode)->first();
                 
                 if (!$existing) {
+                    // Calculate category based on budget head code
+                    $category = $this->calculateCategory($formattedCode);
+                    
                     // Create budget head
                     $budgetHead = BudgetHead::create([
                         'budget' => $formattedCode,
                         'description' => $item['item'],
-                        'category' => 'Gen', // Default category
+                        'category' => $category,
                         'status' => 1
                     ]);
                     $importedCount++;
@@ -436,6 +439,49 @@ class BudgetHeadController extends Controller
                 'message' => 'Error importing data: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Calculate category based on budget head code
+     * 
+     * @param string $code The budget head code
+     * @return string The calculated category
+     */
+    private function calculateCategory($code)
+    {
+        // Remove any non-digit characters and get the numeric part
+        $numericCode = preg_replace('/[^0-9]/', '', $code);
+        
+        // If code is not long enough, return 'others'
+        if (strlen($numericCode) < 9) {
+            return 'others';
+        }
+        
+        // Get last 2 digits
+        $lastTwoDigits = substr($numericCode, -2);
+        
+        // Get middle 3 digits (positions 7-9)
+        $middleThreeDigits = substr($numericCode, 6, 3);
+        
+        // If last 2 digits are not "31" or "35", return "others"
+        if ($lastTwoDigits !== '31' && $lastTwoDigits !== '35') {
+            return 'others';
+        }
+        
+        // Check middle 3 digits for different categories
+        if ($middleThreeDigits === '101' || $middleThreeDigits === '342' || $middleThreeDigits === '103') {
+            // If last 2 digits is "35", return "Capital-GN", else return "GN"
+            return $lastTwoDigits === '35' ? 'Capital-GN' : 'GN';
+        } elseif ($middleThreeDigits === '789') {
+            // If last 2 digits is "35", return "Capital-SC", else return "SC"
+            return $lastTwoDigits === '35' ? 'Capital-SC' : 'SC';
+        } elseif ($middleThreeDigits === '796') {
+            // If last 2 digits is "35", return "Capital-ST", else return "ST"
+            return $lastTwoDigits === '35' ? 'Capital-ST' : 'ST';
+        }
+        
+        // Default case
+        return 'others';
     }
 
     /**

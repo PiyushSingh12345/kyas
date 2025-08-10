@@ -51,9 +51,13 @@
                           <label>Category</label>
                           <select v-model="form.category" class="form-select">
                             <option value="">--- Select ---</option>
+                            <option value="GN">GN</option>
                             <option value="SC">SC</option>
                             <option value="ST">ST</option>
-                            <option value="Gen">Gen</option>
+                            <option value="Capital-GN">Capital-GN</option>
+                            <option value="Capital-SC">Capital-SC</option>
+                            <option value="Capital-ST">Capital-ST</option>
+                            <option value="others">Others</option>
                           </select>
                           <div v-if="form.errors.category" class="text-danger">{{ form.errors.category }}</div>
                         </div>
@@ -219,8 +223,9 @@
             <table class="table table-bordered table-striped">
               <thead class="table-dark sticky-top">
                 <tr>
-                  <th style="width: 30%;">Budget Head</th>
-                  <th style="width: 50%;">Head Description</th>
+                  <th style="width: 25%;">Budget Head</th>
+                  <th style="width: 40%;">Head Description</th>
+                  <th style="width: 15%;">Category</th>
                   <!-- <th style="width: 20%;">BE 2024-25</th> -->
                   <th style="width: 20%;">Budget Amount in Lakhs (2025-2026)</th>
                 </tr>
@@ -232,6 +237,11 @@
                     </td>
                     <td class="text-end fw-bold" style="font-family: monospace;">
                       {{ item.item }}
+                    </td>
+                    <td class="text-center">
+                      <!-- <span :class="getCategoryClass(item.code)" class="badge"> -->
+                        {{ calculateCategory(item.code) }}
+                      <!-- </span> -->
                     </td>
                   <!-- <td class="text-end fw-bold" style="font-family: monospace;">
                     {{ formatAmount(item.be_2024_25) }}
@@ -323,7 +333,7 @@ const fileInput = ref(null)
 const form = useForm({
   budget: '',
   description: '',
-  category: '',
+  category: 'GN',
   status: '1'
 })
 
@@ -339,13 +349,17 @@ const submit = () => {
       preserveScroll: true,
       onSuccess: () => {
         form.reset()
+        form.category = 'GN' // Reset to default category
         editingId.value = null
       }
     })
   } else {
     form.post(route('BudgetHead.store'), {
       preserveScroll: true,
-      onSuccess: () => form.reset()
+      onSuccess: () => {
+        form.reset()
+        form.category = 'GN' // Reset to default category
+      }
     })
   }
 }
@@ -361,6 +375,7 @@ const editBudgetHead = (item) => {
 const cancelEdit = () => {
   editingId.value = null
   form.reset()
+  form.category = 'GN' // Reset to default category
 }
 
 // File upload methods
@@ -555,5 +570,62 @@ const formatAmount = (amount) => {
   }
   
   return cleanAmount
+}
+
+// Helper function to calculate category based on budget head code
+const calculateCategory = (code) => {
+  // Remove any non-digit characters and get the numeric part
+  const numericCode = code.replace(/[^0-9]/g, '')
+  
+  // If code is not long enough, return 'others'
+  if (numericCode.length < 9) {
+    return 'others'
+  }
+  
+  // Get last 2 digits
+  const lastTwoDigits = numericCode.slice(-2)
+  
+  // Get middle 3 digits (positions 7-9)
+  const middleThreeDigits = numericCode.slice(6, 9)
+  
+  // If last 2 digits are not "31" or "35", return "others"
+  if (lastTwoDigits !== '31' && lastTwoDigits !== '35') {
+    return 'others'
+  }
+  
+  // Check middle 3 digits for different categories
+  if (middleThreeDigits === '101' || middleThreeDigits === '342' || middleThreeDigits === '103') {
+    // If last 2 digits is "35", return "Capital-GN", else return "GN"
+    return lastTwoDigits === '35' ? 'Capital-GN' : 'GN'
+  } else if (middleThreeDigits === '789') {
+    // If last 2 digits is "35", return "Capital-SC", else return "SC"
+    return lastTwoDigits === '35' ? 'Capital-SC' : 'SC'
+  } else if (middleThreeDigits === '796') {
+    // If last 2 digits is "35", return "Capital-ST", else return "ST"
+    return lastTwoDigits === '35' ? 'Capital-ST' : 'ST'
+  }
+  
+  // Default case
+  return 'others'
+}
+
+// Helper function to get category class for styling
+const getCategoryClass = (code) => {
+  const category = calculateCategory(code)
+  
+  switch (category) {
+    case 'Capital-GN':
+    case 'GN':
+      return 'badge-success'
+    case 'Capital-SC':
+    case 'SC':
+      return 'badge-primary'
+    case 'Capital-ST':
+    case 'ST':
+      return 'badge-danger'
+    case 'others':
+    default:
+      return 'badge-secondary'
+  }
 }
 </script>
