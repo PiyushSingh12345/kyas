@@ -12,10 +12,21 @@ use Illuminate\Support\Facades\Log;
 
 class BudgetHeadController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $perPage = $request->get('per_page', 10);
+        $budgetHeads = BudgetHead::latest()->paginate($perPage);
+        
         return Inertia::render('Budget_allocation/BudgetHeads', [
-            'BudgetHeads' => BudgetHead::latest()->get() 
+            'BudgetHeads' => $budgetHeads->items(),
+            'pagination' => [
+                'current_page' => $budgetHeads->currentPage(),
+                'last_page' => $budgetHeads->lastPage(),
+                'per_page' => $budgetHeads->perPage(),
+                'total' => $budgetHeads->total(),
+                'from' => $budgetHeads->firstItem(),
+                'to' => $budgetHeads->lastItem(),
+            ]
         ]);
     }
 

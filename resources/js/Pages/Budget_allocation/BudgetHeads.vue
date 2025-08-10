@@ -184,6 +184,54 @@
                         </tr>
                       </tbody>
                     </table>
+                    
+                    <!-- Pagination Controls -->
+                    <div v-if="pagination && pagination.total > 0" class="d-flex justify-content-between align-items-center mt-3">
+                      <div class="d-flex align-items-center">
+                        <label class="me-2">Show:</label>
+                        <select v-model="itemsPerPage" class="form-select form-select-sm" style="width: 70px;" @change="changePerPage">
+                          <option value="5">5</option>
+                          <option value="10">10</option>
+                          <option value="25">25</option>
+                          <option value="50">50</option>
+                        </select>
+                        <span class="ms-2">entries</span>
+                        <span class="ms-3">
+                          Showing {{ pagination.from }} to {{ pagination.to }} of {{ pagination.total }} entries
+                        </span>
+                      </div>
+                      
+                      <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                          <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                            <button class="page-link" @click="goToFirstPage" :disabled="currentPage === 1">
+                              <i class="fas fa-angle-double-left"></i>
+                            </button>
+                          </li>
+                          <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                            <button class="page-link" @click="goToPreviousPage" :disabled="currentPage === 1">
+                              <i class="fas fa-angle-left"></i>
+                            </button>
+                          </li>
+                          
+                          <li v-for="page in visiblePages" :key="page" class="page-item" :class="{ active: page === currentPage, disabled: page === '...' }">
+                            <button v-if="page !== '...'" class="page-link" @click="goToPage(page)">{{ page }}</button>
+                            <span v-else class="page-link">{{ page }}</span>
+                          </li>
+                          
+                          <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                            <button class="page-link" @click="goToNextPage" :disabled="currentPage === totalPages">
+                              <i class="fas fa-angle-right"></i>
+                            </button>
+                          </li>
+                          <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                            <button class="page-link" @click="goToLastPage" :disabled="currentPage === totalPages">
+                              <i class="fas fa-angle-double-right"></i>
+                            </button>
+                          </li>
+                        </ul>
+                      </nav>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -293,7 +341,7 @@ import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 import { useForm, usePage, router } from '@inertiajs/vue3'
-import { computed, ref, defineProps } from 'vue'
+import { computed, ref, defineProps, watch } from 'vue'
 
 const deleteBudgetHead = (id) => {
   if (confirm('Are you sure you want to deactivate this Budget Head?')) {
@@ -314,12 +362,72 @@ const toggleStatus = (item) => {
 }
 
 const props = defineProps({
-  BudgetHeads: Array
+  BudgetHeads: Array,
+  pagination: Object
 })
 
 const page = usePage()
 const successMessage = computed(() => page.props.flash?.success || null)
 const editingId = ref(null)
+
+// Pagination variables
+const currentPage = ref(props.pagination?.current_page || 1)
+const itemsPerPage = ref(props.pagination?.per_page || 10)
+
+// Watch for pagination changes from props
+watch(() => props.pagination, (newPagination) => {
+  if (newPagination) {
+    currentPage.value = newPagination.current_page
+    itemsPerPage.value = newPagination.per_page
+  }
+}, { immediate: true })
+
+// Pagination computed properties
+const totalPages = computed(() => {
+  return props.pagination?.last_page || 1
+})
+
+const startIndex = computed(() => {
+  return props.pagination?.from || 0
+})
+
+const endIndex = computed(() => {
+  return props.pagination?.to || 0
+})
+
+const visiblePages = computed(() => {
+  const pages = []
+  const total = totalPages.value
+  const current = currentPage.value
+  
+  // Always show first page
+  pages.push(1)
+  
+  // Show pages around current page
+  const start = Math.max(2, current - 1)
+  const end = Math.min(total - 1, current + 1)
+  
+  if (start > 2) {
+    pages.push('...')
+  }
+  
+  for (let i = start; i <= end; i++) {
+    if (i > 1 && i < total) {
+      pages.push(i)
+    }
+  }
+  
+  if (end < total - 1) {
+    pages.push('...')
+  }
+  
+  // Always show last page if there are more than 1 page
+  if (total > 1) {
+    pages.push(total)
+  }
+  
+  return pages
+})
 
 // File upload related reactive variables
 const selectedFile = ref(null)
@@ -550,6 +658,48 @@ const proceedWithImport = () => {
   }
   
   acceptExtractedData()
+}
+
+// Pagination functions
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+    router.get(route('budget-heads'), { page: page }, { 
+      preserveState: true,
+      preserveScroll: true 
+    })
+  }
+}
+
+const goToFirstPage = () => {
+  goToPage(1)
+}
+
+const goToLastPage = () => {
+  goToPage(totalPages.value)
+}
+
+const goToPreviousPage = () => {
+  if (currentPage.value > 1) {
+    goToPage(currentPage.value - 1)
+  }
+}
+
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    goToPage(currentPage.value + 1)
+  }
+}
+
+const changePerPage = () => {
+  currentPage.value = 1 // Reset to first page when changing per page
+  router.get(route('budget-heads'), { 
+    per_page: itemsPerPage.value,
+    page: 1 
+  }, { 
+    preserveState: true,
+    preserveScroll: true 
+  })
 }
 
 const handleCancel = () => {

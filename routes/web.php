@@ -58,9 +58,7 @@ Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
 })->middleware(['auth', 'verified'])->name('fund-allocation');
 
-Route::get('/budget-heads', function () {
-    return Inertia::render('Budget_allocation/BudgetHeads');
-})->middleware(['auth', 'verified'])->name('budget-heads');
+Route::get('/budget-heads', [BudgetHeadController::class, 'index'])->middleware(['auth', 'verified'])->name('budget-heads');
 
 
 Route::get('/state-uts', function () {
@@ -130,7 +128,7 @@ Route::middleware('auth')->group(function () {
     ->middleware(['auth', 'verified'])
     ->name('state-uts');
     Route::post('/states', [StateController::class, 'store'])->name('states.store');
-    Route::get('/budget-head-list', [BudgetHeadController::class, 'index'])->name('budget-head-list');
+
 
     Route::post('/budget-heads', [BudgetHeadController::class, 'store'])->name('BudgetHead.store');
     Route::post('/budget-heads/upload', [BudgetHeadController::class, 'upload'])->name('BudgetHead.upload');

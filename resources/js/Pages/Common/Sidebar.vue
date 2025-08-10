@@ -71,7 +71,7 @@
                 </a>
                 <div v-show="activeMenu === 'bhead'">
                   <ul class="nav nav-collapse">
-                    <li><Link :href="route('budget-head-list')" class="nav-link">
+                    <li><Link :href="route('budget-heads')" class="nav-link">
                       <span class="sub-item">Budget Heads</span>
                     </Link></li>
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
