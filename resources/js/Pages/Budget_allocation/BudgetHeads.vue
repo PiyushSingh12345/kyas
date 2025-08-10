@@ -108,9 +108,9 @@
                           </div>
                           
                           <!-- Debug Info -->
-                          <div v-if="extractedData" class="alert alert-info mt-2">
+                          <!-- <div v-if="extractedData" class="alert alert-info mt-2">
                             <strong>Debug:</strong> extractedData is set with {{ extractedData.total_lines }} lines
-                          </div>
+                          </div> -->
                           
                           <!-- Show Modal Button -->
                           <div v-if="extractedData" class="mt-3">
