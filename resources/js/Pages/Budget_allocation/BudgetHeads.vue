@@ -57,6 +57,7 @@
                             <option value="Capital-Gen">Capital-Gen</option>
                             <option value="Capital-SC">Capital-SC</option>
                             <option value="Capital-ST">Capital-ST</option>
+                            <option value="DAJUGA">DAJUGA</option>
                             <option value="Others">Others</option>
                           </select>
                           <div v-if="form.errors.category" class="text-danger">{{ form.errors.category }}</div>
@@ -737,10 +738,20 @@ const calculateCategory = (code) => {
   
   // Get middle 3 digits (positions 7-9)
   const middleThreeDigits = numericCode.slice(6, 9)
+
+  // Get Second Last 2 digits (positions 12-13)  12341212312.12.12
+  const secondLastTwoDigits = numericCode.slice(11, 13)
+  // console.log('Second Last 2 Digits:', secondLastTwoDigits)
+  // return false;
   
   // If last 2 digits are not "31" or "35", return "Others"
   if (lastTwoDigits !== '31' && lastTwoDigits !== '35') {
     return 'Others'
+  }
+
+  // if last two digits is '31' and second last two digits is '01' then it will be category of DAJUGA
+  if (lastTwoDigits === '31' && secondLastTwoDigits == '01') {
+    return 'DAJUGA'
   }
   
   // Check middle 3 digits for different categories
@@ -773,6 +784,8 @@ const getCategoryClass = (code) => {
     case 'Capital-ST':
     case 'ST':
       return 'badge-danger'
+    case 'DAJUGA':
+      return 'badge-warning'
     case 'Others':
     default:
       return 'badge-secondary'

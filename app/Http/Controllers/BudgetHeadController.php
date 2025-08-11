@@ -35,7 +35,7 @@ class BudgetHeadController extends Controller
         $validated = $request->validate([
             'budget' => 'required|max:255',
             'description' => 'required|string|max:255',
-            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,Others'
+            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,DAJUGA,Others'
         ]);
 
         // Format the budget head code before saving
@@ -64,7 +64,7 @@ class BudgetHeadController extends Controller
         $validated = $request->validate([
             'budget' => 'required|max:255',
             'description' => 'required|string|max:255',
-            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,Others'
+            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,DAJUGA,Others'
         ]);
 
         // Format the budget head code before updating
@@ -470,6 +470,9 @@ class BudgetHeadController extends Controller
         
         // Get last 2 digits
         $lastTwoDigits = substr($numericCode, -2);
+
+        // Get second last 2 digits (positions 12-13)
+        $secondLastTwoDigits = substr($numericCode, 11, 2);
         
         // Get middle 3 digits (positions 7-9)
         $middleThreeDigits = substr($numericCode, 6, 3);
@@ -477,6 +480,11 @@ class BudgetHeadController extends Controller
         // If last 2 digits are not "31" or "35", return "Others"
         if ($lastTwoDigits !== '31' && $lastTwoDigits !== '35') {
             return 'Others';
+        }
+
+        // if last two digits is '31' and second last two digits is '01' then it will be category of DAJUGA
+        if ($lastTwoDigits === '31' && $secondLastTwoDigits == '01') {
+            return 'DAJUGA';
         }
         
         // Check middle 3 digits for different categories
