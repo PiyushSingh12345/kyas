@@ -76,7 +76,7 @@
                       <!-- <span class="rscss">(Rs In Lakhs)</span> -->
                       <div class="alert alert-info py-2 px-3 mb-0">
                         <!-- <i class="fas fa-info-circle me-2"></i> -->
-                        <strong>(Rs In Lakhs)</strong> 
+                        <strong>(₹ In Lakhs)</strong> 
                         <!-- <span class="fw-bold text-primary">{{ totalBudgetAmount.toLocaleString() }}</span> Lakhs -->
                         <!-- <span class="text-muted ms-2">({{ filteredBudgetHeads.length }} budget heads)</span> -->
                       </div>
@@ -106,7 +106,7 @@
                         <tr>
                           <th>Budget Head</th>
                           <th>Head Description</th>
-                          <th>Budget Amount</th>
+                          <th>Budget Amount <small class="text-capitalize">(₹ In Lakhs)</small></th>
                         </tr>
                       </thead>
                       <tbody>

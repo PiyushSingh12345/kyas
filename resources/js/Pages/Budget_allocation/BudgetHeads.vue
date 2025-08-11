@@ -51,13 +51,13 @@
                           <label>Category</label>
                           <select v-model="form.category" class="form-select">
                             <option value="">--- Select ---</option>
-                            <option value="GN">GN</option>
+                            <option value="Gen">Gen</option>
                             <option value="SC">SC</option>
                             <option value="ST">ST</option>
-                            <option value="Capital-GN">Capital-GN</option>
+                            <option value="Capital-Gen">Capital-Gen</option>
                             <option value="Capital-SC">Capital-SC</option>
                             <option value="Capital-ST">Capital-ST</option>
-                            <option value="others">Others</option>
+                            <option value="Others">Others</option>
                           </select>
                           <div v-if="form.errors.category" class="text-danger">{{ form.errors.category }}</div>
                         </div>
@@ -441,7 +441,7 @@ const fileInput = ref(null)
 const form = useForm({
   budget: '',
   description: '',
-  category: 'GN',
+  category: 'Gen',
   status: '1'
 })
 
@@ -457,7 +457,7 @@ const submit = () => {
       preserveScroll: true,
       onSuccess: () => {
         form.reset()
-        form.category = 'GN' // Reset to default category
+        form.category = 'Gen' // Reset to default category
         editingId.value = null
       }
     })
@@ -466,7 +466,7 @@ const submit = () => {
       preserveScroll: true,
       onSuccess: () => {
         form.reset()
-        form.category = 'GN' // Reset to default category
+        form.category = 'Gen' // Reset to default category
       }
     })
   }
@@ -483,7 +483,7 @@ const editBudgetHead = (item) => {
 const cancelEdit = () => {
   editingId.value = null
   form.reset()
-  form.category = 'GN' // Reset to default category
+  form.category = 'Gen' // Reset to default category
 }
 
 // File upload methods
@@ -727,9 +727,9 @@ const calculateCategory = (code) => {
   // Remove any non-digit characters and get the numeric part
   const numericCode = code.replace(/[^0-9]/g, '')
   
-  // If code is not long enough, return 'others'
+  // If code is not long enough, return 'Others'
   if (numericCode.length < 9) {
-    return 'others'
+    return 'Others'
   }
   
   // Get last 2 digits
@@ -738,15 +738,15 @@ const calculateCategory = (code) => {
   // Get middle 3 digits (positions 7-9)
   const middleThreeDigits = numericCode.slice(6, 9)
   
-  // If last 2 digits are not "31" or "35", return "others"
+  // If last 2 digits are not "31" or "35", return "Others"
   if (lastTwoDigits !== '31' && lastTwoDigits !== '35') {
-    return 'others'
+    return 'Others'
   }
   
   // Check middle 3 digits for different categories
   if (middleThreeDigits === '101' || middleThreeDigits === '342' || middleThreeDigits === '103') {
-    // If last 2 digits is "35", return "Capital-GN", else return "GN"
-    return lastTwoDigits === '35' ? 'Capital-GN' : 'GN'
+    // If last 2 digits is "35", return "Capital-Gen", else return "Gen"
+    return lastTwoDigits === '35' ? 'Capital-Gen' : 'Gen'
   } else if (middleThreeDigits === '789') {
     // If last 2 digits is "35", return "Capital-SC", else return "SC"
     return lastTwoDigits === '35' ? 'Capital-SC' : 'SC'
@@ -756,7 +756,7 @@ const calculateCategory = (code) => {
   }
   
   // Default case
-  return 'others'
+  return 'Others'
 }
 
 // Helper function to get category class for styling
@@ -764,8 +764,8 @@ const getCategoryClass = (code) => {
   const category = calculateCategory(code)
   
   switch (category) {
-    case 'Capital-GN':
-    case 'GN':
+    case 'Capital-Gen':
+    case 'Gen':
       return 'badge-success'
     case 'Capital-SC':
     case 'SC':
@@ -773,7 +773,7 @@ const getCategoryClass = (code) => {
     case 'Capital-ST':
     case 'ST':
       return 'badge-danger'
-    case 'others':
+    case 'Others':
     default:
       return 'badge-secondary'
   }

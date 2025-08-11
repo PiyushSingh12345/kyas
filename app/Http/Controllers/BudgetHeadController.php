@@ -35,7 +35,7 @@ class BudgetHeadController extends Controller
         $validated = $request->validate([
             'budget' => 'required|max:255',
             'description' => 'required|string|max:255',
-            'category' => 'required|in:GN,SC,ST,Capital-GN,Capital-SC,Capital-ST,others'
+            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,Others'
         ]);
 
         // Format the budget head code before saving
@@ -64,7 +64,7 @@ class BudgetHeadController extends Controller
         $validated = $request->validate([
             'budget' => 'required|max:255',
             'description' => 'required|string|max:255',
-            'category' => 'required|in:GN,SC,ST,Capital-GN,Capital-SC,Capital-ST,others'
+            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,Others'
         ]);
 
         // Format the budget head code before updating
@@ -474,15 +474,15 @@ class BudgetHeadController extends Controller
         // Get middle 3 digits (positions 7-9)
         $middleThreeDigits = substr($numericCode, 6, 3);
         
-        // If last 2 digits are not "31" or "35", return "others"
+        // If last 2 digits are not "31" or "35", return "Others"
         if ($lastTwoDigits !== '31' && $lastTwoDigits !== '35') {
-            return 'others';
+            return 'Others';
         }
         
         // Check middle 3 digits for different categories
         if ($middleThreeDigits === '101' || $middleThreeDigits === '342' || $middleThreeDigits === '103') {
-            // If last 2 digits is "35", return "Capital-GN", else return "GN"
-            return $lastTwoDigits === '35' ? 'Capital-GN' : 'GN';
+            // If last 2 digits is "35", return "Capital-Gen", else return "Gen"
+            return $lastTwoDigits === '35' ? 'Capital-Gen' : 'Gen';
         } elseif ($middleThreeDigits === '789') {
             // If last 2 digits is "35", return "Capital-SC", else return "SC"
             return $lastTwoDigits === '35' ? 'Capital-SC' : 'SC';
@@ -492,7 +492,7 @@ class BudgetHeadController extends Controller
         }
         
         // Default case
-        return 'others';
+        return 'Others';
     }
 
     /**

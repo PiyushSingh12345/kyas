@@ -103,7 +103,7 @@
                     <!-- BE (INR Thousand) for From Budget Head -->
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label>BE (IN INR THOUSAND)</label>
+                        <label>BE  (₹ In Lakhs)</label>
                         <input
                           type="text"
                           class="form-control"
@@ -117,7 +117,7 @@
                     <!-- Re-Appropriation Amt -->
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label>Re-Appropriation Amt</label>
+                        <label>Re-Appropriation Amt (₹ In Lakhs)</label>
                         <input
                           type="text"
                           class="form-control"
@@ -157,7 +157,7 @@
                         <!-- BE (in INR Thousand) for To Budget Head -->
                         <div class="col-md-6 col-lg-4">
                           <div class="form-group">
-                            <label>To BE (in INR Thousand)</label>
+                            <label>To BE (₹ In Lakhs)</label>
                             <input
                               type="text"
                               class="form-control"
@@ -171,7 +171,7 @@
                         <!-- Re-appropriation Amount (disabled placeholder) -->
                         <div class="col-md-6 col-lg-4">
                           <div class="form-group">
-                            <label>Re-appropriation Amount (INR)</label>
+                            <label>Re-appropriation Amount  (₹ In Lakhs)</label>
                             <input
                               type="text"
                               class="form-control"
@@ -316,6 +316,7 @@
                             <th>From HOA</th>
                             <th>From Rule</th>
                             <th>To HOA</th>
+                            <th>Amount <small class="text-capitalize">(₹ In Lakhs)</small></th>
                             <th>To Entity Type</th>
                             <th>To Entity Name</th>
                             <th>To Rule</th>
@@ -326,6 +327,7 @@
                               <td>{{ currentEntry.fromHOA }}</td>
                               <td>{{ currentEntry.fromRule }}</td>
                               <td>{{ currentEntry.toHOA }}</td>
+                              <td>{{ currentEntry.reappropriationAmount }}</td>
                               <td>{{ currentEntry.toEntityType }}</td>
                               <td>{{ currentEntry.toEntityNames }}</td>
                               <td>{{ currentEntry.toRule }}</td>
@@ -367,6 +369,7 @@
                         <th>Date</th>
                         <th>From HOA</th>
                         <th>To HOA</th>
+                        <th>Amount <small class="text-capitalize">(₹ In Lakhs)</small></th>
                         <th>Entity Type</th>
                         <th>Entity Name</th>
                         <th>Remarks</th>
@@ -377,6 +380,7 @@
                         <td>{{ formatDate(reapp.ro_date) }}</td>
                         <td>{{ getBudgetHeadNameWithDots(reapp.from_budget_head_id) }}</td>
                         <td>{{ getBudgetHeadNameWithDots(reapp.to_budget_head_id) }}</td>
+                        <td>{{ reapp.reappropriation_amount }}</td>
                         <td>{{ reapp.entity_type }}</td>
                         <td>{{ getEntityNamesForReapp(reapp.selected_entity_ids, reapp.entity_type) }}</td>
                         <td>{{ reapp.reason_for_additionality || '-' }}</td>
@@ -454,7 +458,7 @@ import Sidebar from '../Common/Sidebar.vue';
 import Footer from '../Common/Footer.vue';
 
 // Dropdown data
-const financialYears = ref(['2024-2025', '2023-2024', '2022-2023', '2021-2022']);
+const financialYears = ref(['2025-2026','2024-2025', '2023-2024', '2022-2023', '2021-2022']);
 const budgetPhases = ref(['BE', 'FE', 'RE']);
 const programDivisions = ref([]);
 const budgetHeads = ref([]);
@@ -510,6 +514,7 @@ const currentEntry = computed(() => ({
   fromHOA: getBudgetHeadName(selectedFromBudgetHead.value),
   fromRule: fromRule.value,
   toHOA: getBudgetHeadName(selectedToBudgetHead.value),
+  reappropriationAmount: formattedReappropriationAmount.value,
   toEntityType: entityType.value,
   toEntityNames: getEntityNames(selectedEntities.value).join(', '),
   toRule: toRule.value,
