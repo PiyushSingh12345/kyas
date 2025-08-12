@@ -225,6 +225,7 @@
                                 <tr>
                                   <th>SLS Code</th>
                                   <th>SLS Name</th>
+                                  <th>Full SLS Name</th>
                                   <th>State Name</th>
                                   <!-- <th>SG Account</th> -->
                                   <th>Sharing Pattern(Centre)</th>
@@ -238,6 +239,7 @@
                                 <tr v-for="(row, index) in paginatedSlsPreviewData" :key="index">
                                   <td>{{ row.slsCode }}</td>
                                   <td>{{ row.slsName }}</td>
+                                  <td>{{ row.slsCode }} - {{ row.slsName }}</td>
                                   <td>{{ row.stateName }}</td>
                                   <!-- <td>{{ row.sgAccount }}</td> -->
                                   <td>{{ row.sharingPatternCentre }}</td>
@@ -365,6 +367,7 @@
                         <tr>
                           <th>SLS Code</th>
                           <th>SLS Name</th>
+                          <th>Full SLS Name</th>
                           <th>PD Name</th>
                           <th>State Name</th>
                           <th>Sharing Pattern(Centre)</th>
@@ -377,6 +380,7 @@
                       <tr>
                         <td>{{ row.sls_code || '-' }}</td>
                         <td>{{ row.name || '-' }}</td>
+                        <td>{{ row.full_sls_name || '-' }}</td>
                         <td>{{ row.slsPD || '-' }}</td>
                         <td>{{ row.state?.name || '-' }}</td>
                         <td>{{ row.sharing_patter_center !== null && row.sharing_patter_center !== undefined ? row.sharing_patter_center : '0' }}</td>
@@ -466,7 +470,7 @@
                                             v-model="selectedEntities"
                                           />
                                           <label class="form-check-label" :for="sls.id">
-                                            {{ sls.name }}
+                                            {{ sls.full_sls_name || sls.name }}
                                           </label>
                                         </div>
                                       </div>
@@ -545,6 +549,7 @@ const pdColumns = [
 const slColumns = [
   { title: 'SLS Code', data: 'sls_code' },
   { title: 'SLS Name', data: 'name' },
+  { title: 'Full SLS Name', data: 'full_sls_name' },
   { title: 'PD Name', data: 'slsPD' },
   { title: 'State Name', data: 'state.name' },
   { title: 'Sharing Pattern(Centre)', data: 'sharing_patter_center' },
@@ -561,6 +566,13 @@ const slData = computed(() =>
     .filter(i => i.component === 'SL' || i.sls_code) // Include records with sls_code (from Excel uploads)
 )
 
+// Computed property to get full SLS name for form rows
+const getFullSlsName = (row) => {
+  if (row.slsId && row.slsName) {
+    return `${row.slsId} - ${row.slsName}`;
+  }
+  return '';
+}
 
 
 const savedData = ref([]);
@@ -1222,7 +1234,8 @@ const submitRegularForm = () => {
       // slsPD: selectedComponent.value === 'PD' ? null : row.slsPD, // Send slsPD only for SL type
       slsPD: row.slsPD, // Send slsPD only for SL type
       slsCode: selectedComponent.value === 'PD' ? null : row.slsId, // Send slsCode for SL type
-      slsName: selectedComponent.value === 'PD' ? null : row.slsName // Send slsName for SL type
+      slsName: selectedComponent.value === 'PD' ? null : row.slsName, // Send slsName for SL type
+      fullSlsName: selectedComponent.value === 'PD' ? null : (row.slsId && row.slsName ? `${row.slsId} - ${row.slsName}` : null) // Send fullSlsName for SL type
     })
   })
 

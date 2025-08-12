@@ -14,6 +14,7 @@ class SlsPDComponent extends Model
     protected $fillable = [
         'state_id',
         'name',
+        'full_sls_name',
         'slsPD',
         'sharing_patter_center',
         'sharing_patter_state',

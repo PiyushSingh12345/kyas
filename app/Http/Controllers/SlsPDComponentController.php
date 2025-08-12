@@ -49,6 +49,7 @@ class SlsPDComponentController extends Controller
             'comValue.*.slsPD' => 'nullable|string',
             'comValue.*.slsCode' => 'nullable|string',
             'comValue.*.slsName' => 'nullable|string',
+            'comValue.*.fullSlsName' => 'nullable|string',
             'status' => 'required|in:0,1'
         ]);
 
@@ -71,6 +72,10 @@ class SlsPDComponentController extends Controller
                     $slsCode = $entry['slsCode'] ?? $entry['name']; // Use slsCode if provided, otherwise fallback to name
                     $slsName = $entry['slsName'] ?? $entry['name']; // Use slsName if provided, otherwise fallback to name
                     $pdId = $entry['slsPD'] ?? null;
+                    
+                    // Create full SLS name (SLS Code - SLS Name)
+                    $fullSlsName = $entry['fullSlsName'] ?? ($slsCode . ' - ' . $slsName);
+                    
                     // print_r($pdId);
                     // die();
                     // Check if record already exists (by sls_code and state_id)
@@ -82,6 +87,7 @@ class SlsPDComponentController extends Controller
                         // Update existing record
                         $existingRecord->update([
                             'name' => $slsName,
+                            'full_sls_name' => $fullSlsName,
                             'sls_code' => $slsCode,
                             'slsPD' => $pdId,
                             'sharing_patter_center' => 0,
@@ -93,6 +99,7 @@ class SlsPDComponentController extends Controller
                         SlsPDComponent::create([
                             'state_id' => $stateId,
                             'name' => $slsName,
+                            'full_sls_name' => $fullSlsName,
                             'slsPD' => $pdId,
                             'sls_code' => $slsCode,
                             'sharing_patter_center' => 0,
@@ -502,6 +509,7 @@ class SlsPDComponentController extends Controller
                         // Update existing record instead of failing
                         $existingSLS->update([
                             'name' => $item['slsName'],
+                            'full_sls_name' => $item['slsCode'] . ' - ' . $item['slsName'],
                             'sharing_patter_center' => $item['sharingPatternCentre'] !== '' ? ($item['sharingPatternCentre'] ?? 0) : 0, // Store 0 for empty/null
                             'sharing_patter_state' => $item['sharingPatternState'] !== '' ? ($item['sharingPatternState'] ?? 0) : 0, // Store 0 for empty/null
                             'status' => 1
@@ -514,6 +522,7 @@ class SlsPDComponentController extends Controller
                     SlsPDComponent::create([
                         'state_id' => $stateId,
                         'name' => $item['slsName'], // slsName => name
+                        'full_sls_name' => $item['slsCode'] . ' - ' . $item['slsName'],
                         'sharing_patter_center' => $item['sharingPatternCentre'] !== '' ? ($item['sharingPatternCentre'] ?? 0) : 0, // Store 0 for empty/null
                         'sharing_patter_state' => $item['sharingPatternState'] !== '' ? ($item['sharingPatternState'] ?? 0) : 0, // Store 0 for empty/null
                         'sls_code' => $item['slsCode'], // slsCode => sls_code
