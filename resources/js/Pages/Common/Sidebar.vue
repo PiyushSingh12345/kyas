@@ -195,13 +195,18 @@
                 <div v-show="activeMenu === 'annual-action-plan'">
                   <ul class="nav nav-collapse">
                     <li>
-                      <Link :href="route('annual-action-plan-central')" class="nav-link">
-                        <span class="sub-item">Annual Action Plan Central</span>
+                      <Link :href="route('statewise-aap-allocation')" class="nav-link">
+                        <span class="sub-item">Statewise AAP Allocation</span>
                       </Link>
                     </li>
                     <li>
-                      <Link :href="route('annual-action-plan-state')" class="nav-link">
-                        <span class="sub-item">Annual Action Plan State</span>
+                      <Link :href="route('state-release-data')" class="nav-link">
+                        <span class="sub-item">State Release Data</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('pd-wise-budget-allocation')" class="nav-link">
+                        <span class="sub-item">PD wise Budget Allocation</span>
                       </Link>
                     </li>
                   </ul>

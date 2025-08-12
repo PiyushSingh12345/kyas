@@ -13,6 +13,7 @@ use App\Http\Controllers\MotherSanctionController;
 use App\Http\Controllers\MotherSanctionListController;
 use App\Http\Controllers\DailySanctionController;
 use App\Http\Controllers\ReAppropritionController;
+use App\Http\Controllers\AnnualActionPlanController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -110,13 +111,17 @@ Route::get('/mother-sanction-list-module', function () {
     return Inertia::render('mother_sanction/MotherSanctionList');
 })->middleware(['auth', 'verified'])->name('mother-sanction-list-module');
 
-Route::get('/annual-action-plan-central', function () {
+Route::get('/pd-wise-budget-allocation', function () {
     return Inertia::render('Annual_action_plan/AapCentral');
-})->middleware(['auth', 'verified'])->name('annual-action-plan-central');
+})->middleware(['auth', 'verified'])->name('pd-wise-budget-allocation');
 
-Route::get('/annual-action-plan-state', function () {
+Route::get('/state-release-data', function () {
     return Inertia::render('Annual_action_plan/AapState');
-})->middleware(['auth', 'verified'])->name('annual-action-plan-state');
+})->middleware(['auth', 'verified'])->name('state-release-data');
+
+Route::get('/statewise-aap-allocation', function () {
+    return Inertia::render('Annual_action_plan/StatewiseAapAllocation');
+})->middleware(['auth', 'verified'])->name('statewise-aap-allocation');
 
 Route::middleware('auth')->group(function () {
 
@@ -156,6 +161,22 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::post('/pd-sls/save-sls-data', [SlsPDComponentController::class, 'saveSLSData'])->name('pd-sls.save-sls-data');
     Route::post('/pd-sls/update-mappings', [SlsPDComponentController::class, 'updatePDSLSMappings'])->name('pd-sls.update-mappings');
     Route::get('/api/states', [StateController::class, 'getStatesApi']);
+    
+    // Statewise AAP Allocation API routes
+    Route::post('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'storeStatewiseAllocation']);
+    Route::get('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'getStatewiseAllocation']);
+    Route::get('/api/aap-states', [AnnualActionPlanController::class, 'getStates']);
+    Route::get('/api/aap-program-divisions', [AnnualActionPlanController::class, 'getProgramDivisions']);
+    
+    // Test route for debugging
+    Route::get('/api/test-states', function() {
+        try {
+            $states = \Illuminate\Support\Facades\DB::table('states')->select('id', 'name')->get();
+            return response()->json(['success' => true, 'data' => $states]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
 
     Route::get('/api/get-components-by-fund', [SlsPDComponentController::class, 'getComponentsByFund']);
 Route::post('/api/fund-allocation', [FundAllocationController::class, 'store'])->name('fund-allocation.store');
