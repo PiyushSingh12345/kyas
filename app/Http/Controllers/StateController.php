@@ -18,7 +18,8 @@ class StateController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:states,name',
-            'description' => 'required|string|max:255'
+            'description' => 'required|string|max:255',
+            'budgethead_fourdigits' => 'nullable|integer'
         ]);
 
         State::create($validated);

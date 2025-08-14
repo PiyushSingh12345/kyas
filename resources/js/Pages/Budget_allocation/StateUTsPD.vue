@@ -85,7 +85,7 @@
                                   </td>
 
                                   <td v-if="selectedComponent === 'SL'">
-                                  <select v-model="row.state" class="form-select">
+                                    <select v-model="row.state" class="form-select">
 
                                       <option value="">--- Select State ---</option>
                                       <option v-for="state in states" :key="state.id" :value="state.id">

@@ -72,7 +72,7 @@
 												>
 											</td>
 											<!-- <td class="fw-bold text-center row-total"> -->
-											<td class="fw-bold text-center bg-danger-subtle">
+											<td class="fw-bold text-center bg-success-subtle">
 												{{ calculateRowTotal(state.state_id) }}
 											</td>
 											<td>

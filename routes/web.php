@@ -168,6 +168,16 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::get('/api/aap-states', [AnnualActionPlanController::class, 'getStates']);
     Route::get('/api/aap-program-divisions', [AnnualActionPlanController::class, 'getProgramDivisions']);
     
+    // PD-wise AAP Allocation API routes
+    Route::post('/api/pdwise-aap-allocation', [AnnualActionPlanController::class, 'storePdwiseAllocation']);
+    Route::get('/api/pdwise-aap-allocation', [AnnualActionPlanController::class, 'getPdwiseAllocation']);
+    Route::get('/api/aap-budget-heads', [AnnualActionPlanController::class, 'getBudgetHeads']);
+    
+    // State Release Data API routes
+    Route::get('/api/aap-sls-components', [AnnualActionPlanController::class, 'getSLSComponentsByState']);
+    Route::post('/api/aap-state-release-data', [AnnualActionPlanController::class, 'storeStateReleaseData']);
+    Route::get('/api/aap-budget-heads-by-state', [AnnualActionPlanController::class, 'getBudgetHeadsByState']);
+    
     // Test route for debugging
     Route::get('/api/test-states', function() {
         try {
