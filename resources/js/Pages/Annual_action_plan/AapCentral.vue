@@ -45,17 +45,34 @@
 								  <table class="table table-bordered table-hover align-middle text-center">
 									  <thead class="table-dark">
 										  <tr>
-											  											<th rowspan="2" class="align-middle">Budget Head</th>
+											<!-- <th rowspan="2" class="align-middle"></th> -->
+											<th class="align-middle"></th>
 											  <th v-for="pd in programDivisions" :key="pd.division_id" colspan="1">
-												  {{ pd.division_name }}
+												  {{ pd.division_name }}<br/>(Proposed by KY)<br/>by as per BE
 											  </th>
-											  <th rowspan="2" class="align-middle">Final Allocation <br/><small class="text-capitalize">(₹ In Lakhs)</small></th>
+											  <th class="align-middle">Final Allocation</th>
 											  <!-- <th rowspan="2" class="align-middle">Remarks</th> -->
 										  </tr>
 										  <tr>
+											  <th class="align-middle">Unified HoA-KY</th>
 											  <th v-for="pd in programDivisions" :key="pd.division_id">
-												  Final Allocation
+												 ₹ In Lakhs
 											  </th>
+											  <th class="align-middle">₹ In Lakhs</th>
+										  </tr>
+										  <tr>
+											  <th class="align-middle">Major Head-2435</th>
+											  <th v-for="pd in programDivisions" :key="pd.division_id">
+												 <!-- ₹ In Lakhs -->NA
+											  </th>
+											  <th class="align-middle">NA</th>
+										  </tr>
+										  <tr>
+											  <th class="align-middle">General Component</th>
+											  <th v-for="pd in programDivisions" :key="pd.division_id">
+												 <!-- ₹ In Lakhs -->NA
+											  </th>
+											  <th>NA</th>
 										  </tr>
 									  </thead>
 									  										<tbody>
