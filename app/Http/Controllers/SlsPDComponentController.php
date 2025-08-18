@@ -575,7 +575,7 @@ class SlsPDComponentController extends Controller
         $cleanStateName = trim($stateName);
         
         // Try exact match first
-        $state = State::where('name', $cleanStateName)->first();
+        $state = State::where('name','LIKE', '%' . $cleanStateName . '%')->first();
         
         if (!$state) {
             // Try partial match
