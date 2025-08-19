@@ -185,7 +185,7 @@
 
 						<div class="table-responsive">
 							<!-- Table Loading State -->
-							<div v-if="isLoading || !selectedState || budgetHeadsArray.length === 0" class="text-center py-5">
+							<div v-if="isLoading || !selectedState || stateReleaseGeneric.length === 0" class="text-center py-5">
 								<div v-if="isLoading" class="spinner-border text-primary mb-3" role="status">
 									<span class="visually-hidden">Loading...</span>
 								</div>
@@ -194,8 +194,8 @@
 									<p>Choose a state from the dropdown above to view the annual action plan data.</p>
 								</div>
 								<div v-else class="text-muted">
-									<h5>No Budget Heads Found</h5>
-									<p>No budget heads were found for the selected state.</p>
+									<h5>No Table Headers Found</h5>
+									<p>No table headers were found. Please try refreshing the page.</p>
 								</div>
 							</div>
 							
@@ -206,37 +206,31 @@
 										<div class="spinner-border text-primary mb-2" role="status">
 											<span class="visually-hidden">Loading...</span>
 										</div>
-										<p class="text-muted mb-0">Rendering table with {{ budgetHeadsArray.length }} budget head columns...</p>
+										<p class="text-muted mb-0">Rendering table with {{ stateReleaseGeneric.length }} columns...</p>
 									</div>
 								</div>
 							</div>
 							
 							<!-- Actual Table -->
-							<table v-else class="table table-bordered  table-hover align-middle text-center">
+							<table v-if="!isLoading && selectedState && stateReleaseGeneric.length > 0" class="table table-bordered  table-hover align-middle text-center">
 								<thead class="table-dark">
 									<tr>
 										<th>Scheme Component</th>
 										<th>SLS Details</th>
-										<th>Total Allocation <br>for FY 2025-26</th>
-										<th>Allocation <br> for FY 2025-26 (State Share)</th>
-										<th>Allocation <br>for FY 2025-26 (Center Share)</th>
-										<!-- Dynamic columns based on budget heads -->
-										<th v-for="budgetHead in budgetHeadsArray" :key="budgetHead.id">
-											Annual Allocation <br> (Center Share) <small class="text-danger">{{ budgetHead.code }}</small>
+										<!-- Dynamic columns based on state_release_generic data with logic -->
+										<th v-for="genericItem in stateReleaseGeneric" :key="genericItem.id">
+											{{ getTableHeader(genericItem) }}
 										</th>
 									</tr>
 								</thead>
-								<tbody>
+																<tbody>
 									<tr v-for="(row, index) in tableData" :key="index">
 										<td>{{ row.schemeComponent }}</td>
 										<td>{{ row.slsDetails }}</td>
-										<td><input type="text" v-model="row.amounts[0].amount" class="form-control tableform-control-withoutbg" placeholder="0.00"></td>
-										<td><input type="text" v-model="row.amounts[1].amount" class="form-control tableform-control-withoutbg" placeholder="0.00"></td>
-										<td><input type="text" v-model="row.amounts[2].amount" class="form-control tableform-control-withoutbg" placeholder="0.00"></td>
-										<!-- Dynamic input fields based on budget heads -->
-										<td v-for="(budgetHead, budgetIndex) in budgetHeadsArray" :key="budgetHead.id">
+										<!-- Dynamic input fields based on state_release_generic data -->
+										<td v-for="genericItem in stateReleaseGeneric" :key="genericItem.id">
 											<input type="text" 
-												v-model="row.amounts[3 + budgetIndex].amount" 
+												v-model="row.amounts[genericItem.id - 1].amount" 
 												class="form-control tableform-control-withoutbg" 
 												placeholder="0.00">
 										</td>
@@ -245,13 +239,10 @@
 									<tr class="table-warning fw-bold">
 										<td>Total</td>
 										<td></td>
-										<td><input type="text" v-model="totalAmounts[0]" class="form-control tableform-control-withoutbg" readonly></td>
-										<td><input type="text" v-model="totalAmounts[1]" class="form-control tableform-control-withoutbg" readonly></td>
-										<td><input type="text" v-model="totalAmounts[2]" class="form-control tableform-control-withoutbg" readonly></td>
-										<!-- Dynamic total fields based on budget heads -->
-										<td v-for="(budgetHead, budgetIndex) in budgetHeadsArray" :key="budgetHead.id">
+										<!-- Dynamic total fields based on state_release_generic data -->
+										<td v-for="genericItem in stateReleaseGeneric" :key="genericItem.id">
 											<input type="text" 
-												v-model="totalAmounts[3 + budgetIndex]" 
+												v-model="totalAmounts[genericItem.id - 1]" 
 												class="form-control tableform-control-withoutbg" 
 												readonly>
 										</td>
@@ -262,16 +253,21 @@
 
 						<div class="row mt-3">
 							<div class="col-12 text-center">
-								<button type="button" @click="submitData" :disabled="!selectedState || isSubmitting || isLoading" class="btn btn-primary btn-lg me-3">
+								<button type="button" @click="submitData" :disabled="!selectedState || isSubmitting || isLoading || stateReleaseGeneric.length === 0" class="btn btn-primary btn-lg me-3">
 									<span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
 									{{ isSubmitting ? 'Saving...' : 'Submit Data' }}
 								</button>
 								
+								<button type="button" @click="refreshData" :disabled="!selectedState || isLoading || stateReleaseGeneric.length === 0" class="btn btn-success btn-lg me-3">
+									<i class="fas fa-sync-alt me-2"></i>
+									Refresh Data
+								</button>
+								
 								<!-- Debug Button -->
-								<!-- <button type="button" @click="debugDataStructure" :disabled="!selectedState || tableData.length === 0" class="btn btn-info btn-lg me-3">
+								<button type="button" @click="debugDataStructure" :disabled="!selectedState || tableData.length === 0" class="btn btn-info btn-lg me-3">
 									<i class="fas fa-bug me-2"></i>
 									Debug Data
-								</button> -->
+								</button>
 
 								<!-- Test Cell Independence Button -->
 								<!-- <button type="button" @click="testCellIndependence" :disabled="!selectedState || tableData.length === 0" class="btn btn-warning btn-lg me-3">
@@ -320,6 +316,7 @@ const budgetHeadsCount = ref(0)
 const isLoading = ref(false)
 const isLoadingSLS = ref(false)
 const isLoadingBudgetHeads = ref(false)
+const stateReleaseGeneric = ref([])
 
 // Fetch states from API
 const fetchStates = async () => {
@@ -343,10 +340,14 @@ const fetchSLSComponents = async (stateId) => {
     const data = await response.json()
     if (data.success) {
       slsComponents.value = data.data
-      populateTableData()
+      console.log('SLS components fetched successfully:', data.data)
+    } else {
+      throw new Error(data.message || 'Failed to fetch SLS components')
     }
   } catch (err) {
     console.error('Error fetching SLS components:', err)
+    showErrorMessage(`Error loading SLS components: ${err.message}`)
+    slsComponents.value = []
   } finally {
     isLoadingSLS.value = false
   }
@@ -368,9 +369,12 @@ const fetchBudgetHeadsByState = async (stateId) => {
       console.log('Budget heads array:', data.budget_heads_array)
       console.log('State budgethead_fourdigits:', data.state_budgethead_fourdigits)
       console.log('Count:', data.count)
+    } else {
+      throw new Error(data.message || 'Failed to fetch budget heads')
     }
   } catch (err) {
     console.error('Error fetching budget heads:', err)
+    showErrorMessage(`Error loading budget heads: ${err.message}`)
     budgetHeads.value = []
     budgetHeadsArray.value = []
     stateBudgetheadFourdigits.value = ''
@@ -380,33 +384,97 @@ const fetchBudgetHeadsByState = async (stateId) => {
   }
 }
 
+// Fetch state_release_generic data for table headers
+const fetchStateReleaseGeneric = async () => {
+  try {
+    const response = await fetch('/api/aap-state-release-generic')
+    if (!response.ok) throw new Error('Failed to fetch state_release_generic data')
+    const data = await response.json()
+    if (data.success) {
+      stateReleaseGeneric.value = data.data
+      console.log('State Release Generic data fetched successfully:', data.data)
+    } else {
+      throw new Error(data.message || 'Failed to fetch state release generic data')
+    }
+  } catch (err) {
+    console.error('Error fetching state_release_generic data:', err)
+    showErrorMessage(`Error loading table headers: ${err.message}`)
+    stateReleaseGeneric.value = []
+  }
+}
+
+// Fetch existing state release data for the selected state
+const fetchExistingStateReleaseData = async (stateId) => {
+  try {
+    const response = await fetch(`/api/aap-state-release-data?state_id=${stateId}&fy=2025-26`)
+    if (!response.ok) throw new Error('Failed to fetch existing state release data')
+    const data = await response.json()
+    if (data.success) {
+      console.log('Existing state release data fetched successfully:', data.data)
+      return data.data
+    }
+    return {}
+  } catch (err) {
+    console.error('Error fetching existing state release data:', err)
+    return {}
+  }
+}
+
+// Refresh data for the currently selected state
+const refreshData = async () => {
+  if (!selectedState.value) {
+    showErrorMessage('Please select a state first')
+    return
+  }
+  
+  isLoading.value = true
+  try {
+    const existingData = await fetchExistingStateReleaseData(selectedState.value)
+    if (slsComponents.value.length > 0) {
+      populateTableData(existingData)
+      showSuccessMessage('Data refreshed successfully!')
+    }
+  } catch (error) {
+    console.error('Error refreshing data:', error)
+    showErrorMessage('Error refreshing data. Please try again.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
 // Populate table data with SLS components
-const populateTableData = () => {
+const populateTableData = (existingData = {}) => {
+  if (!slsComponents.value.length || !stateReleaseGeneric.value.length) {
+    console.log('Cannot populate table: missing SLS components or state release generic data')
+    return
+  }
+  
   tableData.value = slsComponents.value.map(component => {
     // Create a fresh amounts array for each row to ensure independence
-    const rowAmounts = [
-      // First 3 fixed columns - use actual IDs from state_release_generic
-      { budget_head_id: 1, amount: '' }, // Total Allocation (ID 1)
-      { budget_head_id: 2, amount: '' }, // State Share (ID 2)  
-      { budget_head_id: 3, amount: '' }, // Center Share (ID 3)
-      // Dynamic columns based on budget heads from budget_heads table
-      ...budgetHeadsArray.value.map(budgetHead => ({
-        budget_head_id: budgetHead.id,
-        amount: ''
-      }))
-    ]
+    const rowAmounts = stateReleaseGeneric.value.map(genericItem => {
+      // Check if there's existing data for this SLS and budget head
+      const existingAmount = existingData[component.id]?.[genericItem.id] || ''
+      
+      return {
+        budget_head_id: genericItem.id,
+        amount: existingAmount
+      }
+    })
 
     return {
       sls_id: component.id,
       schemeComponent: component.component === 'PD' ? component.name : 'Agricultural Extension',
-      slsDetails: component.component === 'SL' ? component.name : component.name,
+      // slsDetails: component.component === 'SL' ? component.name : component.name,
+      slsDetails: component.component === 'SL' ? component.full_sls_name : component.full_sls_name,
       amounts: rowAmounts
     }
   })
+  
+  console.log('Table data populated successfully:', tableData.value.length, 'rows')
 }
 
 // Handle state change
-const onStateChange = () => {
+const onStateChange = async () => {
   if (selectedState.value) {
     console.log(" selected state value")
     console.log(selectedState.value)
@@ -421,14 +489,26 @@ const onStateChange = () => {
     stateBudgetheadFourdigits.value = ''
     budgetHeadsCount.value = 0
     
-    // Fetch data
-    Promise.all([
-      fetchSLSComponents(selectedState.value),
-      fetchBudgetHeadsByState(selectedState.value)
-    ]).finally(() => {
-      // Stop loading when both requests complete
+    try {
+      // Fetch data in parallel
+      const [slsData, budgetData, genericData, existingData] = await Promise.all([
+        fetchSLSComponents(selectedState.value),
+        fetchBudgetHeadsByState(selectedState.value),
+        fetchStateReleaseGeneric(),
+        fetchExistingStateReleaseData(selectedState.value)
+      ])
+      
+      // Populate table with existing data if available
+      if (slsComponents.value.length > 0) {
+        populateTableData(existingData)
+      }
+      
+    } catch (error) {
+      console.error('Error loading state data:', error)
+    } finally {
+      // Stop loading when all requests complete
       isLoading.value = false
-    })
+    }
   } else {
     tableData.value = []
     budgetHeads.value = []
@@ -439,11 +519,23 @@ const onStateChange = () => {
   }
 }
 
-// Watch for changes in budget heads array and log to console
-watch(budgetHeadsArray, (newValue) => {
-  if (newValue.length > 0) {
+// Watch for changes in state release generic data and budget heads array
+watch([stateReleaseGeneric, budgetHeadsArray], ([newGenericValue, newBudgetValue]) => {
+  if (newGenericValue.length > 0) {
+    console.log('=== State Release Generic Data Available ===')
+    console.log('Generic Data:', newGenericValue)
+    console.log('Count:', newGenericValue.length)
+    console.log('==========================================')
+    
+    // Update table data when generic data changes
+    if (slsComponents.value.length > 0) {
+      populateTableData()
+    }
+  }
+  
+  if (newBudgetValue.length > 0) {
     console.log('=== Budget Heads Arrays Available ===')
-    console.log('Full Array:', newValue)
+    console.log('Full Array:', newBudgetValue)
     console.log('Simple Array:', budgetHeadsSimpleArray.value)
     console.log('Codes Only:', budgetHeadCodesArray.value)
     console.log('Descriptions Only:', budgetHeadDescriptionsArray.value)
@@ -452,18 +544,13 @@ watch(budgetHeadsArray, (newValue) => {
     console.log('Column Headers:', tableColumnHeaders.value)
     console.log('Total Columns:', tableColumnCount.value)
     console.log('=====================================')
-    
-    // Update table data when budget heads change
-    if (slsComponents.value.length > 0) {
-      populateTableData()
-    }
   }
 }, { deep: true })
 
 // Calculate totals
 const totalAmounts = computed(() => {
-  // Calculate total columns: 3 fixed + dynamic budget heads
-  const totalColumns = 3 + budgetHeadsArray.value.length
+  // Calculate total columns based on state_release_generic data
+  const totalColumns = stateReleaseGeneric.value.length
   const totals = new Array(totalColumns).fill(0)
   
   tableData.value.forEach(row => {
@@ -505,14 +592,11 @@ const budgetHeadsStringArray = computed(() => {
 const tableColumnHeaders = computed(() => {
   const fixedHeaders = [
     'Scheme Component',
-    'SLS Details', 
-    'Total Allocation for FY 2025-26',
-    'Allocation for FY 2025-26 (State Share)',
-    'Allocation for FY 2025-26 (Center Share)'
+    'SLS Details'
   ]
   
-  const dynamicHeaders = budgetHeadsArray.value.map(budgetHead => 
-    `Annual Allocation (Center Share) ${budgetHead.description}`
+  const dynamicHeaders = stateReleaseGeneric.value.map(genericItem => 
+    getTableHeader(genericItem)
   )
   
   return [...fixedHeaders, ...dynamicHeaders]
@@ -520,8 +604,83 @@ const tableColumnHeaders = computed(() => {
 
 // Get table column count
 const tableColumnCount = computed(() => {
-  return 5 + budgetHeadsArray.value.length
+  return 2 + stateReleaseGeneric.value.length
 })
+
+// Function to get the header text based on genericItem and business logic
+const getTableHeader = (genericItem) => {
+  const allocationName = genericItem.allocation_name;
+  
+  // Check if allocation_name contains "-BH" pattern
+  if (allocationName.includes('-BH')) {
+    // Extract the base name (remove "-BH" suffix)
+    const baseName = allocationName.replace('-BH', '');
+    
+    // Find corresponding budget heads based on the pattern and get budget column values
+    let budgetValues = [];
+    
+    if (baseName === 'Annual Allocation (Center Share) General Component') {
+      // For General Component - get budget column values for Gen
+      budgetValues = budgetHeadsArray.value
+        .filter(head => head.category === 'General Component' || head.description.includes('General Component'))
+        .map(head => head.budget);
+    } else if (baseName === 'Annual Allocation (Center Share) SCSP') {
+      // For SCSP - get budget column values for sc
+      budgetValues = budgetHeadsArray.value
+        .filter(head => head.category === 'SCSP' || head.description.includes('SCSP'))
+        .map(head => head.budget);
+    } else if (baseName === 'Annual Allocation (Center Share) TSP') {
+      // For TSP - get budget column values for st
+      budgetValues = budgetHeadsArray.value
+        .filter(head => head.category === 'TSP' || head.description.includes('TSP'))
+        .map(head => head.budget);
+    } else if (baseName === 'Annual Allocation (Center Share) Capital Assets General Component') {
+      // For Capital Assets General Component - get budget column values for Capital Assets GEN
+      budgetValues = budgetHeadsArray.value
+        .filter(head => 
+          (head.category === 'General Component' || head.description.includes('General Component')) &&
+          head.description.includes('Capital')
+        )
+        .map(head => head.budget);
+    } else if (baseName === 'Annual Allocation (Center Share) Capital Assets SCSP') {
+      // For Capital Assets SCSP - get budget column values for Capital Assets sc
+      budgetValues = budgetHeadsArray.value
+        .filter(head => 
+          (head.category === 'SCSP' || head.description.includes('SCSP')) &&
+          head.description.includes('Capital')
+        )
+        .map(head => head.budget);
+    } else if (baseName === 'Annual Allocation (Center Share) Capital Assets TSP') {
+      // For Capital Assets TSP - get budget column values for Capital Assets st
+      budgetValues = budgetHeadsArray.value
+        .filter(head => 
+          (head.category === 'TSP' || head.description.includes('TSP')) &&
+          head.description.includes('Capital')
+        )
+        .map(head => head.budget);
+    } else if (baseName === 'Annual Allocation (Center Share) DAJUGA') {
+      // For DAJUGA - get budget column values for DAJUGA
+      budgetValues = budgetHeadsArray.value
+        .filter(head => head.category === 'DAJUGA' || head.description.includes('DAJUGA'))
+        .map(head => head.budget);
+    }
+    
+    // If budget values found, return the base name + budget values
+    if (budgetValues.length > 0) {
+      const budgetCodes = budgetValues.join(', ');
+      console.log(`Header generated for ${allocationName}: ${baseName} (${budgetCodes})`);
+      return `${baseName} (${budgetCodes})`;
+    } else {
+      // If no budget values found, still remove -BH but show base name
+      console.log(`No budget values found for ${allocationName}, using base name: ${baseName}`);
+      return baseName;
+    }
+  }
+  
+  // Default case: return allocation_name as is
+  console.log(`No -BH pattern found, using original: ${allocationName}`);
+  return allocationName;
+};
 
 // Submit data
 const submitData = async () => {
@@ -540,40 +699,49 @@ const submitData = async () => {
     return
   }
 
+  // Validate data structure
+  if (!tableData.value.length || !stateReleaseGeneric.value.length) {
+    showErrorMessage('Table data is not properly loaded. Please refresh the page and try again.')
+    return
+  }
+
   isSubmitting.value = true
 
   try {
-    // Prepare data for submission
-    const submissionData = tableData.value.map(row => ({
-      sls_id: row.sls_id
-    }))
-
-    // Prepare amounts array with proper structure for controller processing
+    // Prepare data for submission - each amount needs to be linked to its SLS and budget head
     const amounts = []
     tableData.value.forEach((row, rowIndex) => {
       row.amounts.forEach((amountData, colIndex) => {
         // Only include amounts that have values
         if (amountData.amount && amountData.amount.trim() !== '') {
+          // Validate that we have the required data
+          if (!amountData.budget_head_id || !row.sls_id) {
+            console.error('Missing required data for amount:', { rowIndex, colIndex, amountData, row })
+            return
+          }
+          
           amounts.push({
+            sls_id: row.sls_id,
             budget_head_id: amountData.budget_head_id,
-            amount: amountData.amount,
-            row_index: rowIndex,
-            col_index: colIndex
+            amount: amountData.amount
           })
         }
       })
     })
 
+    if (amounts.length === 0) {
+      showErrorMessage('No valid amounts found to submit. Please check your data.')
+      return
+    }
+
     const payload = {
       state_id: selectedState.value,
       fy: '2025-26',
-      data: submissionData,
       amounts: amounts
     }
 
     console.log('=== SUBMISSION DATA DEBUG ===')
     console.log('Table Data:', tableData.value)
-    console.log('Submission Data:', submissionData)
     console.log('Amounts:', amounts)
     console.log('Payload:', payload)
     console.log('=============================')
@@ -597,8 +765,15 @@ const submitData = async () => {
       // Show success message
       showSuccessMessage(`Data saved successfully! ${result.savedCount} records updated.`)
       
-      // Optionally refresh the data or clear the form
-      // You can add logic here to refresh the table or clear inputs
+      // Refresh the table data to show the saved values
+      try {
+        const existingData = await fetchExistingStateReleaseData(selectedState.value)
+        if (slsComponents.value.length > 0) {
+          populateTableData(existingData)
+        }
+      } catch (error) {
+        console.error('Error refreshing data after save:', error)
+      }
     } else {
       showErrorMessage(`Error: ${result.message}`)
       if (result.errors) {
@@ -637,11 +812,30 @@ const debugDataStructure = () => {
   
   // Show budget head mapping details
   console.log('=== BUDGET HEAD MAPPING ===')
-  console.log('Column 0 (Total Allocation): budget_head_id = 1 (state_release_generic)')
-  console.log('Column 1 (State Share): budget_head_id = 2 (state_release_generic)')
-  console.log('Column 2 (Center Share): budget_head_id = 3 (state_release_generic)')
-  console.log('Columns 3+ (Dynamic):', budgetHeadsArray.value.map((bh, index) => `Column ${3 + index}: budget_head_id = ${bh.id} (budget_heads)`))
+  console.log('Column 0 (Scheme Component): Fixed')
+  console.log('Column 1 (SLS Details): Fixed')
+  console.log('Columns 2+ (Dynamic):', stateReleaseGeneric.value.map((genericItem, index) => {
+    const header = getTableHeader(genericItem);
+    return `Column ${2 + index}: ${header} (budget_head_id = ${genericItem.id})`;
+  }))
   console.log('=================================')
+  
+  // Show table headers generation process
+  console.log('=== TABLE HEADERS GENERATION PROCESS ===')
+  stateReleaseGeneric.value.forEach((genericItem, index) => {
+    const originalName = genericItem.allocation_name;
+    const generatedHeader = getTableHeader(genericItem);
+    console.log(`Column ${2 + index}:`);
+    console.log(`  Original: ${originalName}`);
+    console.log(`  Generated: ${generatedHeader}`);
+    console.log(`  -BH replaced: ${originalName.includes('-BH') ? 'YES' : 'NO'}`);
+    if (originalName.includes('-BH')) {
+      const baseName = originalName.replace('-BH', '');
+      console.log(`  Base name: ${baseName}`);
+    }
+    console.log('---');
+  })
+  console.log('=========================================')
   
   // Show sample data structure
   if (tableData.value.length > 0) {
@@ -653,11 +847,9 @@ const debugDataStructure = () => {
     // Show budget head ID mapping for each column
     console.log('=== BUDGET HEAD ID MAPPING FOR SAMPLE ROW ===')
     sampleRow.amounts.forEach((amountData, index) => {
-      if (index < 3) {
-        console.log(`Column ${index}: budget_head_id = ${amountData.budget_head_id} (state_release_generic)`)
-      } else {
-        console.log(`Column ${index}: budget_head_id = ${amountData.budget_head_id} (budget_heads)`)
-      }
+      const genericItem = stateReleaseGeneric.value.find(item => item.id === amountData.budget_head_id);
+      const header = genericItem ? getTableHeader(genericItem) : 'Unknown';
+      console.log(`Column ${index + 2}: ${header} (budget_head_id = ${amountData.budget_head_id})`)
     })
     console.log('=============================================')
   }
@@ -757,6 +949,9 @@ const showErrorMessage = (message) => {
 }
 
 onMounted(async () => {
-    await fetchStates()
+    await Promise.all([
+        fetchStates(),
+        fetchStateReleaseGeneric()
+    ])
 });
 </script>

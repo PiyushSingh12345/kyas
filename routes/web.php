@@ -177,6 +177,8 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::get('/api/aap-sls-components', [AnnualActionPlanController::class, 'getSLSComponentsByState']);
     Route::post('/api/aap-state-release-data', [AnnualActionPlanController::class, 'storeStateReleaseData']);
     Route::get('/api/aap-budget-heads-by-state', [AnnualActionPlanController::class, 'getBudgetHeadsByState']);
+    Route::get('/api/aap-state-release-generic', [AnnualActionPlanController::class, 'getStateReleaseGeneric']);
+    Route::get('/api/aap-state-release-data', [AnnualActionPlanController::class, 'getStateReleaseData']);
     
     // Test route for debugging
     Route::get('/api/test-states', function() {

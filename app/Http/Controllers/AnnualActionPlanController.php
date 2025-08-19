@@ -215,7 +215,7 @@ class AnnualActionPlanController extends Controller
 
             // Get SLS components for the selected state
             $slsComponents = DB::table('pd_and_sls_comp')
-                ->select('id', 'name', 'component', 'slsPD')
+                ->select('id', 'name', 'full_sls_name', 'component', 'slsPD')
                 ->where('state_id', $stateId)
                 ->where('status', 1)
                 ->orderBy('name')
@@ -307,10 +307,9 @@ class AnnualActionPlanController extends Controller
             $validated = $request->validate([
                 'state_id' => 'required|integer|exists:states,id',
                 'fy' => 'required|string',
-                'data' => 'required|array',
-                'data.*.sls_id' => 'required|integer|exists:pd_and_sls_comp,id',
                 'amounts' => 'required|array',
-                'amounts.*.budget_head_id' => 'required',
+                'amounts.*.sls_id' => 'required|integer|exists:pd_and_sls_comp,id',
+                'amounts.*.budget_head_id' => 'required|integer',
                 'amounts.*.amount' => 'required|numeric|min:0'
             ]);
 
@@ -318,9 +317,7 @@ class AnnualActionPlanController extends Controller
             Log::info('State Release Data Submission', [
                 'state_id' => $validated['state_id'],
                 'fy' => $validated['fy'],
-                'data_count' => count($validated['data']),
                 'amounts_count' => count($validated['amounts']),
-                'sample_data' => $validated['data'][0] ?? null,
                 'sample_amounts' => array_slice($validated['amounts'], 0, 5)
             ]);
 
@@ -329,119 +326,62 @@ class AnnualActionPlanController extends Controller
             $savedCount = 0;
             $errors = [];
 
-            // Get all budget heads from state_release_generic for mapping (only as reference)
-            $genericBudgetHeads = DB::table('state_release_generic')
-                ->select('id', 'allocation_name')
-                ->where('status', 1)
-                ->get()
-                ->keyBy('allocation_name');
+            // Process each amount entry
+            foreach ($validated['amounts'] as $amountData) {
+                try {
+                    $slsId = $amountData['sls_id'];
+                    $budgetHeadId = $amountData['budget_head_id'];
+                    $amount = $amountData['amount'];
 
-            Log::info('Generic Budget Heads Loaded', [
-                'count' => $genericBudgetHeads->count(),
-                'sample' => $genericBudgetHeads->take(5)->toArray()
-            ]);
-
-            // Process each row (SLS component)
-            foreach ($validated['data'] as $rowIndex => $row) {
-                // Calculate how many amounts per row (total amounts / number of rows)
-                $amountsPerRow = count($validated['amounts']) / count($validated['data']);
-                $startIndex = $rowIndex * $amountsPerRow;
-                
-                Log::info("Processing Row {$rowIndex}", [
-                    'sls_id' => $row['sls_id'],
-                    'amounts_per_row' => $amountsPerRow,
-                    'start_index' => $startIndex
-                ]);
-                
-                // Get amounts for this specific row
-                for ($i = 0; $i < $amountsPerRow; $i++) {
-                    $amountIndex = $startIndex + $i;
-                    $amountData = $validated['amounts'][$amountIndex];
+                    // Check if this budget head ID exists in state_release_generic table
+                    $existingGenericBudgetHead = DB::table('state_release_generic')
+                        ->where('id', $budgetHeadId)
+                        ->where('status', 1)
+                        ->first();
                     
-                    try {
-                        // Determine budget head ID and flag based on the budget_head_id sent from frontend
-                        $budgetHeadId = null;
-                        $flag = 0;
-                        
-                        // Check if this budget head ID exists in state_release_generic table
-                        $existingGenericBudgetHead = DB::table('state_release_generic')
-                            ->where('id', $amountData['budget_head_id'])
-                            ->where('status', 1)
-                            ->first();
-                        
-                        if ($existingGenericBudgetHead) {
-                            // This is a generic budget head (Total Allocation, State Share, Center Share)
-                            $budgetHeadId = $amountData['budget_head_id'];
-                            $flag = 0; // From state_release_generic table
-                        } else {
-                            // Check if this budget head ID exists in budget_heads table
-                            $budgetHeadExists = DB::table('budget_heads')
-                                ->where('id', $amountData['budget_head_id'])
-                                ->where('status', 1)
-                                ->exists();
-                            
-                            if ($budgetHeadExists) {
-                                $budgetHeadId = $amountData['budget_head_id'];
-                                $flag = 1; // From budget_heads table
-                            } else {
-                                $errors[] = "Budget head ID {$amountData['budget_head_id']} not found in either state_release_generic or budget_heads table for column index {$i} in row {$rowIndex}";
-                                continue;
-                            }
-                        }
+                    if (!$existingGenericBudgetHead) {
+                        $errors[] = "Budget head ID {$budgetHeadId} not found in state_release_generic table";
+                        continue;
+                    }
 
-                        Log::info("Column {$i} Processing", [
-                            'column_index' => $i,
-                            'budget_head_id' => $budgetHeadId,
-                            'flag' => $flag,
-                            'amount' => $amountData['amount']
-                        ]);
+                    // Check if record already exists
+                    $existingRecord = DB::table('state_release_data')
+                        ->where('state_id', $validated['state_id'])
+                        ->where('fy', $validated['fy'])
+                        ->where('SLS_id', $slsId)
+                        ->where('budget_head_id', $budgetHeadId)
+                        ->first();
 
-                        if (!$budgetHeadId) {
-                            $errors[] = "Budget head not found for column index {$i} in row {$rowIndex}";
-                            continue;
-                        }
-
-                        // Check if record already exists
-                        $existingRecord = DB::table('state_release_data')
-                            ->where('state_id', $validated['state_id'])
-                            ->where('fy', $validated['fy'])
-                            ->where('SLS_id', $row['sls_id'])
-                            ->where('budget_head_id', $budgetHeadId)
-                            ->first();
-
-                        if ($existingRecord) {
-                            // Update existing record
-                            DB::table('state_release_data')
-                                ->where('id', $existingRecord->id)
-                                ->update([
-                                    'amount' => $amountData['amount'],
-                                    'flag' => $flag,
-                                    'updated_at' => now()
-                                ]);
-                        } else {
-                            // Create new record
-                            DB::table('state_release_data')->insert([
-                                'fy' => $validated['fy'],
-                                'state_id' => $validated['state_id'],
-                                'SLS_id' => $row['sls_id'],
-                                'budget_head_id' => $budgetHeadId,
-                                'amount' => $amountData['amount'],
-                                'flag' => $flag,
-                                'isactive' => 1,
-                                'created_at' => now(),
+                    if ($existingRecord) {
+                        // Update existing record
+                        DB::table('state_release_data')
+                            ->where('id', $existingRecord->id)
+                            ->update([
+                                'amount' => $amount,
                                 'updated_at' => now()
                             ]);
-                        }
-                        $savedCount++;
-                        
-                    } catch (\Exception $e) {
-                        $errors[] = "Error processing row {$rowIndex}, amount {$i}: " . $e->getMessage();
-                        Log::error("Error processing amount", [
-                            'row_index' => $rowIndex,
-                            'amount_index' => $i,
-                            'error' => $e->getMessage()
+                    } else {
+                        // Create new record
+                        DB::table('state_release_data')->insert([
+                            'fy' => $validated['fy'],
+                            'state_id' => $validated['state_id'],
+                            'SLS_id' => $slsId,
+                            'budget_head_id' => $budgetHeadId,
+                            'amount' => $amount,
+                            'flag' => 0,
+                            'isactive' => 1,
+                            'created_at' => now(),
+                            'updated_at' => now()
                         ]);
                     }
+                    $savedCount++;
+                    
+                } catch (\Exception $e) {
+                    $errors[] = "Error processing amount: " . $e->getMessage();
+                    Log::error("Error processing amount", [
+                        'amount_data' => $amountData,
+                        'error' => $e->getMessage()
+                    ]);
                 }
             }
 
@@ -628,6 +568,73 @@ class AnnualActionPlanController extends Controller
                 'message' => 'Failed to retrieve budget heads',
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get state release generic data
+     */
+    public function getStateReleaseGeneric(): JsonResponse
+    {
+        try {
+            $genericData = DB::table('state_release_generic')
+                ->select('id', 'allocation_name')
+                ->where('status', 1)
+                ->orderBy('id')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $genericData
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching state release generic data: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch state release generic data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get existing state release data for a specific state and financial year
+     */
+    public function getStateReleaseData(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'state_id' => 'required|integer|exists:states,id',
+                'fy' => 'required|string'
+            ]);
+
+            $releaseData = DB::table('state_release_data')
+                ->select('SLS_id', 'budget_head_id', 'amount')
+                ->where('state_id', $validated['state_id'])
+                ->where('fy', $validated['fy'])
+                ->where('isactive', 1)
+                ->get();
+
+            // Group data by SLS_id and budget_head_id for easy lookup
+            $groupedData = [];
+            foreach ($releaseData as $record) {
+                $groupedData[$record->SLS_id][$record->budget_head_id] = $record->amount;
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $groupedData,
+                'count' => $releaseData->count()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching state release data: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch state release data',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
