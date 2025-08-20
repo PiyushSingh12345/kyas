@@ -188,16 +188,16 @@
 										  {{ submitting ? 'Saving...' : 'Submit Allocation' }}
 									  </button>
 									  
-									  <button 
+									  <!-- <button 
 										  @click="testDifferentMajorHeads" 
 										  class="btn btn-info btn-lg me-3"
 										  :disabled="categorizedBudgetHeads.length === 0"
 									  >
 										  <i class="fas fa-calculator me-2"></i>
 										  Test Major Heads
-									  </button>
+									  </button> -->
 									  
-									  <button 
+									  <!-- <button 
 										  @click="validateAllMajorHeads" 
 										  class="btn btn-warning btn-lg me-3"
 										  :disabled="categorizedBudgetHeads.length === 0"
@@ -205,24 +205,24 @@
 										  <i class="fas fa-check-circle me-2"></i>
 										  Validate All Major Heads
 									  </button>
-									  
-									  <button 
+									   -->
+									  <!-- <button 
 										  @click="showMajorHeadSummary" 
 										  class="btn btn-secondary btn-lg me-3"
 										  :disabled="categorizedBudgetHeads.length === 0"
 									  >
 										  <i class="fas fa-list me-2"></i>
 										  Major Head Summary
-									  </button>
+									  </button> -->
 									  
-									  <button 
+									  <!-- <button 
 										  @click="showUniqueSubcategories" 
 										  class="btn btn-primary btn-lg me-3"
 										  :disabled="categorizedBudgetHeads.length === 0"
 									  >
 										  <i class="fas fa-layer-group me-2"></i>
 										  Unique Subcategories
-									  </button>
+									  </button> -->
 								  </div>
 							  </div>
 						  </div>

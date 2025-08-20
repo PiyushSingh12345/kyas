@@ -258,16 +258,16 @@
 									{{ isSubmitting ? 'Saving...' : 'Submit Data' }}
 								</button>
 								
-								<button type="button" @click="refreshData" :disabled="!selectedState || isLoading || stateReleaseGeneric.length === 0" class="btn btn-success btn-lg me-3">
+								<!-- <button type="button" @click="refreshData" :disabled="!selectedState || isLoading || stateReleaseGeneric.length === 0" class="btn btn-success btn-lg me-3">
 									<i class="fas fa-sync-alt me-2"></i>
 									Refresh Data
-								</button>
+								</button> -->
 								
 								<!-- Debug Button -->
-								<button type="button" @click="debugDataStructure" :disabled="!selectedState || tableData.length === 0" class="btn btn-info btn-lg me-3">
+								<!-- <button type="button" @click="debugDataStructure" :disabled="!selectedState || tableData.length === 0" class="btn btn-info btn-lg me-3">
 									<i class="fas fa-bug me-2"></i>
 									Debug Data
-								</button>
+								</button> -->
 
 								<!-- Test Cell Independence Button -->
 								<!-- <button type="button" @click="testCellIndependence" :disabled="!selectedState || tableData.length === 0" class="btn btn-warning btn-lg me-3">
