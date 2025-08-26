@@ -133,11 +133,32 @@
                 </div>
               </li>
               <!-- Daily Sanction Module -->
-              <li class="nav-item" :class="{ active: activeMenu === 'daily-sanction' }" v-if="hasRole([2])">
+              <!-- <li class="nav-item" :class="{ active: activeMenu === 'daily-sanction' }" v-if="hasRole([2])">
                     <Link :href="route('daily-sanction-list')" class="nav-link">
                       <i class="fas fa-pen-square"></i>
                       <p>Daily Sanction</p>
                     </Link>
+              </li> -->
+              <li class="nav-item" :class="{ active: activeMenu === 'moduledailysanction' }" v-if="hasRole([2])">
+                <a href="#" @click.prevent="toggleMenu('moduledailysanction')">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Daily Sanction Module</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 'moduledailysanction' }"></span>
+                </a>
+                <div v-show="activeMenu === 'moduledailysanction'">
+                  <ul class="nav nav-collapse">
+                    <li>
+                      <Link :href="route('daily-sanction')" class="nav-link">
+                        <span class="sub-item">Daily Sanction</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('daily-sanction-list')" class="nav-link">
+                        <span class="sub-item">Daily Sanction List</span>
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
               </li>
 
               <!-- Re-Appropriation Module -->

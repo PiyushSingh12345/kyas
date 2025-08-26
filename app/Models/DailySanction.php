@@ -22,6 +22,7 @@ class DailySanction extends Model
         'mother_sanction_amount',
         'available_amount',
         'center_share_amount',
+        'remark',
         'status'
     ];
 

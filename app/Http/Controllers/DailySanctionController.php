@@ -72,6 +72,7 @@ public function store(Request $request)
             'mother_sanction_amount' => $entry['mother_sanction_amount'],
             'available_amount' => $entry['available_amount'],
             'center_share_amount' => $entry['center_share_amount'],
+            'remark' => $request->remark,
             'status' => 1
         ]);
     }
