@@ -21,6 +21,7 @@
                         <label for="financialYear">F.Y</label>
                         <select class="form-select" v-model="financialYear">
                           <option disabled value="">Select Financial Year</option>
+                          <option value="2024-2025">2025–2026</option>
                           <option value="2024-2025">2024–2025</option>
                         </select>
                       </div>
