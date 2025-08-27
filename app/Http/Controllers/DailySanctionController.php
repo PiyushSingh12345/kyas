@@ -35,11 +35,23 @@ public function list()
             ->select(DB::raw('MAX(id) as id'))
             ->groupBy('mother_sanction');
 
+        // Get the sum of center_share_amount for each state_id
+        $stateAmounts = DB::table('daily_sanction')
+            ->select('state_id', DB::raw('SUM(center_share_amount) as total_amount'))
+            ->groupBy('state_id')
+            ->pluck('total_amount', 'state_id')
+            ->toArray();
         
-        $data = DailySanction::with('state')
+        $data = DailySanction::with(['state', 'slsComponent'])
             ->whereIn('id', $subQuery)
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($item) use ($stateAmounts) {
+                $item->full_sls_name = $item->slsComponent ? $item->slsComponent->full_sls_name : null;
+                $item->sls_pd = $item->slsComponent ? $item->slsComponent->slsPD : null;
+                $item->state_total_amount = $stateAmounts[$item->state_id] ?? 0;
+                return $item;
+            });
 
         return response()->json($data);
     }

@@ -40,10 +40,11 @@
                           <th>Financial year</th>
                           <th>State</th>
                           <th>SLS</th>
+                          <th>Full SLS Name</th>
                           <th>PD</th>
                           <th>Date</th>
                           <th>Daily Sanction No</th>
-                          <th>Daily Sanction BH wise amount <small class="text-capitalize">(₹ In Lakhs)</small></th>
+                          <th>Daily Sanction BH wise amount (₹ In Lakhs) - State Total</th>
                           <th>Remarks</th>
                         </tr>
                         </thead>
@@ -64,11 +65,12 @@
                             <td>{{ item.financial_year }}</td>
                             <td>{{ item.state.name }}</td>
                             <td>{{ item.sls_name }}</td>
-                            <td>pd</td>
+                            <td>{{ item.full_sls_name || '-' }}</td>
+                            <td>{{ item.sls_pd || '-' }}</td>
                             <!-- show date in dd-mm-yyyy format for example 01-04-2024 --> 
                             <td>{{ formatDate(item.ds_date) }} </td>
                             <td>{{ item.ifd_no }}</td>
-                            <td>{{ item.center_share_amount }}</td>
+                            <td>{{ item.state_total_amount || 0 }}</td>
                             <td>{{ item.remark }}</td>
 
                           </tr>

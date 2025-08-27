@@ -31,5 +31,10 @@ class DailySanction extends Model
         return $this->belongsTo(State::class, 'state_id');
     }
 
+    public function slsComponent()
+    {
+        return $this->belongsTo(SlsPDComponent::class, 'sls_name', 'sls_code');
+    }
+
    
 }
