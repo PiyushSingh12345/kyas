@@ -46,14 +46,16 @@ class MotherSanctionController extends Controller
 
     public function getFundAllocationData($slsId, $stateId)
     {
-       $data = DB::table('fund_allocation as fa')
-        ->join('pd_and_sls_comp as pd', function ($join) {
-            $join->on('fa.state_id', '=', 'pd.state_id')
-                 ->on('fa.sls_pd_name', '=', 'pd.name');
+        //get the data from pd_and_sls_comp table and joinded with md_program_divisions, budget_heads, pdwise_aap_allocation
+        $data = DB::table('pd_and_sls_comp as pd')
+        ->join('md_program_divisions as md', function($join) {
+            $join->on(DB::raw('pd.slsPD COLLATE utf8mb4_unicode_ci'), '=', DB::raw('md.division_name COLLATE utf8mb4_unicode_ci'));
         })
-        ->where('fa.state_id', $stateId)
-        ->where('fa.sls_pd_name', $slsId)
-        ->select('fa.budget', 'pd.slsPD')
+        ->join('pdwise_aap_allocation as pda', 'md.division_id', '=', 'pda.pd_id')
+        ->join('budget_heads as bh', 'pda.bh_id', '=', 'bh.id')
+        ->where('pd.state_id', $stateId)
+        ->where('pd.name', $slsId)
+        ->select('bh.budget as budget', 'pd.slsPD as slsPD', 'pda.amount', 'bh.category')
         ->get();
 
         return response()->json($data);
@@ -65,10 +67,18 @@ class MotherSanctionController extends Controller
         $slsId = $request->query('sls_id');
         $stateId = $request->query('state_id');
 
-        $data = FundAllocation::where('budget', $budget)
-                    ->when($slsId, fn($q) => $q->where('sls_pd_name', $slsId))
-                    ->when($stateId, fn($q) => $q->where('state_id', $stateId))
-                    ->first(['category', 'budget_amount','amount']);
+        //get the data from pdwise_aap_allocation table and join with budget_heads table, md_program_divisions table, and pd_and_sls_comp table
+        $data = DB::table('pdwise_aap_allocation as pda')
+        ->join('budget_heads as bh', 'pda.bh_id', '=', 'bh.id')
+        ->join('md_program_divisions as md', 'pda.pd_id', '=', 'md.division_id')
+        ->join('pd_and_sls_comp as psc', function($join) {
+            $join->on(DB::raw('md.division_name COLLATE utf8mb4_unicode_ci'), '=', DB::raw('psc.slsPD COLLATE utf8mb4_unicode_ci'));
+        })
+        ->where('bh.budget', $budget)
+        ->where('psc.name', $slsId)
+        ->where('psc.state_id', $stateId)
+        ->select('bh.budget as budget', 'pda.amount', 'bh.category')
+        ->get();
 
         if (!$data) {
             return response()->json(['message' => 'No matching record found.'], 404);

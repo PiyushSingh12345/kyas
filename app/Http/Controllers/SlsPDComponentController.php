@@ -602,9 +602,20 @@ class SlsPDComponentController extends Controller
         $fund = $request->get('fund');
         $stateId = $request->get('state_id'); // Get state_id if provided
 
+        // var_dump($fund);
+        // var_dump($stateId);die;
+
+
         if ($fund == '2435') {
+            // get program division by fund
+            $programDivision = ProgramDivision::where('fund', $fund)->first();
+            $programDivisionId = $programDivision->id;
+            // get pd by program division id
+            $pd = Pd::where('program_division_id', $programDivisionId)->get();
+            $pdId = $pd->id;
+
             $components = SlsPDComponent::with('state')
-                ->where('component', 'PD')
+                // ->where('component', 'PD')
                 ->get();
         } elseif (in_array($fund, ['3601', '3602', '2552'])) {
             if (!$stateId) {

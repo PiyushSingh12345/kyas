@@ -143,6 +143,9 @@
 
                         <!-- Example Rows -->
                         <tr v-for="(row, index) in reappropriations" :key="index">
+                          <!-- <td>
+                            {{ fundAllocations }}
+                          </td> -->
                           <td>
                             <select v-model="row.budget_head" class="form-select" @change="fetchBudgetDetails(row)">
                               <option value="">--- Budget Head ---</option>
@@ -311,6 +314,9 @@ const resetForm = () => {
   sanctionFilePreview.value = null;
 
   reappropriations.value = [{ budget_head: '', category: '', available_amount: '', sanction_amount: '' }];
+  
+  // Clear fund allocations when form is reset
+  fundAllocations.value = [];
 };
 
 
@@ -460,13 +466,14 @@ const totalSanctionAmount = computed(() => {
 
 const fetchFundAllocationData = async () => {
   if (!selectedSlsId.value || !selectedState.value) return;
-
+// console.log("selectedSlsId.value",selectedSlsId.value);
+// console.log("selectedState.value",selectedState.value);
   try {
     const response = await fetch(`/api/fund-allocation/${selectedSlsId.value}/${selectedState.value}`);
     if (response.ok) {
       const data = await response.json();
       fundAllocations.value = data;
-
+console.log("fundAllocations.value",fundAllocations.value);
       // ✅ Set PD/Component from the first item
       if (data.length > 0) {
         pdComponent.value = data[0].slsPD;
@@ -487,26 +494,64 @@ const fetchFundAllocationData = async () => {
 
 
 const fetchBudgetDetails = async (row) => {
-  if (!row.budget_head || !selectedSlsId.value || !selectedState.value) return;
+  // If budget head is cleared, clear the row data
+  if (!row.budget_head) {
+    clearRowData(row);
+    return;
+  }
+  
+  // If required fields are missing, clear the row data
+  if (!selectedSlsId.value || !selectedState.value) {
+    clearRowData(row);
+    return;
+  }
 
   try {
     const res = await fetch(`/api/fund-allocation/by-budget?budget=${encodeURIComponent(row.budget_head)}&sls_id=${encodeURIComponent(selectedSlsId.value)}&state_id=${selectedState.value}`);
     if (res.ok) {
       const data = await res.json();
-      row.category = data.category;
-      row.available_amount = data.amount;
+      
+      // Check if data is an array and has items
+      if (Array.isArray(data) && data.length > 0) {
+        // Use the first item from the array
+        const budgetData = data[0];
+        row.category = budgetData.category || '';
+        row.available_amount = budgetData.amount || '';
+      } else if (data && typeof data === 'object') {
+        // Handle single object response
+        row.category = data.category || '';
+        row.available_amount = data.amount || '';
+      } else {
+        // No data found
+        clearRowData(row);
+        console.log('No budget details found for the selected budget head');
+      }
     } else {
-      row.category = '';
-      row.available_amount = '';
+      clearRowData(row);
       console.error('Budget details not found');
     }
   } catch (error) {
     console.error('Error fetching budget details:', error);
+    clearRowData(row);
   }
 };
 
+const clearAllBudgetDetails = () => {
+  reappropriations.value.forEach(row => {
+    clearRowData(row);
+  });
+};
 
+// Watch for changes in SLS ID or state to clear budget details
+watch([selectedSlsId, selectedState], () => {
+  clearAllBudgetDetails();
+});
 
+const clearRowData = (row) => {
+  row.category = '';
+  row.available_amount = '';
+  row.sanction_amount = '';
+};
 
 
 </script>
