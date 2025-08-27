@@ -96,6 +96,11 @@
                       </Link>
                     </li> -->
                     <li>
+                      <Link :href="route('pd-wise-budget-allocation')" class="nav-link">
+                        <span class="sub-item">PD wise Budget Allocation</span>
+                      </Link>
+                    </li>
+                    <li>
                       <Link :href="route('fund-allocation')" class="nav-link">
                         <span class="sub-item">Fund Allocation</span>
                       </Link>
@@ -225,11 +230,11 @@
                         <span class="sub-item">State Release Data</span>
                       </Link>
                     </li>
-                    <li>
+                    <!-- <li>
                       <Link :href="route('pd-wise-budget-allocation')" class="nav-link">
                         <span class="sub-item">PD wise Budget Allocation</span>
                       </Link>
-                    </li>
+                    </li> -->
                   </ul>
                 </div>
               </li>
