@@ -14,7 +14,7 @@ class MotherSanction extends Model
     protected $fillable = [
         'financial_year',
         'state_id',
-        'ms_sequence_no.',
+        'ms_sequence_no',
         'file_no',
         'ifd_no', 
         'sanction_date',
@@ -26,7 +26,7 @@ class MotherSanction extends Model
         'category',
         'available_fund',
         'mother_sanction_amount',
-        'uc_received_from_state',
+        'uc_received_from_State',
         'signed_copy_of_mother_sanction',
         'last_id',
         'status'

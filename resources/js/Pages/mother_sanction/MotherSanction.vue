@@ -14,6 +14,13 @@
                 </div>
 
                 <div class="card-body">
+                  <!-- Flash Message -->
+                  <div v-if="flashMessage.show" :class="`alert alert-${flashMessage.type} alert-dismissible fade show`" role="alert">
+                    <i :class="flashMessage.icon"></i>
+                    {{ flashMessage.message }}
+                    <button type="button" class="btn-close" @click="hideFlashMessage" aria-label="Close"></button>
+                  </div>
+
                   <div class="row">
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-3">
@@ -250,8 +257,7 @@
 import { ref, onMounted, computed , watch} from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
-import Footer from '../Common/Footer.vue'
-import { router } from '@inertiajs/vue3' 
+import Footer from '../Common/Footer.vue' 
 
 
 const states = ref([])
@@ -271,6 +277,33 @@ const ucFile = ref(null);
 const sanctionFile = ref(null);
 const ucFilePreview = ref(null)
 const sanctionFilePreview = ref(null)
+
+// Flash message state
+const flashMessage = ref({
+  show: false,
+  type: 'success',
+  message: '',
+  icon: ''
+});
+
+const showFlashMessage = (type, message, icon) => {
+  flashMessage.value = {
+    show: true,
+    type,
+    message,
+    icon
+  };
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    hideFlashMessage();
+  }, 5000);
+};
+
+const hideFlashMessage = () => {
+  flashMessage.value.show = false;
+};
+
 const stateCodeMap = {
   1: 'UP',
   2: 'MH',
@@ -317,6 +350,9 @@ const resetForm = () => {
   
   // Clear fund allocations when form is reset
   fundAllocations.value = [];
+  
+  // Hide any existing flash messages
+  hideFlashMessage();
 };
 
 
@@ -371,8 +407,24 @@ function removeReappropriationRow(index) {
 
 
 const submitData = async (status) => {
+  // Client-side validation
+  if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !sanctionNo.value || 
+      !ifdNo.value || !sanctionDate.value || !selectedSlsId.value || !pdComponent.value) {
+    showFlashMessage('danger', 'Please fill in all required fields before submitting.', 'fas fa-exclamation-triangle');
+    return;
+  }
+
+  // Check if at least one budget row has data
+  const hasBudgetData = reappropriations.value.some(row => 
+    row.budget_head && row.sanction_amount && parseFloat(row.sanction_amount) > 0
+  );
+  
+  if (!hasBudgetData) {
+    showFlashMessage('danger', 'Please add at least one budget allocation with sanction amount.', 'fas fa-exclamation-triangle');
+    return;
+  }
+
   const formData = new FormData();
-  alert(kyMsNo.value);
   formData.append('financial_year', financialYear.value);
   formData.append('state_id', selectedState.value);
   formData.append('ms_sequence_no', msSequenceNo.value);
@@ -385,24 +437,73 @@ const submitData = async (status) => {
   formData.append('pd_component', pdComponent.value);
   formData.append('total_mother_sanction_amount', totalSanctionAmount.value);
   formData.append('status', status);
-  console.log("formDataformDataformData",formData);
-  // Files
-  if (ucFile.value) formData.append('uc_file_path', ucFile.value);
-  if (sanctionFile.value) formData.append('signed_copy_path', sanctionFile.value);
+  
+  // Handle file uploads - ensure files are properly appended
+  if (ucFile.value && ucFile.value instanceof File) {
+    formData.append('uc_file_path', ucFile.value);
+    console.log('UC File appended:', ucFile.value.name);
+  } else {
+    // If no file is uploaded, send an empty string to avoid null constraint violation
+    formData.append('uc_file_path', '');
+    console.log('UC File not selected, sending empty string');
+  }
+  
+  if (sanctionFile.value && sanctionFile.value instanceof File) {
+    formData.append('signed_copy_path', sanctionFile.value);
+    console.log('Sanction File appended:', sanctionFile.value.name);
+  } else {
+    // If no file is uploaded, send an empty string to avoid null constraint violation
+    formData.append('signed_copy_path', '');
+    console.log('Sanction File not selected, sending empty string');
+  }
 
   formData.append('reappropriations', JSON.stringify(reappropriations.value));
 
+  // Debug: Log all FormData entries
+  console.log('FormData contents:');
+  for (let [key, value] of formData.entries()) {
+    console.log(`${key}:`, value);
+  }
 
- router.post(route('addMotherSanction'), formData, {
-    onSuccess: () => {
-      alert(status === 1 ? 'Submitted successfully!' : 'Saved as draft!')
-      resetForm()
-    },
-    onError: (errors) => {
-      console.error('Validation failed:', errors)
-      alert('Validation failed. Check input and try again.')
+  try {
+    const response = await fetch(route('addMotherSanction'), {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+      }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      
+      if (status === 1) {
+        showFlashMessage('success', 'Data submitted successfully!', 'fas fa-check-circle');
+      } else {
+        showFlashMessage('info', 'Data saved as draft successfully!', 'fas fa-save');
+      }
+      
+      // Reset form after successful submission
+      resetForm();
+    } else {
+      // Handle HTTP error responses
+      const errorData = await response.json().catch(() => ({}));
+      
+      if (response.status === 422 && errorData.errors) {
+        // Validation errors
+        const errorMessages = Object.values(errorData.errors).flat();
+        const errorMessage = errorMessages.join(', ');
+        showFlashMessage('danger', `Validation failed: ${errorMessage}`, 'fas fa-exclamation-triangle');
+      } else {
+        // Other errors
+        const errorMessage = errorData.message || 'An error occurred while saving the data.';
+        showFlashMessage('danger', errorMessage, 'fas fa-exclamation-triangle');
+      }
     }
-  })
+  } catch (error) {
+    console.error('Network error:', error);
+    showFlashMessage('danger', 'Network error. Please check your connection and try again.', 'fas fa-exclamation-triangle');
+  }
 };
 
 
@@ -555,3 +656,78 @@ const clearRowData = (row) => {
 
 
 </script>
+
+<style scoped>
+/* Custom styling for flash messages */
+.alert {
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.alert-success {
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  color: #155724;
+  border-left: 4px solid #28a745;
+}
+
+.alert-info {
+  background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+  color: #0c5460;
+  border-left: 4px solid #17a2b8;
+}
+
+.alert-danger {
+  background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+  color: #721c24;
+  border-left: 4px solid #dc3545;
+}
+
+.alert-warning {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  color: #856404;
+  border-left: 4px solid #ffc107;
+}
+
+.alert i {
+  margin-right: 8px;
+  font-size: 1.1em;
+}
+
+.btn-close {
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.btn-close:hover {
+  opacity: 1;
+}
+
+/* Loading button styles */
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Form validation styles */
+.form-control.is-invalid,
+.form-select.is-invalid {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.invalid-feedback {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.875em;
+  color: #dc3545;
+}
+</style>
