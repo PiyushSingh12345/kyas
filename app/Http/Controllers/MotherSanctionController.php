@@ -91,18 +91,99 @@ class MotherSanctionController extends Controller
    
 public function list()
 {
-    // Get latest record per group of `last_id`
-    $subQuery = DB::table('mother_sanction')
-        ->select(DB::raw('MAX(id) as id'))
-        ->groupBy('last_id');
+    try {
+        // Get all records with relations and join with pd_and_sls_comp table
+        $data = DB::table('mother_sanction as ms')
+            ->select([
+                'ms.*',
+                's.name as state_name',
+                'pdc.sls_code'
+            ])
+            ->join('states as s', 'ms.state_id', '=', 's.id')
+            ->leftJoin('pd_and_sls_comp as pdc', function($join) {
+                $join->on('ms.sls_name', '=', 'pdc.name')
+                     ->on('ms.pd_component', '=', 'pdc.slsPD');
+            })
+            ->orderBy('ms.created_at', 'desc')
+            ->get();
 
-    // Then get those records with relations
-    $data = MotherSanction::with('state')
-        ->whereIn('id', $subQuery)
-        ->orderBy('created_at', 'desc')
-        ->get();
+        // Group data by sls_name and state_id to get all budget heads
+        $groupedData = $data->groupBy(function($item) {
+            return $item->sls_name . '|' . $item->state_id;
+        });
 
-    return response()->json($data);
+        // Transform the grouped data
+        $transformedData = $groupedData->map(function($group) {
+            $firstItem = $group->first();
+            
+            // Get all budget heads for this group
+            $budgetHeads = $group->map(function($item) {
+                return [
+                    'budget_head' => $item->budget_head,
+                    'category' => $item->category,
+                    'available_fund' => $item->available_fund,
+                    'mother_sanction_amount' => $item->mother_sanction_amount,
+                ];
+            })->filter(function($item) {
+                return !empty($item['budget_head']);
+            })->values();
+
+            // Calculate totals
+            $totalAmount = $group->sum('mother_sanction_amount');
+            $totalAvailableFund = $group->sum('available_fund');
+
+            return [
+                'id' => $firstItem->id,
+                'financial_year' => $firstItem->financial_year,
+                'state_id' => $firstItem->state_id,
+                'ms_sequence_no' => $firstItem->ms_sequence_no,
+                'file_no' => $firstItem->file_no,
+                'ifd_no' => $firstItem->ifd_no,
+                'sanction_date' => $firstItem->sanction_date,
+                'ky_ms_no' => $firstItem->ky_ms_no,
+                'sls_name' => $firstItem->sls_name,
+                'pd_component' => $firstItem->pd_component,
+                'total_mother_sanction_amount' => $totalAmount,
+                'total_available_fund' => $totalAvailableFund,
+                'budget_heads' => $budgetHeads,
+                'uc_received_from_State' => $firstItem->uc_received_from_State,
+                'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
+                'last_id' => $firstItem->last_id,
+                'status' => $firstItem->status,
+                'created_at' => $firstItem->created_at,
+                'updated_at' => $firstItem->updated_at,
+                'state' => [
+                    'id' => $firstItem->state_id,
+                    'name' => $firstItem->state_name
+                ],
+                'sls_code' => $firstItem->sls_code
+            ];
+        })->values();
+
+        // Log some debug information
+        Log::info('MotherSanction list query executed', [
+            'total_records' => $transformedData->count(),
+            'sample_record' => $transformedData->first() ? [
+                'ky_ms_no' => $transformedData->first()['ky_ms_no'],
+                'sls_name' => $transformedData->first()['sls_name'],
+                'pd_component' => $transformedData->first()['pd_component'],
+                'sls_code' => $transformedData->first()['sls_code'],
+                'budget_heads_count' => count($transformedData->first()['budget_heads'])
+            ] : null
+        ]);
+
+        return response()->json($transformedData);
+    } catch (\Exception $e) {
+        Log::error('Error in MotherSanction list method', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'error' => 'An error occurred while fetching data',
+            'message' => $e->getMessage()
+        ], 500);
+    }
 }
 
 public function listReport(Request $request)
