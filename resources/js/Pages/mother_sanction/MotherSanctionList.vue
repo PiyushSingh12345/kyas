@@ -83,7 +83,8 @@
 
                             <td>
                               <div class="budget-head-table">
-                                <table class="table table-sm table-bordered mb-0">
+                                <table class="table table-sm mb-0">
+                                  <!-- <table class="table table-sm table-bordered mb-0"> -->
                                   <thead>
                                     <tr class="table-light">
                                       <th class="text-center">Budget Head</th>

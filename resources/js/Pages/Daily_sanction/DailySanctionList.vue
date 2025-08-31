@@ -59,7 +59,7 @@
                             <td>₹50,000</td>
                             <td>Approved</td>
                           </tr> -->
-
+<!-- <tr><td>{{motherSanctions}}</td></tr> -->
                           <tr v-for="(item, index) in motherSanctions" :key="item.id">
                             <!-- <td>{{ index + 1 }}</td> -->
                             <td>{{ item.financial_year }}</td>

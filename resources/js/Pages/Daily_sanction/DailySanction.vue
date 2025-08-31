@@ -171,6 +171,7 @@ const selectedMotherSanction = ref('')
 // Fetched details
 const ifdNo = ref('')
 const slsName = ref('')
+const slsID = ref('')
 const remark = ref('')
 const sanctionDetails = ref([])
 
@@ -203,6 +204,7 @@ const hideFlashMessage = () => {
 const clearDetails = () => {
   ifdNo.value = ''
   slsName.value = ''
+  slsID.value = ''
   remark.value = ''
   sanctionDetails.value = []
 }
@@ -243,8 +245,10 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
     const res = await fetch(`/api/mother-sanction-details/${kyMsNo}`)
     if (res.ok) {
       const data = await res.json()
+      console.log(data)
       ifdNo.value = data.meta.ifd_no
       slsName.value = data.meta.sls_name
+      slsID.value = data.meta.sls_name
       sanctionDetails.value = data.entries
     } else {
       ifdNo.value = ''
