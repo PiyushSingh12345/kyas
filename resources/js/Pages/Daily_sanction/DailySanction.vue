@@ -245,14 +245,15 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
     const res = await fetch(`/api/mother-sanction-details/${kyMsNo}`)
     if (res.ok) {
       const data = await res.json()
-      console.log(data)
+      // console.log(data)
       ifdNo.value = data.meta.ifd_no
       slsName.value = data.meta.sls_name
-      slsID.value = data.meta.sls_name
+      slsID.value = data.meta.sls_code
       sanctionDetails.value = data.entries
     } else {
       ifdNo.value = ''
       slsName.value = ''
+      slsID.value = ''
       sanctionDetails.value = []
     }
   } catch (error) {
@@ -266,6 +267,7 @@ watch(selectedState, (newState) => {
   sanctionDetails.value = []
   ifdNo.value = ''
   slsName.value = ''
+  slsID.value = ''
 })
 
 watch(selectedMotherSanction, (newKyMsNo) => {
@@ -281,7 +283,8 @@ const submitForm = async () => {
     ds_date: dsDate.value,
     mother_sanction: selectedMotherSanction.value,
     ifd_no: ifdNo.value,
-    sls_name: slsName.value,
+    sls_name: slsID.value,
+    // sls_code: slsID.value, 
     remark: remark.value,
     entries: sanctionDetails.value.map(entry => ({
       budget_head: entry.budget_head,

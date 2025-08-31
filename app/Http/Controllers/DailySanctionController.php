@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\MotherSanction;
 use App\Models\DailySanction;
+use App\Models\SlsPDComponent;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -95,9 +96,18 @@ public function store(Request $request)
 
     public function getMotherSanctionDetails($ky_ms_no)
     {
-        $records = MotherSanction::where('ky_ms_no', $ky_ms_no)
-            ->where('status', 1)
-            ->get(['ifd_no', 'sls_name', 'budget_head', 'available_fund', 'mother_sanction_amount']);
+        $records = MotherSanction::join('pd_and_sls_comp', 'mother_sanction.sls_name', '=', 'pd_and_sls_comp.name')
+            ->where('mother_sanction.ky_ms_no', $ky_ms_no)
+            ->where('mother_sanction.status', 1)
+            ->select(
+                'mother_sanction.ifd_no',
+                'mother_sanction.sls_name',
+                'mother_sanction.budget_head',
+                'mother_sanction.available_fund',
+                'mother_sanction.mother_sanction_amount',
+                'pd_and_sls_comp.sls_code'
+            )
+            ->get();
 
         if ($records->isEmpty()) {
             return response()->json([], 404);
@@ -106,6 +116,7 @@ public function store(Request $request)
         $meta = [
             'ifd_no' => $records[0]->ifd_no,
             'sls_name' => $records[0]->sls_name,
+            'sls_code' => $records[0]->sls_code,
         ];
 
         $entries = $records->map(fn ($item) => [
