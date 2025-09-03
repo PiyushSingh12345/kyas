@@ -55,17 +55,18 @@
                           <option value="">Select</option>
                           <option value="1">1</option>
                           <option value="2">2</option>
+                          <option value="3">3</option>
                         </select>
                       </div>
                     </div>
 
                     <!-- Sanction/File No -->
-                    <div class="col-md-6 col-lg-3">
+                    <!-- <div class="col-md-6 col-lg-3">
                       <div class="form-group">
                         <label for="sanctionNo">Sanction No./File No.</label>
                         <input type="text" class="form-control" id="sanctionNo" v-model="sanctionNo" placeholder="67890">
                       </div>
-                    </div>
+                    </div> -->
 
                      <div class="col-md-6 col-lg-3">
                         <div class="form-group">
@@ -83,14 +84,14 @@
                     </div>
 
                     <!-- KY MS No -->
-                    <div class="col-md-6 col-lg-3">
+                    <!-- <div class="col-md-6 col-lg-3">
                       <div class="form-group">
                         <label for="kyMsNo">KY MS No.</label>
                         <input type="text" class="form-control" id="kyMsNo" :value="kyMsNo" disabled>
 
 
                       </div>
-                    </div>
+                    </div> -->
 
                     <!-- SLS ID -->
                     <div class="col-md-6 col-lg-3">
@@ -126,6 +127,14 @@
                         <input type="text" class="form-control" id="totalSanction" :value="totalSanctionAmount.toLocaleString()" disabled>
 
                       </div>
+                    </div>
+                  </div>
+
+                  <!-- Remark  -->
+                  <div class="col-md-6 col-lg-3">
+                    <div class="form-group">
+                      <label for="remarks">Remarks</label>
+                      <input type="text" class="form-control" id="remarks" v-model="remarks" placeholder="Enter Remarks">
                     </div>
                   </div>
 
@@ -268,7 +277,8 @@ const slsData = ref([]);
 const fundAllocations = ref([]);
 const financialYear = ref('');
 const msSequenceNo = ref('');
-const sanctionNo = ref('');
+// const sanctionNo = ref('');
+const remarks = ref('');
 const ifdNo = ref('');
 const sanctionDate = ref('');
 //const kyMsNo = ref('');
@@ -331,7 +341,8 @@ const resetForm = () => {
   financialYear.value = '';
   selectedState.value = '';
   msSequenceNo.value = '';
-  sanctionNo.value = '';
+  // sanctionNo.value = '';
+  remarks.value = '';
   ifdNo.value = '';
   sanctionDate.value = '';
   //kyMsNo.value = '';
@@ -408,7 +419,8 @@ function removeReappropriationRow(index) {
 
 const submitData = async (status) => {
   // Client-side validation
-  if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !sanctionNo.value || 
+  // if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !sanctionNo.value || 
+  if (!financialYear.value || !selectedState.value || !msSequenceNo.value  || 
       !ifdNo.value || !sanctionDate.value || !selectedSlsId.value || !pdComponent.value) {
     showFlashMessage('danger', 'Please fill in all required fields before submitting.', 'fas fa-exclamation-triangle');
     return;
@@ -428,10 +440,11 @@ const submitData = async (status) => {
   formData.append('financial_year', financialYear.value);
   formData.append('state_id', selectedState.value);
   formData.append('ms_sequence_no', msSequenceNo.value);
-  formData.append('file_no', sanctionNo.value);
+  // formData.append('file_no', sanctionNo.value);
+  formData.append('remarks', remarks.value);
   formData.append('ifd_no', ifdNo.value);
   formData.append('sanction_date', sanctionDate.value);
-  formData.append('ky_ms_no', kyMsNo.value);
+  // formData.append('ky_ms_no', kyMsNo.value);
 
   formData.append('sls_name', selectedSlsId.value);
   formData.append('pd_component', pdComponent.value);
