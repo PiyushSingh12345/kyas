@@ -133,8 +133,8 @@
                   <!-- Remark  -->
                   <div class="col-md-6 col-lg-3">
                     <div class="form-group">
-                      <label for="remarks">Remarks</label>
-                      <input type="text" class="form-control" id="remarks" v-model="remarks" placeholder="Enter Remarks">
+                      <label for="remark">Remark</label>
+                      <input type="text" class="form-control" id="remark" v-model="remark" placeholder="Enter Remark">
                     </div>
                   </div>
 
@@ -278,7 +278,7 @@ const fundAllocations = ref([]);
 const financialYear = ref('');
 const msSequenceNo = ref('');
 // const sanctionNo = ref('');
-const remarks = ref('');
+const remark = ref('');
 const ifdNo = ref('');
 const sanctionDate = ref('');
 //const kyMsNo = ref('');
@@ -342,7 +342,7 @@ const resetForm = () => {
   selectedState.value = '';
   msSequenceNo.value = '';
   // sanctionNo.value = '';
-  remarks.value = '';
+  remark.value = '';
   ifdNo.value = '';
   sanctionDate.value = '';
   //kyMsNo.value = '';
@@ -441,7 +441,7 @@ const submitData = async (status) => {
   formData.append('state_id', selectedState.value);
   formData.append('ms_sequence_no', msSequenceNo.value);
   // formData.append('file_no', sanctionNo.value);
-  formData.append('remarks', remarks.value);
+  formData.append('remark', remark.value);
   formData.append('ifd_no', ifdNo.value);
   formData.append('sanction_date', sanctionDate.value);
   // formData.append('ky_ms_no', kyMsNo.value);

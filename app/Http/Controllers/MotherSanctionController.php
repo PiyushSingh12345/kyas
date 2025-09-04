@@ -295,7 +295,7 @@ public function listReport(Request $request)
             'state_id' => $request->state_id,
             'ms_sequence_no' => $request->ms_sequence_no,
             // 'file_no' => $request->file_no,
-            'remarks' => $request->remarks,
+            'remark' => $request->remark,
             'ifd_no' => $request->ifd_no,
             'sanction_date' => $request->sanction_date,
             'ky_ms_no' => $request->ky_ms_no,

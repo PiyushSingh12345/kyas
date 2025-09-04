@@ -29,7 +29,8 @@ class MotherSanction extends Model
         'uc_received_from_State',
         'signed_copy_of_mother_sanction',
         'last_id',
-        'status'
+        'status',
+        'remark'
     ];
 
    public function state()
