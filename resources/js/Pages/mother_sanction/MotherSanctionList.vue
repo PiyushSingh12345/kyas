@@ -65,8 +65,7 @@
                               <th>Annual Allocation</th>
                               <th>MS Total Amount</th>
                               <th>Budget Head</th>
-                              <th>Expenditures made against MS</th>
-                              <th>Available Balance for Exp</th>
+                              <th>Status</th>
                             </tr>
                           </thead>
                           
@@ -108,12 +107,25 @@
                               </div>
                             </td>
 
-                            <td class="currency-cell">{{ formatCurrency(item.total_expenditure) }}</td>
-                            <td class="currency-cell">{{ formatCurrency(calculateAvailableBalance(item)) }}</td>
+                            <td class="text-center status-column">
+                              <div class="form-check form-switch d-flex justify-content-center">
+                                <input 
+                                  class="form-check-input" 
+                                  type="checkbox" 
+                                  :id="`status-${index}`"
+                                  :checked="item.status === 'active'"
+                                  @change="handleStatusToggle(item, index)"
+                                  :disabled="item.status === 'inactive'"
+                                >
+                                <label class="form-check-label ms-2" :for="`status-${index}`">
+                                  {{ item.status === 'active' ? 'Active' : 'Inactive' }}
+                                </label>
+                              </div>
+                            </td>
                           </tr>
                           
                           <tr v-if="secondTableData.length === 0">
-                            <td colspan="11" class="text-center text-muted py-4">
+                            <td colspan="9" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No mother sanction data available
                             </td>
@@ -134,6 +146,25 @@
         </div>
         <Footer />
     </div>
+    
+    <!-- Confirmation Dialog -->
+    <div v-if="showConfirmDialog" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Status Change</h5>
+            <button type="button" class="btn-close" @click="closeConfirmDialog"></button>
+          </div>
+          <div class="modal-body">
+            <p>Do you want to proceed with updating this mother sanction? This will create a new instance and deactivate the current one.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeConfirmDialog">Cancel</button>
+            <button type="button" class="btn btn-primary" @click="confirmStatusChange">Yes, Proceed</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -148,6 +179,9 @@ import Footer from '../Common/Footer.vue'
 const motherSanctions = ref([])
 const isLoading = ref(false)
 const error = ref(null)
+const showConfirmDialog = ref(false)
+const selectedItem = ref(null)
+const selectedIndex = ref(null)
 
 onMounted(async () => {
   await fetchMotherSanctions()
@@ -193,13 +227,16 @@ const secondTableData = computed(() => {
     financial_year: item.financial_year,
     sanction_date: item.sanction_date,
     state: item.state?.name || '',
+    state_id: item.state?.id || '',
     sls_name: item.sls_name,
+    sls_id: item.sls_id || '',
     total_mother_sanction_amount: item.total_mother_sanction_amount,
     budget_heads: item.budget_heads || [],
     total_expenditure: 0, // This would come from daily sanctions if available
     annual_allocation: item.total_available_fund || 0, // Use total available fund from backend
     sl_scode: item.sls_code || item.sls_name?.substring(0, 2) || '', // Use sls_code from DB, fallback to substring
-    status: item.status,
+    status: item.status || 'active', // Default to active if not specified
+    ifd_no: item.ifd_no || '',
   }));
 });
 
@@ -224,6 +261,69 @@ const formatCurrency = (amount) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+};
+
+// Method to handle status toggle
+const handleStatusToggle = (item, index) => {
+  if (item.status === 'active') {
+    selectedItem.value = item;
+    selectedIndex.value = index;
+    showConfirmDialog.value = true;
+  }
+};
+
+// Method to close confirmation dialog
+const closeConfirmDialog = () => {
+  showConfirmDialog.value = false;
+  selectedItem.value = null;
+  selectedIndex.value = null;
+};
+
+// Method to confirm status change and redirect
+const confirmStatusChange = async () => {
+  if (selectedItem.value) {
+    try {
+      // First deactivate the current record
+      const response = await fetch('/api/mother-sanction/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({
+          ky_ms_no: selectedItem.value.ky_ms_no,
+          action: 'deactivate'
+        })
+      });
+
+      if (response.ok) {
+        // Refresh the data to reflect the status change
+        await fetchMotherSanctions();
+        
+        // Create query parameters for prefilling the form
+        const queryParams = new URLSearchParams({
+          edit: 'true',
+          ky_ms_no: selectedItem.value.ky_ms_no,
+          financial_year: selectedItem.value.financial_year,
+          state_id: selectedItem.value.state_id || '',
+          sls_id: selectedItem.value.sls_id || '',
+          sanction_date: selectedItem.value.sanction_date,
+          ifd_no: selectedItem.value.ifd_no || '',
+          // Add other necessary parameters based on the form structure
+        });
+        
+        // Redirect to the add page with prefilled data
+        window.location.href = `/mother-sanction?${queryParams.toString()}`;
+      } else {
+        console.error('Failed to deactivate record');
+        alert('Failed to update status. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('An error occurred while updating status. Please try again.');
+    }
+  }
+  closeConfirmDialog();
 };
 </script>
 
@@ -341,6 +441,32 @@ const formatCurrency = (amount) => {
 
 .budget-head-table .table tbody tr:nth-child(even) {
   background-color: #f8f9fa;
+}
+
+/* Toggle switch styling */
+.form-check-input:checked {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+.form-check-input:disabled {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  opacity: 0.5;
+}
+
+/* Dialog styling */
+.modal.show {
+  display: block !important;
+}
+
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Status column styling */
+.status-column {
+  min-width: 120px;
 }
 </style>
 

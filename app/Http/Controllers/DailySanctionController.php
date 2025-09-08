@@ -34,7 +34,7 @@ public function list()
         
         $subQuery = DB::table('daily_sanction')
             ->select(DB::raw('MAX(id) as id'))
-            ->groupBy('mother_sanction');
+            ->groupBy('daily_sanction_no');
 
         // Get the sum of center_share_amount for each state_id
         $stateAmounts = DB::table('daily_sanction')
@@ -42,15 +42,36 @@ public function list()
             ->groupBy('state_id')
             ->pluck('total_amount', 'state_id')
             ->toArray();
+
+        // Get the sum of center_share_amount for each daily_sanction_no
+        $dailySanctionAmounts = DB::table('daily_sanction')
+            ->select('daily_sanction_no', DB::raw('SUM(center_share_amount) as total_amount'))
+            ->groupBy('daily_sanction_no')
+            ->pluck('total_amount', 'daily_sanction_no')
+            ->toArray();
         
         $data = DailySanction::with(['state', 'slsComponent'])
             ->whereIn('id', $subQuery)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function ($item) use ($stateAmounts) {
+            ->map(function ($item) use ($stateAmounts, $dailySanctionAmounts) {
                 $item->full_sls_name = $item->slsComponent ? $item->slsComponent->full_sls_name : null;
                 $item->sls_pd = $item->slsComponent ? $item->slsComponent->slsPD : null;
                 $item->state_total_amount = $stateAmounts[$item->state_id] ?? 0;
+                $item->daily_sanction_total_amount = $dailySanctionAmounts[$item->daily_sanction_no] ?? 0;
+                
+                // Get budget head details for this daily sanction
+                $budgetHeads = DailySanction::where('daily_sanction_no', $item->daily_sanction_no)
+                    ->select('budget_head', 'center_share_amount')
+                    ->get()
+                    ->map(function ($budget) {
+                        return [
+                            'budget_head' => $budget->budget_head,
+                            'daily_sanction_amount' => $budget->center_share_amount
+                        ];
+                    });
+                
+                $item->budget_heads = $budgetHeads;
                 return $item;
             });
 
@@ -63,6 +84,7 @@ public function store(Request $request)
         'financial_year' => 'required|string',
         'state_id' => 'required|integer',
         'ds_date' => 'required|date',
+        'daily_sanction_no' => 'required|string|unique:daily_sanction,daily_sanction_no',
         'mother_sanction' => 'required|string',
         'ifd_no' => 'required|string',
         'sls_name' => 'required|string',
@@ -78,6 +100,7 @@ public function store(Request $request)
             'financial_year' => $validated['financial_year'],
             'state_id' => $validated['state_id'],
             'ds_date' => $validated['ds_date'],
+            'daily_sanction_no' => $validated['daily_sanction_no'],
             'mother_sanction' => $validated['mother_sanction'],
             'ifd_no' => $validated['ifd_no'],
             'sls_name' => $validated['sls_name'],

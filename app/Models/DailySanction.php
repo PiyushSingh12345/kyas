@@ -15,6 +15,7 @@ class DailySanction extends Model
         'financial_year',
         'state_id',
         'ds_date',
+        'daily_sanction_no',
         'mother_sanction',
         'ifd_no', 
         'sls_name',

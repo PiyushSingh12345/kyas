@@ -104,6 +104,7 @@ public function list()
                 $join->on('ms.sls_name', '=', 'pdc.name')
                      ->on('ms.pd_component', '=', 'pdc.slsPD');
             })
+            ->where('ms.status', 1) // Only show active records
             ->orderBy('ms.created_at', 'desc')
             ->get();
 
@@ -266,6 +267,7 @@ public function listReport(Request $request)
         'total_mother_sanction_amount' => 'required|numeric|min:0',
         'reappropriations' => 'required|json',
         'status' => 'required|in:0,1',
+        'remark' => 'nullable|string',
     ]);
 
     try {
@@ -374,6 +376,63 @@ public function motherSanctionData(Request $req){
 
     return response()->json($data);
 
+}
+
+public function updateStatus(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'ky_ms_no' => 'required|string',
+            'action' => 'required|in:deactivate,activate'
+        ]);
+
+        $kyMsNo = $validated['ky_ms_no'];
+        $action = $validated['action'];
+
+        // Find all records with the same ky_ms_no
+        $records = MotherSanction::where('ky_ms_no', $kyMsNo)->get();
+
+        if ($records->isEmpty()) {
+            return response()->json([
+                'message' => 'No records found with the given KY MS No.',
+                'success' => false
+            ], 404);
+        }
+
+        if ($action === 'deactivate') {
+            // Deactivate all records with the same ky_ms_no
+            $updated = MotherSanction::where('ky_ms_no', $kyMsNo)
+                ->update(['status' => 0]);
+            
+            return response()->json([
+                'message' => 'Records deactivated successfully',
+                'success' => true,
+                'updated_count' => $updated
+            ]);
+        } else {
+            // Activate all records with the same ky_ms_no
+            $updated = MotherSanction::where('ky_ms_no', $kyMsNo)
+                ->update(['status' => 1]);
+            
+            return response()->json([
+                'message' => 'Records activated successfully',
+                'success' => true,
+                'updated_count' => $updated
+            ]);
+        }
+
+    } catch (\Exception $e) {
+        Log::error('Error updating mother sanction status:', [
+            'error' => $e->getMessage(),
+            'request' => $request->all()
+        ]);
+        
+        return response()->json([
+            'message' => 'An error occurred while updating status',
+            'error' => $e->getMessage(),
+            'success' => false
+        ], 500);
+    }
 }
 
 

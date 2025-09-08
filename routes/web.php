@@ -276,6 +276,8 @@ Route::post('/debug-excel', function(Request $request) {
 
     Route::get('/api/mother-sanctions-list-report', [MotherSanctionController::class, 'listReport'])->name('motherSanctions.listReport');
 
+    Route::post('/api/mother-sanction/update-status', [MotherSanctionController::class, 'updateStatus'])->name('motherSanction.updateStatus');
+
     Route::get('/api/mother-sanctions', [DailySanctionController::class, 'getMotherSanctions']);
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
     Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');

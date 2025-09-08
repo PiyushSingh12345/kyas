@@ -43,8 +43,10 @@
                           <th>Full SLS Name</th>
                           <th>PD</th>
                           <th>Date</th>
+                          <th>IFD No</th>
                           <th>Daily Sanction No</th>
-                          <th>Daily Sanction BH wise amount (₹ In Lakhs) - State Total</th>
+                          <th>Daily Sanction Total Amount</th>
+                          <th>Daily Sanction BH wise amount (₹ In Lakhs)</th>
                           <th>Remarks</th>
                         </tr>
                         </thead>
@@ -70,7 +72,29 @@
                             <!-- show date in dd-mm-yyyy format for example 01-04-2024 --> 
                             <td>{{ formatDate(item.ds_date) }} </td>
                             <td>{{ item.ifd_no }}</td>
-                            <td>{{ item.state_total_amount || 0 }}</td>
+                            <td>{{ item.daily_sanction_no }}</td>
+                            <td class="currency-cell">{{ formatCurrency(item.daily_sanction_total_amount || 0) }}</td>
+                            <td>
+                              <div class="budget-head-table">
+                                <table class="table table-sm mb-0">
+                                  <thead>
+                                    <tr class="table-light">
+                                      <th class="text-center">Budget Head</th>
+                                      <th class="text-center">Daily Sanction Amount</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr v-for="(budget, budgetIndex) in item.budget_heads" :key="budgetIndex">
+                                      <td class="text-center">{{ budget.budget_head }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.daily_sanction_amount) }}</td>
+                                    </tr>
+                                    <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
+                                      <td colspan="2" class="text-center text-muted">No budget heads available</td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
                             <td>{{ item.remark }}</td>
 
                           </tr>
@@ -150,6 +174,15 @@ const formatDate = (dateString) => {
   }
 }
 
+// Function to format currency
+const formatCurrency = (amount) => {
+  if (!amount) return '0.00';
+  return parseFloat(amount).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
 onMounted(async () => {
   try {
     const res = await fetch('/api/daily-sanctions-list');
@@ -164,4 +197,72 @@ onMounted(async () => {
 });
 </script>
 
+<style scoped>
+/* Currency formatting */
+.currency-cell {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+/* Table styling */
+.table-head-bg-primary th {
+  background-color: #007bff !important;
+  color: white !important;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.table-bordered {
+  border: 1px solid #dee2e6;
+}
+
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid #dee2e6;
+}
+
+/* Row hover effects */
+.table tbody tr:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* Nested budget head table styling */
+.table-sm {
+  font-size: 0.875rem;
+}
+
+.table-sm th {
+  background-color: #f8f9fa !important;
+  color: #495057 !important;
+  font-weight: 600;
+  padding: 6px 8px;
+}
+
+.table-sm td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+/* Budget head table container */
+.budget-head-table {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.budget-head-table .table {
+  margin-bottom: 0;
+  background-color: white;
+}
+
+.budget-head-table .table-light th {
+  background-color: #e9ecef !important;
+  border-color: #dee2e6;
+}
+
+.budget-head-table .table tbody tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+</style>
 

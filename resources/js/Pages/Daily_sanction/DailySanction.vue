@@ -56,6 +56,14 @@
                       </div>
                     </div>
 
+                    <!-- Daily Sanction No -->
+                    <div class="col-md-6 col-lg-3">
+                      <div class="form-group">
+                        <label for="dailySanctionNo">Daily Sanction No</label>
+                        <input type="text" class="form-control" id="dailySanctionNo" v-model="dailySanctionNo" placeholder="Enter Daily Sanction No">
+                      </div>
+                    </div>
+
                     <!-- Mother Sanction -->
                     <div class="col-md-6 col-lg-3">
 					  <div class="form-group">
@@ -81,7 +89,7 @@
                     <!-- SLS ID -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="slsId">SLS ID</label>
+                        <label for="slsId">SLS Name</label>
                         <input type="text" class="form-control" id="slsId" :value="slsName" disabled>
                       </div>
                     </div>
@@ -165,6 +173,7 @@ const states = ref([])
 const selectedState = ref('')
 const financialYear = ref('')
 const dsDate = ref('')
+const dailySanctionNo = ref('')
 const motherSanctions = ref([])
 const selectedMotherSanction = ref('')
 
@@ -213,6 +222,7 @@ const resetForm = () => {
   financialYear.value = ''
   selectedState.value = ''
   dsDate.value = ''
+  dailySanctionNo.value = ''
   selectedMotherSanction.value = ''
   remark.value = ''
   clearDetails()
@@ -281,6 +291,7 @@ const submitForm = async () => {
     financial_year: financialYear.value,
     state_id: selectedState.value,
     ds_date: dsDate.value,
+    daily_sanction_no: dailySanctionNo.value,
     mother_sanction: selectedMotherSanction.value,
     ifd_no: ifdNo.value,
     sls_name: slsID.value,
