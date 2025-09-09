@@ -70,7 +70,7 @@
                           </thead>
                           
                           <tbody>
-                          <tr v-for="(item, index) in secondTableData" :key="item.ky_ms_no">
+                          <tr v-for="(item, index) in secondTableData" :key="item.ky_ms_no" :class="{ 'table-secondary': item.status === 'inactive' }">
                             <td>{{ item.financial_year }}</td>
                             <td>{{ item.state }}</td>
                             <td>{{ item.ky_ms_no }}</td>
@@ -114,8 +114,7 @@
                                   type="checkbox" 
                                   :id="`status-${index}`"
                                   :checked="item.status === 'active'"
-                                  @change="handleStatusToggle(item, index)"
-                                  :disabled="item.status === 'inactive'"
+                                  @click="handleStatusToggle($event, item, index)"
                                 >
                                 <label class="form-check-label ms-2" :for="`status-${index}`">
                                   {{ item.status === 'active' ? 'Active' : 'Inactive' }}
@@ -148,15 +147,21 @@
     </div>
     
     <!-- Confirmation Dialog -->
-    <div v-if="showConfirmDialog" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-      <div class="modal-dialog modal-dialog-centered">
+    <div v-if="showConfirmDialog" class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1055;" @click="closeConfirmDialog">
+      <div class="modal-backdrop fade show" style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"></div>
+      <div class="modal-dialog modal-dialog-centered" role="document" style="z-index: 1055; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0;" @click.stop>
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Confirm Status Change</h5>
             <button type="button" class="btn-close" @click="closeConfirmDialog"></button>
           </div>
           <div class="modal-body">
-            <p>Do you want to proceed with updating this mother sanction? This will create a new instance and deactivate the current one.</p>
+            <p v-if="selectedItem && selectedItem.status === 'active'">
+              Do you want to proceed? This will deactivate the current record and redirect to create a new instance.
+            </p>
+            <p v-else>
+              Do you want to proceed? This will activate the record.
+            </p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" @click="closeConfirmDialog">Cancel</button>
@@ -182,6 +187,7 @@ const error = ref(null)
 const showConfirmDialog = ref(false)
 const selectedItem = ref(null)
 const selectedIndex = ref(null)
+const originalStatus = ref(null)
 
 onMounted(async () => {
   await fetchMotherSanctions()
@@ -230,6 +236,7 @@ const secondTableData = computed(() => {
     state_id: item.state?.id || '',
     sls_name: item.sls_name,
     sls_id: item.sls_id || '',
+    ms_sequence_no: item.ms_sequence_no || '',
     total_mother_sanction_amount: item.total_mother_sanction_amount,
     budget_heads: item.budget_heads || [],
     total_expenditure: 0, // This would come from daily sanctions if available
@@ -264,12 +271,18 @@ const formatCurrency = (amount) => {
 };
 
 // Method to handle status toggle
-const handleStatusToggle = (item, index) => {
-  if (item.status === 'active') {
-    selectedItem.value = item;
-    selectedIndex.value = index;
-    showConfirmDialog.value = true;
-  }
+const handleStatusToggle = (event, item, index) => {
+  event.preventDefault(); // Prevent the default toggle behavior
+  console.log('Toggle clicked:', item, 'Status:', item.status);
+  
+  // Store the original status
+  originalStatus.value = item.status;
+  
+  // Show dialog for both active and inactive records
+  selectedItem.value = item;
+  selectedIndex.value = index;
+  showConfirmDialog.value = true;
+  console.log('Dialog should open now');
 };
 
 // Method to close confirmation dialog
@@ -277,13 +290,16 @@ const closeConfirmDialog = () => {
   showConfirmDialog.value = false;
   selectedItem.value = null;
   selectedIndex.value = null;
+  originalStatus.value = null;
 };
 
 // Method to confirm status change and redirect
 const confirmStatusChange = async () => {
   if (selectedItem.value) {
     try {
-      // First deactivate the current record
+      // Determine the action based on current status
+      const action = selectedItem.value.status === 'active' ? 'deactivate' : 'activate';
+      
       const response = await fetch('/api/mother-sanction/update-status', {
         method: 'POST',
         headers: {
@@ -292,7 +308,7 @@ const confirmStatusChange = async () => {
         },
         body: JSON.stringify({
           ky_ms_no: selectedItem.value.ky_ms_no,
-          action: 'deactivate'
+          action: action
         })
       });
 
@@ -300,23 +316,34 @@ const confirmStatusChange = async () => {
         // Refresh the data to reflect the status change
         await fetchMotherSanctions();
         
-        // Create query parameters for prefilling the form
-        const queryParams = new URLSearchParams({
-          edit: 'true',
-          ky_ms_no: selectedItem.value.ky_ms_no,
-          financial_year: selectedItem.value.financial_year,
-          state_id: selectedItem.value.state_id || '',
-          sls_id: selectedItem.value.sls_id || '',
-          sanction_date: selectedItem.value.sanction_date,
-          ifd_no: selectedItem.value.ifd_no || '',
-          // Add other necessary parameters based on the form structure
-        });
-        
-        // Redirect to the add page with prefilled data
-        window.location.href = `/mother-sanction?${queryParams.toString()}`;
+        // Only redirect to add page if deactivating (creating new instance)
+        if (action === 'deactivate') {
+          // Create query parameters for prefilling the form
+          const queryParams = new URLSearchParams({
+            edit: 'true',
+            ky_ms_no: selectedItem.value.ky_ms_no,
+            financial_year: selectedItem.value.financial_year,
+            state_id: selectedItem.value.state_id || '',
+            sls_id: selectedItem.value.sls_id || '',
+            ms_sequence_no: parseInt(selectedItem.value.ms_sequence_no) || '',
+            sanction_date: selectedItem.value.sanction_date,
+            ifd_no: selectedItem.value.ifd_no || '',
+            sls_name: selectedItem.value.sls_name || '',
+            pd_component: selectedItem.value.pd_component || '',
+            remark: selectedItem.value.remark || '',
+            // Add budget heads data as JSON
+            budget_heads: JSON.stringify(selectedItem.value.budget_heads || [])
+          });
+          
+          // Redirect to the add page with prefilled data
+          window.location.href = `/mother-sanction?${queryParams.toString()}`;
+        } else {
+          // Just close the dialog for activation
+          closeConfirmDialog();
+        }
       } else {
-        console.error('Failed to deactivate record');
-        alert('Failed to update status. Please try again.');
+        console.error(`Failed to ${action} record`);
+        alert(`Failed to update status. Please try again.`);
       }
     } catch (error) {
       console.error('Error updating status:', error);
@@ -460,8 +487,32 @@ const confirmStatusChange = async () => {
   display: block !important;
 }
 
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1055;
+}
+
 .modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1050;
+}
+
+.modal-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  z-index: 1055;
 }
 
 /* Status column styling */

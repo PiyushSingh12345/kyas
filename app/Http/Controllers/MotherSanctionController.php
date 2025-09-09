@@ -104,7 +104,7 @@ public function list()
                 $join->on('ms.sls_name', '=', 'pdc.name')
                      ->on('ms.pd_component', '=', 'pdc.slsPD');
             })
-            ->where('ms.status', 1) // Only show active records
+            // Show all records regardless of status
             ->orderBy('ms.created_at', 'desc')
             ->get();
 
@@ -150,7 +150,7 @@ public function list()
                 'uc_received_from_State' => $firstItem->uc_received_from_State,
                 'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
                 'last_id' => $firstItem->last_id,
-                'status' => $firstItem->status,
+                'status' => $firstItem->status == 1 ? 'active' : 'inactive',
                 'created_at' => $firstItem->created_at,
                 'updated_at' => $firstItem->updated_at,
                 'state' => [
@@ -429,6 +429,67 @@ public function updateStatus(Request $request)
         
         return response()->json([
             'message' => 'An error occurred while updating status',
+            'error' => $e->getMessage(),
+            'success' => false
+        ], 500);
+    }
+}
+
+public function getMotherSanctionDetails($kyMsNo)
+{
+    try {
+        // Get all records with the same ky_ms_no
+        $records = MotherSanction::where('ky_ms_no', $kyMsNo)
+            ->with('state')
+            ->get();
+
+        if ($records->isEmpty()) {
+            return response()->json([
+                'message' => 'No records found with the given KY MS No.',
+                'success' => false
+            ], 404);
+        }
+
+        $firstRecord = $records->first();
+        
+        // Get budget heads data
+        $budgetHeads = $records->map(function($record) {
+            return [
+                'budget_head' => $record->budget_head,
+                'category' => $record->category,
+                'available_fund' => $record->available_fund,
+                'mother_sanction_amount' => $record->mother_sanction_amount
+            ];
+        })->filter(function($item) {
+            return !empty($item['budget_head']);
+        })->values();
+
+        return response()->json([
+            'meta' => [
+                'ky_ms_no' => $firstRecord->ky_ms_no,
+                'financial_year' => $firstRecord->financial_year,
+                'state_id' => $firstRecord->state_id,
+                'state_name' => $firstRecord->state->name ?? '',
+                'ms_sequence_no' => $firstRecord->ms_sequence_no,
+                'sls_name' => $firstRecord->sls_name,
+                'pd_component' => $firstRecord->pd_component,
+                'ifd_no' => $firstRecord->ifd_no,
+                'sanction_date' => $firstRecord->sanction_date,
+                'remark' => $firstRecord->remark,
+                'total_mother_sanction_amount' => $records->sum('mother_sanction_amount'),
+                'total_available_fund' => $records->sum('available_fund')
+            ],
+            'entries' => $budgetHeads
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error fetching mother sanction details:', [
+            'error' => $e->getMessage(),
+            'ky_ms_no' => $kyMsNo
+        ]);
+        
+        return response()->json([
+            'message' => 'An error occurred while fetching details',
             'error' => $e->getMessage(),
             'success' => false
         ], 500);

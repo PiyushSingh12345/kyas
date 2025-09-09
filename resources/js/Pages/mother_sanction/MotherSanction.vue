@@ -337,14 +337,26 @@ const generateKyMsNo = () => {
   const yearPart = financialYear.value.split('-')[0].slice(-2); // "2024-2025" => "24"
   const stateCode = stateCodeMap[selectedState.value] || 'XX';   // e.g., 'UP'
   const sequenceNo = msSequenceNo.value.toString().padStart(2, '0'); // 1 => 01
-  const sls = selectedSlsId.value;
-
+  // intead of selectedSlsId.value take key for the selectedSlsId.value from the slsData
+  const sls = slsData.value.find(sls => sls.name === selectedSlsId.value)?.id;
+  // const sls = selectedSlsId.value;
+  
   return `MS${yearPart}${stateCode}${sequenceNo}${sls}`;
 };
 
 // Watch for changes in required fields to auto-generate KY MS No
 watch([financialYear, selectedState, msSequenceNo, selectedSlsId], () => {
   if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value) {
+    // Only auto-generate if the field is empty or if it matches the previous generated pattern
+    if (!kyMsNo.value || kyMsNo.value.startsWith('MS')) {
+      kyMsNo.value = generateKyMsNo();
+    }
+  }
+});
+
+// Watch for slsData changes to regenerate KY MS No when SLS data is loaded
+watch(slsData, () => {
+  if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value && slsData.value.length > 0) {
     // Only auto-generate if the field is empty or if it matches the previous generated pattern
     if (!kyMsNo.value || kyMsNo.value.startsWith('MS')) {
       kyMsNo.value = generateKyMsNo();
@@ -550,6 +562,140 @@ function addReappropriationRow() {
   })
 }
 
+// Function to prefill form from URL parameters
+const prefillFormFromURL = async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  if (urlParams.get('edit') === 'true') {
+    console.log('Prefilling form from URL parameters');
+    
+    // Prefill basic fields
+    if (urlParams.get('financial_year')) {
+      financialYear.value = urlParams.get('financial_year');
+    }
+    
+    if (urlParams.get('state_id')) {
+      selectedState.value = urlParams.get('state_id');
+      // Fetch SLS data for the selected state
+      await fetchSlsData();
+    }
+    
+    if (urlParams.get('sls_name')) {
+      selectedSlsId.value = urlParams.get('sls_name');
+      // Fetch fund allocation data
+      await fetchFundAllocationData();
+    }
+    
+    // if (urlParams.get('ms_sequence_no')) {
+    //   const msSeqNo = parseInt(urlParams.get('ms_sequence_no'));
+    //   if (!isNaN(msSeqNo)) {
+    //     msSequenceNo.value = (msSeqNo + 1).toString();
+    //   } else {
+    //     msSequenceNo.value = urlParams.get('ms_sequence_no');
+    //   }
+    // }
+
+    if (urlParams.get('ms_sequence_no')) {
+        msSequenceNo.value = urlParams.get('ms_sequence_no');
+    }
+    
+    if (urlParams.get('sanction_date')) {
+      sanctionDate.value = urlParams.get('sanction_date');
+    }
+    
+    if (urlParams.get('ifd_no')) {
+      ifdNo.value = urlParams.get('ifd_no');
+    }
+    
+    if (urlParams.get('ky_ms_no')) {
+      kyMsNo.value = urlParams.get('ky_ms_no');
+    }
+    
+    // if (urlParams.get('sls_name')) {
+    //   selectedSlsId.value = urlParams.get('sls_name');
+    // }
+    
+    if (urlParams.get('pd_component')) {
+      pdComponent.value = urlParams.get('pd_component');
+    }
+    
+    if (urlParams.get('remark')) {
+      remark.value = urlParams.get('remark');
+    }
+    
+    // Handle budget heads data from URL parameters
+    if (urlParams.get('budget_heads')) {
+      try {
+        const budgetHeadsData = JSON.parse(urlParams.get('budget_heads'));
+        if (Array.isArray(budgetHeadsData) && budgetHeadsData.length > 0) {
+          reappropriations.value = budgetHeadsData.map(budget => ({
+            budget_head: budget.budget_head || '',
+            category: budget.category || '',
+            available_amount: budget.available_fund || budget.available_amount || '',
+            sanction_amount: budget.mother_sanction_amount || budget.sanction_amount || ''
+          }));
+        }
+      } catch (error) {
+        console.error('Error parsing budget heads data:', error);
+      }
+    }
+    
+    // If we have a KY MS No, fetch the detailed data
+    if (urlParams.get('ky_ms_no')) {
+      await fetchMotherSanctionDetails(urlParams.get('ky_ms_no'));
+    }
+    
+    // Regenerate KY MS No after all data is loaded
+    if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value) {
+      kyMsNo.value = generateKyMsNo();
+    }
+  }
+}
+
+// Function to fetch mother sanction details for prefilling
+const fetchMotherSanctionDetails = async (kyMsNo) => {
+  try {
+    const response = await fetch(`/api/mother-sanction-details/${kyMsNo}`);
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Fetched mother sanction details:', data);
+      
+      // Prefill the reappropriations table with the fetched data
+      if (data.entries && data.entries.length > 0) {
+        reappropriations.value = data.entries.map(entry => ({
+          budget_head: entry.budget_head,
+          category: entry.category,
+          available_amount: entry.available_fund,
+          sanction_amount: entry.mother_sanction_amount
+        }));
+      }
+      
+      // Prefill other fields if available
+      if (data.meta) {
+        if (data.meta.ifd_no && !ifdNo.value) {
+          ifdNo.value = data.meta.ifd_no;
+        }
+        if (data.meta.sls_name && !selectedSlsId.value) {
+          selectedSlsId.value = data.meta.sls_name;
+        }
+        if (data.meta.pd_component && !pdComponent.value) {
+          pdComponent.value = data.meta.pd_component;
+        }
+        if (data.meta.ms_sequence_no && !msSequenceNo.value) {
+          const msSeqNo = parseInt(data.meta.ms_sequence_no);
+          if (!isNaN(msSeqNo)) {
+            msSequenceNo.value = (msSeqNo + 1).toString();
+          } else {
+            msSequenceNo.value = data.meta.ms_sequence_no;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching mother sanction details:', error);
+  }
+}
+
 onMounted(async () => {
   try {
     const [statesRes, budgetHeadsRes] = await Promise.all([
@@ -564,6 +710,9 @@ onMounted(async () => {
     if (budgetHeadsRes.ok) {
       budgetHeads.value = await budgetHeadsRes.json();
     }
+
+    // Check for URL parameters to prefill form
+    prefillFormFromURL();
 
   } catch (error) {
     console.error('Fetch error:', error)
