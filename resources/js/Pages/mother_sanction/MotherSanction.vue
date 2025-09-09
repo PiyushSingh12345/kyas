@@ -84,14 +84,17 @@
                     </div>
 
                     <!-- KY MS No -->
-                    <!-- <div class="col-md-6 col-lg-3">
+                    <div class="col-md-6 col-lg-3">
                       <div class="form-group">
                         <label for="kyMsNo">KY MS No.</label>
-                        <input type="text" class="form-control" id="kyMsNo" :value="kyMsNo" disabled>
-
-
+                        <div class="input-group">
+                          <input type="text" class="form-control" id="kyMsNo" v-model="kyMsNo" placeholder="Auto-generated or enter manually">
+                          <button class="btn btn-outline-secondary" type="button" @click="regenerateKyMsNo" title="Regenerate KY MS No">
+                            <i class="fas fa-sync-alt"></i>
+                          </button>
+                        </div>
                       </div>
-                    </div> -->
+                    </div>
 
                     <!-- SLS ID -->
                     <div class="col-md-6 col-lg-3">
@@ -281,7 +284,7 @@ const msSequenceNo = ref('');
 const remark = ref('');
 const ifdNo = ref('');
 const sanctionDate = ref('');
-//const kyMsNo = ref('');
+// const kyMsNo = ref('');
 const pdComponent = ref('');
 const ucFile = ref(null);
 const sanctionFile = ref(null);
@@ -323,19 +326,36 @@ const stateCodeMap = {
 };
 
 
-const kyMsNo = computed(() => {
+const kyMsNo = ref('');
+
+// Function to generate KY MS No
+const generateKyMsNo = () => {
   if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !selectedSlsId.value) {
     return '';
   }
 
   const yearPart = financialYear.value.split('-')[0].slice(-2); // "2024-2025" => "24"
-  const stateCode = selectedState.value || 'XX';   // e.g., 'UP'
+  const stateCode = stateCodeMap[selectedState.value] || 'XX';   // e.g., 'UP'
   const sequenceNo = msSequenceNo.value.toString().padStart(2, '0'); // 1 => 01
   const sls = selectedSlsId.value;
 
   return `MS${yearPart}${stateCode}${sequenceNo}${sls}`;
+};
+
+// Watch for changes in required fields to auto-generate KY MS No
+watch([financialYear, selectedState, msSequenceNo, selectedSlsId], () => {
+  if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value) {
+    // Only auto-generate if the field is empty or if it matches the previous generated pattern
+    if (!kyMsNo.value || kyMsNo.value.startsWith('MS')) {
+      kyMsNo.value = generateKyMsNo();
+    }
+  }
 });
 
+// Function to manually regenerate KY MS No
+const regenerateKyMsNo = () => {
+  kyMsNo.value = generateKyMsNo();
+};
 
 const resetForm = () => {
   financialYear.value = '';
@@ -345,7 +365,7 @@ const resetForm = () => {
   remark.value = '';
   ifdNo.value = '';
   sanctionDate.value = '';
-  //kyMsNo.value = '';
+  kyMsNo.value = '';
   selectedSlsId.value = '';
   pdComponent.value = '';
 
@@ -444,7 +464,7 @@ const submitData = async (status) => {
   formData.append('remark', remark.value);
   formData.append('ifd_no', ifdNo.value);
   formData.append('sanction_date', sanctionDate.value);
-  // formData.append('ky_ms_no', kyMsNo.value);
+  formData.append('ky_ms_no', kyMsNo.value);
 
   formData.append('sls_name', selectedSlsId.value);
   formData.append('pd_component', pdComponent.value);
@@ -716,6 +736,16 @@ const clearRowData = (row) => {
 
 .btn-close:hover {
   opacity: 1;
+}
+
+/* Input group styling for KY MS No */
+.input-group .btn {
+  border-left: 0;
+}
+
+.input-group .form-control:focus + .btn {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
 /* Loading button styles */
