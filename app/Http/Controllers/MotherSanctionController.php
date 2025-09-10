@@ -108,9 +108,10 @@ public function list()
             ->orderBy('ms.created_at', 'desc')
             ->get();
 
-        // Group data by sls_name and state_id to get all budget heads
+        // Group data by sls_name, ky_ms_no and state_id to get all budget heads
+        
         $groupedData = $data->groupBy(function($item) {
-            return $item->sls_name . '|' . $item->state_id;
+            return $item->sls_name . '|' . $item->ky_ms_no . '|' . $item->state_id;
         });
 
         // Transform the grouped data

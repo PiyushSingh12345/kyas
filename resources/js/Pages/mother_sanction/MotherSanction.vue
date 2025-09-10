@@ -88,10 +88,10 @@
                       <div class="form-group">
                         <label for="kyMsNo">KY MS No.</label>
                         <div class="input-group">
-                          <input type="text" class="form-control" id="kyMsNo" v-model="kyMsNo" placeholder="Auto-generated or enter manually">
-                          <button class="btn btn-outline-secondary" type="button" @click="regenerateKyMsNo" title="Regenerate KY MS No">
+                          <input type="text" class="form-control" id="kyMsNo" v-model="kyMsNo" placeholder="Enter manually">
+                          <!-- <button class="btn btn-outline-secondary" type="button" @click="regenerateKyMsNo" title="Regenerate KY MS No">
                             <i class="fas fa-sync-alt"></i>
-                          </button>
+                          </button> -->
                         </div>
                       </div>
                     </div>
@@ -284,7 +284,6 @@ const msSequenceNo = ref('');
 const remark = ref('');
 const ifdNo = ref('');
 const sanctionDate = ref('');
-// const kyMsNo = ref('');
 const pdComponent = ref('');
 const ucFile = ref(null);
 const sanctionFile = ref(null);
@@ -328,46 +327,46 @@ const stateCodeMap = {
 
 const kyMsNo = ref('');
 
-// Function to generate KY MS No
-const generateKyMsNo = () => {
-  if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !selectedSlsId.value) {
-    return '';
-  }
+// // Function to generate KY MS No
+// const generateKyMsNo = () => {
+//   if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !selectedSlsId.value) {
+//     return '';
+//   }
 
-  const yearPart = financialYear.value.split('-')[0].slice(-2); // "2024-2025" => "24"
-  const stateCode = stateCodeMap[selectedState.value] || 'XX';   // e.g., 'UP'
-  const sequenceNo = msSequenceNo.value.toString().padStart(2, '0'); // 1 => 01
-  // intead of selectedSlsId.value take key for the selectedSlsId.value from the slsData
-  const sls = slsData.value.find(sls => sls.name === selectedSlsId.value)?.id;
-  // const sls = selectedSlsId.value;
+//   const yearPart = financialYear.value.split('-')[0].slice(-2); // "2024-2025" => "24"
+//   const stateCode = stateCodeMap[selectedState.value] || 'XX';   // e.g., 'UP'
+//   const sequenceNo = msSequenceNo.value.toString().padStart(2, '0'); // 1 => 01
+//   // intead of selectedSlsId.value take key for the selectedSlsId.value from the slsData
+//   const sls = slsData.value.find(sls => sls.name === selectedSlsId.value)?.id;
+//   // const sls = selectedSlsId.value;
   
-  return `MS${yearPart}${stateCode}${sequenceNo}${sls}`;
-};
+//   return `MS${yearPart}${stateCode}${sequenceNo}${sls}`;
+// };
 
-// Watch for changes in required fields to auto-generate KY MS No
-watch([financialYear, selectedState, msSequenceNo, selectedSlsId], () => {
-  if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value) {
-    // Only auto-generate if the field is empty or if it matches the previous generated pattern
-    if (!kyMsNo.value || kyMsNo.value.startsWith('MS')) {
-      kyMsNo.value = generateKyMsNo();
-    }
-  }
-});
+// // Watch for changes in required fields to auto-generate KY MS No
+// watch([financialYear, selectedState, msSequenceNo, selectedSlsId], () => {
+//   if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value) {
+//     // Only auto-generate if the field is empty or if it matches the previous generated pattern
+//     if (!kyMsNo.value || kyMsNo.value.startsWith('MS')) {
+//       kyMsNo.value = generateKyMsNo();
+//     }
+//   }
+// });
 
-// Watch for slsData changes to regenerate KY MS No when SLS data is loaded
-watch(slsData, () => {
-  if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value && slsData.value.length > 0) {
-    // Only auto-generate if the field is empty or if it matches the previous generated pattern
-    if (!kyMsNo.value || kyMsNo.value.startsWith('MS')) {
-      kyMsNo.value = generateKyMsNo();
-    }
-  }
-});
+// // Watch for slsData changes to regenerate KY MS No when SLS data is loaded
+// watch(slsData, () => {
+//   if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value && slsData.value.length > 0) {
+//     // Only auto-generate if the field is empty or if it matches the previous generated pattern
+//     if (!kyMsNo.value || kyMsNo.value.startsWith('MS')) {
+//       kyMsNo.value = generateKyMsNo();
+//     }
+//   }
+// });
 
-// Function to manually regenerate KY MS No
-const regenerateKyMsNo = () => {
-  kyMsNo.value = generateKyMsNo();
-};
+// // Function to manually regenerate KY MS No
+// const regenerateKyMsNo = () => {
+//   kyMsNo.value = generateKyMsNo();
+// };
 
 const resetForm = () => {
   financialYear.value = '';
