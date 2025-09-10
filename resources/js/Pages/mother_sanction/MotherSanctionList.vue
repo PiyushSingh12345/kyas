@@ -90,6 +90,7 @@
                                       <th class="text-center">Category</th>
                                       <th class="text-center">Available Fund</th>
                                       <th class="text-center">MS Amount</th>
+                                      <th class="text-center">Expenditure</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -98,9 +99,10 @@
                                       <td class="text-center">{{ budget.category }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.available_fund) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
-                                      <td colspan="4" class="text-center text-muted">No budget heads available</td>
+                                      <td colspan="5" class="text-center text-muted">No budget heads available</td>
                                     </tr>
                                   </tbody>
                                 </table>

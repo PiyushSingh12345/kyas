@@ -119,12 +119,28 @@ public function list()
             $firstItem = $group->first();
             
             // Get all budget heads for this group
-            $budgetHeads = $group->map(function($item) {
+            $budgetHeads = $group->map(function($item) use ($firstItem) {
+                // Get expenditure from daily_sanction table for this budget head
+                $expenditure = DB::table('daily_sanction')
+                    ->where('mother_sanction', $firstItem->ky_ms_no)
+                    ->where('budget_head', $item->budget_head)
+                    ->where('state_id', $firstItem->state_id)
+                    ->sum('center_share_amount');
+                
+                // Debug logging for expenditure calculation
+                Log::info('Expenditure calculation', [
+                    'ky_ms_no' => $firstItem->ky_ms_no,
+                    'budget_head' => $item->budget_head,
+                    'state_id' => $firstItem->state_id,
+                    'expenditure' => $expenditure
+                ]);
+                
                 return [
                     'budget_head' => $item->budget_head,
                     'category' => $item->category,
                     'available_fund' => $item->available_fund,
                     'mother_sanction_amount' => $item->mother_sanction_amount,
+                    'expenditure' => $expenditure ?: 0,
                 ];
             })->filter(function($item) {
                 return !empty($item['budget_head']);
