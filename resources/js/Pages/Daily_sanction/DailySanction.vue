@@ -294,8 +294,7 @@ const submitForm = async () => {
     daily_sanction_no: dailySanctionNo.value,
     mother_sanction: selectedMotherSanction.value,
     ifd_no: ifdNo.value,
-    sls_name: slsID.value,
-    // sls_code: slsID.value, 
+    sls_name: slsName.value, // Use slsName instead of slsID
     remark: remark.value,
     entries: sanctionDetails.value.map(entry => ({
       budget_head: entry.budget_head,
@@ -306,6 +305,9 @@ const submitForm = async () => {
   }
 
   try {
+    // Debug: Log the payload being sent
+    console.log('Daily Sanction Payload:', payload);
+    
     const response = await fetch(route('addDailySanction'), {
       method: 'POST',
       headers: {
@@ -327,10 +329,15 @@ const submitForm = async () => {
       
       resetForm()
     } else {
-      // Show error flash message
+      // Get error details from response
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Daily Sanction Error Response:', errorData)
+      
+      // Show error flash message with more details
+      const errorMessage = errorData.message || 'Failed to save daily sanction entries. Please try again.'
       showFlashMessage(
         'danger', 
-        'Failed to save daily sanction entries. Please try again.', 
+        errorMessage, 
         'fas fa-exclamation-triangle'
       )
     }

@@ -6,6 +6,7 @@ use App\Models\MotherSanction;
 use App\Models\DailySanction;
 use App\Models\SlsPDComponent;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class DailySanctionController extends Controller
@@ -80,40 +81,74 @@ public function list()
 
 public function store(Request $request)
 {
-    $validated = $request->validate([
-        'financial_year' => 'required|string',
-        'state_id' => 'required|integer',
-        'ds_date' => 'required|date',
-        'daily_sanction_no' => 'required|string|unique:daily_sanction,daily_sanction_no',
-        'mother_sanction' => 'required|string',
-        'ifd_no' => 'required|string',
-        'sls_name' => 'required|string',
-        'entries' => 'required|array|min:1',
-        'entries.*.budget_head' => 'required|string',
-        'entries.*.mother_sanction_amount' => 'required|numeric',
-        'entries.*.available_amount' => 'required|numeric',
-        'entries.*.center_share_amount' => 'required|numeric',
-    ]);
-
-    foreach ($validated['entries'] as $entry) {
-        DailySanction::create([
-            'financial_year' => $validated['financial_year'],
-            'state_id' => $validated['state_id'],
-            'ds_date' => $validated['ds_date'],
-            'daily_sanction_no' => $validated['daily_sanction_no'],
-            'mother_sanction' => $validated['mother_sanction'],
-            'ifd_no' => $validated['ifd_no'],
-            'sls_name' => $validated['sls_name'],
-            'budget_head' => $entry['budget_head'],
-            'mother_sanction_amount' => $entry['mother_sanction_amount'],
-            'available_amount' => $entry['available_amount'],
-            'center_share_amount' => $entry['center_share_amount'],
-            'remark' => $request->remark,
-            'status' => 1
+    try {
+        // Log the incoming request for debugging
+        Log::info('Daily Sanction Store Request', [
+            'request_data' => $request->all(),
+            'headers' => $request->headers->all()
         ]);
-    }
 
-    return response()->json(['message' => 'Daily sanction entries saved successfully'], 201);
+        $validated = $request->validate([
+            'financial_year' => 'required|string',
+            'state_id' => 'required|integer',
+            'ds_date' => 'required|date',
+            'daily_sanction_no' => 'required|string|unique:daily_sanction,daily_sanction_no',
+            'mother_sanction' => 'required|string',
+            'ifd_no' => 'required|string',
+            'sls_name' => 'required|string',
+            'entries' => 'required|array|min:1',
+            'entries.*.budget_head' => 'required|string',
+            'entries.*.mother_sanction_amount' => 'required|numeric',
+            'entries.*.available_amount' => 'required|numeric',
+            'entries.*.center_share_amount' => 'required|numeric',
+        ]);
+
+        Log::info('Daily Sanction Validation Passed', ['validated_data' => $validated]);
+
+        foreach ($validated['entries'] as $entry) {
+            DailySanction::create([
+                'financial_year' => $validated['financial_year'],
+                'state_id' => $validated['state_id'],
+                'ds_date' => $validated['ds_date'],
+                'daily_sanction_no' => $validated['daily_sanction_no'],
+                'mother_sanction' => $validated['mother_sanction'],
+                'ifd_no' => $validated['ifd_no'],
+                'sls_name' => $validated['sls_name'],
+                'budget_head' => $entry['budget_head'],
+                'mother_sanction_amount' => $entry['mother_sanction_amount'],
+                'available_amount' => $entry['available_amount'],
+                'center_share_amount' => $entry['center_share_amount'],
+                'remark' => $request->remark,
+                'status' => 1
+            ]);
+        }
+
+        Log::info('Daily Sanction Entries Created Successfully');
+        return response()->json(['message' => 'Daily sanction entries saved successfully'], 201);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        Log::error('Daily Sanction Validation Error', [
+            'errors' => $e->errors(),
+            'request_data' => $request->all()
+        ]);
+        
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors' => $e->errors()
+        ], 422);
+
+    } catch (\Exception $e) {
+        Log::error('Daily Sanction Store Error', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+            'request_data' => $request->all()
+        ]);
+        
+        return response()->json([
+            'message' => 'Failed to save daily sanction entries. Please try again.',
+            'error' => $e->getMessage()
+        ], 500);
+    }
 }
 
 

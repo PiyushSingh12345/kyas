@@ -88,18 +88,18 @@
                                     <tr class="table-light">
                                       <th class="text-center">Budget Head</th>
                                       <th class="text-center">Category</th>
-                                      <th class="text-center">Available Fund</th>
                                       <th class="text-center">MS Amount</th>
                                       <th class="text-center">Expenditure</th>
+                                      <th class="text-center">Available Fund</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     <tr v-for="(budget, budgetIndex) in item.budget_heads" :key="budgetIndex">
                                       <td class="text-center">{{ budget.budget_head }}</td>
                                       <td class="text-center">{{ budget.category }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(budget.available_fund) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.available_fund) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
                                       <td colspan="5" class="text-center text-muted">No budget heads available</td>
