@@ -99,9 +99,9 @@
                     <!-- SLS ID -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="slsId">SLS ID</label>
+                        <label for="slsId">SLS Name</label>
                         <select class="form-control" v-model="selectedSlsId" @change="fetchFundAllocationData">
-                          <option value="">--- Select SLS ID ---</option>
+                          <option value="">--- Select SLS Name ---</option>
                           <option v-for="sls in slsData" :key="sls.id" :value="sls.name">{{ sls.name }}</option>
                         </select>
                       </div>
