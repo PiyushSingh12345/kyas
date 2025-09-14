@@ -50,16 +50,24 @@ public function list()
             ->groupBy('daily_sanction_no')
             ->pluck('total_amount', 'daily_sanction_no')
             ->toArray();
+
+        // Get the sum of mother_sanction_amount for each daily_sanction_no
+        $motherSanctionAmounts = DB::table('daily_sanction')
+            ->select('daily_sanction_no', DB::raw('SUM(mother_sanction_amount) as total_amount'))
+            ->groupBy('daily_sanction_no')
+            ->pluck('total_amount', 'daily_sanction_no')
+            ->toArray();
         
         $data = DailySanction::with(['state', 'slsComponent'])
             ->whereIn('id', $subQuery)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function ($item) use ($stateAmounts, $dailySanctionAmounts) {
+            ->map(function ($item) use ($stateAmounts, $dailySanctionAmounts, $motherSanctionAmounts) {
                 $item->full_sls_name = $item->slsComponent ? $item->slsComponent->full_sls_name : null;
                 $item->sls_pd = $item->slsComponent ? $item->slsComponent->slsPD : null;
                 $item->state_total_amount = $stateAmounts[$item->state_id] ?? 0;
                 $item->daily_sanction_total_amount = $dailySanctionAmounts[$item->daily_sanction_no] ?? 0;
+                $item->mother_sanction_total_amount = $motherSanctionAmounts[$item->daily_sanction_no] ?? 0;
                 
                 // Get budget head details for this daily sanction
                 $budgetHeads = DailySanction::where('daily_sanction_no', $item->daily_sanction_no)

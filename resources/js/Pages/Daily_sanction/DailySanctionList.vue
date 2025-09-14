@@ -44,6 +44,7 @@
                           <th>PD</th>
                           <th>Date</th>
                           <th>IFD No</th>
+                          <th>Mother Sanction Amount</th>
                           <th>Daily Sanction No</th>
                           <th>Daily Sanction Total Amount</th>
                           <th>Daily Sanction BH wise amount (₹ In Lakhs)</th>
@@ -72,6 +73,7 @@
                             <!-- show date in dd-mm-yyyy format for example 01-04-2024 --> 
                             <td>{{ formatDate(item.ds_date) }} </td>
                             <td>{{ item.ifd_no }}</td>
+                            <td class="currency-cell">{{ formatCurrency(item.mother_sanction_total_amount || 0) }}</td>
                             <td>{{ item.daily_sanction_no }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.daily_sanction_total_amount || 0) }}</td>
                             <td>
