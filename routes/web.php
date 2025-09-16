@@ -39,89 +39,93 @@ Route::get('/dashboard', function () {
 
 Route::get('/user-create', function () {
     return Inertia::render('User_management/createUser');
-})->middleware(['auth', 'verified'])->name('user-create');
+})->middleware(['auth', 'verified', 'role:1'])->name('user-create');
 
 Route::get('/user-listing', function () {
     return Inertia::render('User_management/listingUser');
-})->middleware(['auth', 'verified'])->name('user-listing');
+})->middleware(['auth', 'verified', 'role:1'])->name('user-listing');
 
 //Budget Allocation Module
 
 Route::get('/budget-phase', function () {
     return Inertia::render('Budget_allocation/BudgetPhase');
-})->middleware(['auth', 'verified'])->name('budget-phase');
+})->middleware(['auth', 'verified', 'role:2,3'])->name('budget-phase');
 
 Route::get('/budget-phase-report', function () {
     return Inertia::render('Reports/BudgetPhaseReport');
-})->middleware(['auth', 'verified'])->name('budget-phase-report');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('budget-phase-report');
 
 Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
-})->middleware(['auth', 'verified'])->name('fund-allocation');
+})->middleware(['auth', 'verified', 'role:2'])->name('fund-allocation');
 
-Route::get('/budget-heads', [BudgetHeadController::class, 'index'])->middleware(['auth', 'verified'])->name('budget-heads');
+Route::get('/budget-heads', [BudgetHeadController::class, 'index'])->middleware(['auth', 'verified', 'role:2,3'])->name('budget-heads');
 
 
 Route::get('/state-uts', function () {
     return Inertia::render('Budget_allocation/StateUTs');
-})->middleware(['auth', 'verified'])->name('state-uts');
+})->middleware(['auth', 'verified', 'role:2,3'])->name('state-uts');
 
 Route::get('/state-uts-pd', function () {
     return Inertia::render('Budget_allocation/StateUTsPD');
-})->middleware(['auth', 'verified'])->name('state-uts-pd');
+})->middleware(['auth', 'verified', 'role:2,3'])->name('state-uts-pd');
 
 Route::get('/mother-sanction', function () {
     return Inertia::render('mother_sanction/MotherSanction');
-})->middleware(['auth', 'verified'])->name('mother-sanction');
+})->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction');
 
 Route::get('/mother-sanction-report', function () {
     return Inertia::render('Reports/MotherSanctionReport');
-})->middleware(['auth', 'verified'])->name('mother-sanction-report');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('mother-sanction-report');
 
 Route::get('/mother-sanction-list', function () {
     return Inertia::render('Reports/MotherSanctionList');
-})->middleware(['auth', 'verified'])->name('mother-sanction-list');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('mother-sanction-list');
 
 
 Route::get('/daily-sanction-list', function () {
     return Inertia::render('Daily_sanction/DailySanctionList');
-})->middleware(['auth', 'verified'])->name('daily-sanction-list');
+})->middleware(['auth', 'verified', 'role:2'])->name('daily-sanction-list');
 
 Route::get('/daily-sanction', function () {
     return Inertia::render('Daily_sanction/DailySanction');
-})->middleware(['auth', 'verified'])->name('daily-sanction');
+})->middleware(['auth', 'verified', 'role:2'])->name('daily-sanction');
 
 Route::get('/re-appropriation-of-funds', function () {
     return Inertia::render('Reappropriation/ReAppropriationOfFunds');
-})->middleware(['auth', 'verified'])->name('re-appropriation-of-funds');
+})->middleware(['auth', 'verified', 'role:2'])->name('re-appropriation-of-funds');
 
 Route::get('/re-appropriation-mis-report', function () {
     return Inertia::render('Reports/ReAppropriationMisReport');
-})->middleware(['auth', 'verified'])->name('re-appropriation-mis-report');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('re-appropriation-mis-report');
 
 Route::get('/fund-allocation-report', function () {
     return Inertia::render('Reports/FundAllocationReport');
-})->middleware(['auth', 'verified'])->name('fund-allocation-report');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('fund-allocation-report');
 
 Route::get('/rog-report', function () {
     return Inertia::render('Reports/RogReport');
-})->middleware(['auth', 'verified'])->name('rog-report');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('rog-report');
 
 Route::get('/mother-sanction-list-module', function () {
     return Inertia::render('mother_sanction/MotherSanctionList');
-})->middleware(['auth', 'verified'])->name('mother-sanction-list-module');
+})->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction-list-module');
 
 Route::get('/pd-wise-budget-allocation', function () {
     return Inertia::render('Annual_action_plan/AapCentral');
-})->middleware(['auth', 'verified'])->name('pd-wise-budget-allocation');
+})->middleware(['auth', 'verified', 'role:2'])->name('pd-wise-budget-allocation');
 
 Route::get('/state-release-data', function () {
     return Inertia::render('Annual_action_plan/AapState');
-})->middleware(['auth', 'verified'])->name('state-release-data');
+})->middleware(['auth', 'verified', 'role:2'])->name('state-release-data');
 
 Route::get('/statewise-aap-allocation', function () {
     return Inertia::render('Annual_action_plan/StatewiseAapAllocation');
-})->middleware(['auth', 'verified'])->name('statewise-aap-allocation');
+})->middleware(['auth', 'verified', 'role:2'])->name('statewise-aap-allocation');
+
+Route::get('/role-based-access-demo', function () {
+    return Inertia::render('RoleBasedAccessDemo');
+})->middleware(['auth', 'verified'])->name('role-based-access-demo');
 
 Route::middleware('auth')->group(function () {
 
@@ -130,17 +134,17 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/state-uts', [StateController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'role:2,3'])
     ->name('state-uts');
-    Route::post('/states', [StateController::class, 'store'])->name('states.store');
+    Route::post('/states', [StateController::class, 'store'])->middleware(['role:2,3'])->name('states.store');
 
 
-    Route::post('/budget-heads', [BudgetHeadController::class, 'store'])->name('BudgetHead.store');
-    Route::post('/budget-heads/upload', [BudgetHeadController::class, 'upload'])->name('BudgetHead.upload');
-    Route::post('/budget-heads/import', [BudgetHeadController::class, 'import'])->name('BudgetHead.import');
-    Route::delete('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'destroy'])->name('BudgetHead.destroy');
-    Route::put('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'update'])->name('BudgetHead.update');
-    Route::put('/budget-heads/{id}/toggle-status', [BudgetHeadController::class, 'toggleStatus'])->name('BudgetHead.toggleStatus');
+    Route::post('/budget-heads', [BudgetHeadController::class, 'store'])->middleware(['role:2,3'])->name('BudgetHead.store');
+    Route::post('/budget-heads/upload', [BudgetHeadController::class, 'upload'])->middleware(['role:2,3'])->name('BudgetHead.upload');
+    Route::post('/budget-heads/import', [BudgetHeadController::class, 'import'])->middleware(['role:2,3'])->name('BudgetHead.import');
+    Route::delete('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'destroy'])->middleware(['role:2,3'])->name('BudgetHead.destroy');
+    Route::put('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'update'])->middleware(['role:2,3'])->name('BudgetHead.update');
+    Route::put('/budget-heads/{id}/toggle-status', [BudgetHeadController::class, 'toggleStatus'])->middleware(['role:2,3'])->name('BudgetHead.toggleStatus');
 
     // Route::get('/api/budget-heads', [BudgetHeadController::class, 'fetchBudgetHeads']);
     Route::get('/api/budget-phase-summary', [BudgetPhaseController::class, 'budgetPhaseSummary']);

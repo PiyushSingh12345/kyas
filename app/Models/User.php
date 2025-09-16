@@ -56,8 +56,7 @@ class User extends Authenticatable
 
     public function userType()
     {
-        return $this->hasMany(MdUserType::class, 'user_type_id', 'md_user_type_id');
-
+        return $this->belongsTo(MdUserType::class, 'user_type_id', 'md_user_type_id');
     }
     public function programDivision()
     {

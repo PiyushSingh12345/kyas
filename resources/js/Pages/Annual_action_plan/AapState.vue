@@ -3,6 +3,7 @@
     <Sidebar />
     <div class="main-panel">
       <Header />
+      <RoleGuard :roles="[2]" show-fallback>
         <div class="container">
           <div class="page-inner allinsideform">
             <div class="page-header">
@@ -290,7 +291,8 @@
             </div>
           </div>
         </div>
-        <Footer />
+      </RoleGuard>
+      <Footer />
     </div>
   </div>
 </template>
@@ -302,6 +304,10 @@ import { Link } from '@inertiajs/vue3'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import RoleGuard from '../../Components/RoleGuard.vue'
+import { useRoleAccess } from '../../Composables/useRoleAccess'
+
+const { hasRole, canAccessAnnualActionPlan, isAdmin, isKYUser } = useRoleAccess()
 
 // Reactive data
 const states = ref([])

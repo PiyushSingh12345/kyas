@@ -211,6 +211,14 @@
                 </div>
               </li>
 
+              <!-- Role-Based Access Demo -->
+              <!-- <li class="nav-item" :class="{ active: activeMenu === 'role-demo' }" v-if="hasRole([1])">
+                <Link :href="route('role-based-access-demo')" class="nav-link">
+                  <i class="fas fa-shield-alt"></i>
+                  <p>Role-Based Access Demo</p>
+                </Link>
+              </li> -->
+
               <!-- Annual Action plan Module -->
               <li class="nav-item" :class="{ active: activeMenu === 'annual-action-plan' }" v-if="hasRole([2])">
                 <a href="#" @click.prevent="toggleMenu('annual-action-plan')">
@@ -266,15 +274,10 @@
 <script setup>
 
 import { ref, onMounted } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
+import { useRoleAccess } from '../../Composables/useRoleAccess'
 
-
-const userTypeIds = usePage().props.auth.user_type_ids || []
-
-const hasRole = (roles) => {
-  const hasAccess = roles.some(roleId => userTypeIds.includes(Number(roleId)))
-  return hasAccess
-}
+const { hasRole } = useRoleAccess()
 
 const activeMenu = ref('') // This will store the ID of the currently open menu
 
