@@ -13,4 +13,9 @@ class BudgetHead extends Model
         return $this->hasMany(BudgetPhase::class);
     }
 
+    public function budgetPhaseHistory()
+    {
+        return $this->hasMany(BudgetPhaseHistory::class, 'budget_head_id', 'id');
+    }
+
 }

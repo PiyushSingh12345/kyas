@@ -15,10 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\SetAppUserIdInMysql::class, 
         ]);
 
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckUserRole::class,
+            'setAppUserIdInMysql' => \App\Http\Middleware\SetAppUserIdInMysql::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

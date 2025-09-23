@@ -14,6 +14,30 @@
                   <div class="card-title">Re-Appropriation Module</div>
                 </div>
                 <div class="card-body">
+                  <!-- <div class="row"> -->
+                      <!-- // show all the histroy radio buttons label with the date and time from the reapropraition table and select the one which is selected redirect to the other page where the listing of the rearopriation showing. -->
+
+                    <!-- <div class="col">
+                      <div class="form-group">
+                        <label>History</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="history" id="history1" value="1">
+                          <label class="form-check-label" for="history1">History 1</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col">
+                      <div class="form-group">
+                        <label>History</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="history" id="history2" value="2">
+                          <label class="form-check-label" for="history2">History 2</label>
+                        </div>
+                      </div>
+                    </div>
+                    
+                  </div> -->
                   <div class="row">
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-4">

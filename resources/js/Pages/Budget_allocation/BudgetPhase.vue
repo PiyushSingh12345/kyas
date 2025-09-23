@@ -47,12 +47,21 @@
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
                         <label for="budgetPhase">Budget Phase</label>
-                        <select class="form-select" id="budgetPhase" v-model="selectedPhase" @change="fetchBudgetHeads">
-                          <option disabled value="0">Select Budget Phase</option>
-                          <option value="BE">BE</option>
-                          <option value="RE">RE</option>
-                          <option value="FE">FE</option>
-                        </select>
+                        <div class="d-flex gap-2">
+                          <select class="form-select" id="budgetPhase" v-model="selectedPhase" @change="fetchBudgetHeads">
+                            <option disabled value="0">Select Budget Phase</option>
+                            <option value="BE">BE</option>
+                            <option value="RE">RE</option>
+                            <option value="FE">FE</option>
+                          </select>
+                          <button 
+                            class="btn btn-outline-info btn-sm d-flex align-items-center" 
+                            @click="viewHistory"
+                            title="View Budget Phase History"
+                          >
+                          <i class="fas fa-history"></i> &nbspHistory
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -457,6 +466,10 @@ export default {
       return formatIndianNumber(allocatedAmount.value)
     })
 
+    const viewHistory = () => {
+      router.visit('/budget-phase-history')
+    }
+
     return {
       selectedPhase,
       financialYear,
@@ -475,7 +488,8 @@ export default {
       clearMessage,
       formatIndianNumber,
       formattedTotalBudget,
-      formattedAllocatedAmount
+      formattedAllocatedAmount,
+      viewHistory
     }
   }
 }

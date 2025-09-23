@@ -3,7 +3,7 @@
     <Sidebar />
     <div class="main-panel">
       <Header />
-      <RoleGuard :roles="[2]" show-fallback>
+      <!-- <RoleGuard :roles="[2]" show-fallback> -->
         <div class="container">
           <div class="page-inner allinsideform">
             <div class="page-header">
@@ -291,7 +291,7 @@
             </div>
           </div>
         </div>
-      </RoleGuard>
+      <!-- </RoleGuard> -->
       <Footer />
     </div>
   </div>

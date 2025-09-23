@@ -75,6 +75,7 @@
                       <span class="sub-item">Budget Heads</span>
                     </Link></li>
                     <li><Link :href="route('budget-phase')" class="nav-link"><span class="sub-item">Budget Phase</span></Link></li>
+                    <!-- <li><Link :href="route('budget-phase-history')" class="nav-link"><span class="sub-item">Budget Phase History</span></Link></li> -->
                     <li><Link :href="route('state-uts')" class="nav-link"><span class="sub-item">State/UTs</span></Link></li>
                     <li><Link :href="route('state-uts-pd')" class="nav-link"><span class="sub-item">PD Component / SLS</span></Link></li>
                   </ul>
@@ -291,17 +292,26 @@ const path = window.location.pathname
 const menuMap = {
   '/user-listing': 'dashboard',
   '/user-create': 'dashboard',
+  '/budget-heads': 'bhead',
   '/budget-phase': 'bhead',
-  // '/budget-phase': 'budget',
+  '/budget-phase-history': 'bhead',
   '/fund-allocation': 'budget',
   '/state-uts': 'bhead',
   '/state-uts-pd': 'bhead',
-  '/daily-sanction-list': 'daily-sanction', // or a separate 'daily-sanction' if you reopen it
-  '/mother-sanction-list': 'mother-sanction',
+  '/daily-sanction': 'moduledailysanction',
+  '/daily-sanction-list': 'moduledailysanction',
+  '/mother-sanction': 'module-mother-sanction',
+  '/mother-sanction-list': 'module-mother-sanction',
+  '/mother-sanction-list-module': 'module-mother-sanction',
   '/budget-phase-report': 'reports',
-  // '/budget-phase': 'reports',
-  '/state-uts': 'reports',
-  '/state-uts-pd': 'mother-sanction',
+  '/mother-sanction-report': 'reports',
+  '/fund-allocation-report': 'reports',
+  '/rog-report': 'reports',
+  '/re-appropriation-mis-report': 'reports',
+  '/re-appropriation-of-funds': 're-appropriation-of-funds',
+  '/statewise-aap-allocation': 'annual-action-plan',
+  '/state-release-data': 'annual-action-plan',
+  '/pd-wise-budget-allocation': 'budget',
 }
 
 
@@ -309,9 +319,19 @@ const menuMap = {
 
 
 onMounted(() => {
-  // console.log('User Type IDs:', userTypeIds);
-  // const current = window.location.pathname
-  activeMenu.value = menuMap[path] || ''  // fallback: no menu open
+  // Set active menu based on current path
+  activeMenu.value = menuMap[path] || ''
+  
+  // Add active class to current submenu item
+  const currentPath = window.location.pathname
+  document.querySelectorAll('.nav-collapse .nav-link').forEach(link => {
+    const href = link.getAttribute('href')
+    if (href === currentPath) {
+      link.classList.add('active')
+    } else {
+      link.classList.remove('active')
+    }
+  })
 
   document.querySelectorAll('.collapse').forEach(el => {
     new Collapse(el, { toggle: false })
@@ -324,6 +344,65 @@ onMounted(() => {
 <style>
 .sidebar-logo .logo-header .logo {
     width: 100%;
+}
+
+/* Active menu styling */
+.nav-item.active > a {
+    color: #1269db !important;
+}
+
+.nav-item.active > a i {
+    color: #1269db !important;
+}
+
+.nav-item.active > a p {
+    color: #1269db !important;
+}
+
+/* Active submenu item styling */
+.nav-collapse .nav-link.active {
+    color: #1269db !important;
+}
+
+.nav-collapse .nav-link.active .sub-item {
+    color: #1269db !important;
+}
+
+/* Hover effects for menu items */
+.nav-item > a:hover {
+    color: #1269db !important;
+}
+
+.nav-item > a:hover i {
+    color: #1269db !important;
+}
+
+.nav-item > a:hover p {
+    color: #1269db !important;
+}
+
+/* Submenu hover effects */
+.nav-collapse .nav-link:hover {
+    color: #1269db !important;
+}
+
+.nav-collapse .nav-link:hover .sub-item {
+    color: #1269db !important;
+}
+
+/* Caret rotation for active menu */
+.nav-item.active .caret.rotated {
+    transform: rotate(90deg);
+    transition: transform 0.3s ease;
+}
+
+/* Smooth transitions */
+.nav-item > a,
+.nav-item > a i,
+.nav-item > a p,
+.nav-collapse .nav-link,
+.nav-collapse .nav-link .sub-item {
+    transition: color 0.3s ease;
 }
 </style>
 

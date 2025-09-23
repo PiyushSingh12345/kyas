@@ -14,6 +14,7 @@ use App\Http\Controllers\MotherSanctionListController;
 use App\Http\Controllers\DailySanctionController;
 use App\Http\Controllers\ReAppropritionController;
 use App\Http\Controllers\AnnualActionPlanController;
+use App\Http\Controllers\BudgetPhaseHistoryController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -54,6 +55,9 @@ Route::get('/budget-phase', function () {
 Route::get('/budget-phase-report', function () {
     return Inertia::render('Reports/BudgetPhaseReport');
 })->middleware(['auth', 'verified', 'role:1,2,4'])->name('budget-phase-report');
+
+Route::get('/budget-phase-history', [BudgetPhaseHistoryController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:1,2,3,4'])->name('budget-phase-history');
 
 Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
@@ -155,6 +159,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/budget-phase', [BudgetPhaseController::class, 'store'])->name('budget-phase.store');
 
     Route::get('/api/budget-allocation', [BudgetPhaseController::class, 'fetchActiveBudgetAllocation']);
+
+    // Budget Phase History API routes
+    Route::get('/api/budget-phase-history', [BudgetPhaseHistoryController::class, 'getHistoryData']);
+    Route::get('/api/budget-heads-with-history', [BudgetPhaseHistoryController::class, 'getBudgetHeadsWithHistory']);
+    Route::get('/api/users', function() {
+        return response()->json([
+            'success' => true,
+            'data' => \App\Models\User::select('id', 'name', 'email')->get()
+        ]);
+    });
 
     Route::get('/pd-sls-list', [SlsPDComponentController::class, 'index'])->name('pd-sls.list');
     Route::get('/pd-components-list', [SlsPDComponentController::class, 'getPDComponents'])->name('pd-components.list');
