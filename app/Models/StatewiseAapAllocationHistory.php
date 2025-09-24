@@ -2,32 +2,21 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class StatewiseAapAllocation extends Model
+class StatewiseAapAllocationHistory extends Model
 {
-    use HasFactory;
-
-    protected $table = 'statewise_aap_allocation';
-
+    protected $table = 'statewise_aap_allocation_history';
     protected $guarded = [];
-
-    protected $fillable = [
-        'financial_year',
-        'state_id',
-        'pd_id',
-        'amount',
-        'status',
-        'remark'
-    ];
+    public $timestamps = false; // we already have manual created_at/updated_at
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'status' => 'integer'
+        'status' => 'integer',
+        'history_timestamp' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
-
-    public $timestamps = true;
 
     /**
      * Get the state that owns the allocation

@@ -7,6 +7,7 @@ use App\Models\MdUserType;
 use App\Http\Controllers\StateController;
 use App\Http\Controllers\BudgetHeadController;
 use App\Http\Controllers\BudgetPhaseController;
+use App\Http\Controllers\BudgetPhaseHistoryController;
 use App\Http\Controllers\SlsPDComponentController;
 use App\Http\Controllers\FundAllocationController;
 use App\Http\Controllers\MotherSanctionController;
@@ -14,7 +15,7 @@ use App\Http\Controllers\MotherSanctionListController;
 use App\Http\Controllers\DailySanctionController;
 use App\Http\Controllers\ReAppropritionController;
 use App\Http\Controllers\AnnualActionPlanController;
-use App\Http\Controllers\BudgetPhaseHistoryController;
+use App\Http\Controllers\StatewiseAapAllocationHistoryController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -58,6 +59,9 @@ Route::get('/budget-phase-report', function () {
 
 Route::get('/budget-phase-history', [BudgetPhaseHistoryController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:1,2,3,4'])->name('budget-phase-history');
+
+Route::get('/statewise-aap-allocation-history', [StatewiseAapAllocationHistoryController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:1,2,3,4'])->name('statewise-aap-allocation-history');
 
 Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
@@ -163,6 +167,9 @@ Route::middleware('auth')->group(function () {
     // Budget Phase History API routes
     Route::get('/api/budget-phase-history', [BudgetPhaseHistoryController::class, 'getHistoryData']);
     Route::get('/api/budget-heads-with-history', [BudgetPhaseHistoryController::class, 'getBudgetHeadsWithHistory']);
+    Route::get('/api/statewise-aap-allocation-history', [StatewiseAapAllocationHistoryController::class, 'getHistoryData']);
+    Route::get('/api/states-with-history', [StatewiseAapAllocationHistoryController::class, 'getStatesWithHistory']);
+    Route::get('/api/program-divisions-with-history', [StatewiseAapAllocationHistoryController::class, 'getProgramDivisionsWithHistory']);
     Route::get('/api/users', function() {
         return response()->json([
             'success' => true,

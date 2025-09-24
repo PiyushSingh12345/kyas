@@ -34,6 +34,14 @@ class MdProgramDivision extends Model
     {
         return $this->belongsTo(User::class, 'program_division_id', 'md_program_division_id');
     }
+
+    /**
+     * Get the statewise AAP allocation history for this program division
+     */
+    public function statewiseAapAllocationHistory()
+    {
+        return $this->hasMany(StatewiseAapAllocationHistory::class, 'pd_id', 'division_id');
+    }
 }
 
 

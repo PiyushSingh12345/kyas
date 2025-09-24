@@ -34,4 +34,12 @@ class State extends Model
         $array['state_name'] = $this->name;
         return $array;
     }
+
+    /**
+     * Get the statewise AAP allocation history for this state
+     */
+    public function statewiseAapAllocationHistory()
+    {
+        return $this->hasMany(StatewiseAapAllocationHistory::class, 'state_id', 'id');
+    }
 }

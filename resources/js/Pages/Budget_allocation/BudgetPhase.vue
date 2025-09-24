@@ -467,7 +467,7 @@ export default {
     })
 
     const viewHistory = () => {
-      router.visit('/budget-phase-history')
+      window.open('/budget-phase-history', '_blank')
     }
 
     return {
