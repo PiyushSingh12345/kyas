@@ -53,15 +53,20 @@ class ReAppropritionController extends Controller
         if ($request->from_budget_head_id != 999) {
             $updatedFromBudget = $fromBE - $reappropriationAmount;
             
-            // Update DB
-            BudgetPhase::where('budget_head_id', $request->from_budget_head_id)
-                ->update(['budget_amount' => $updatedFromBudget]);
+            // Update DB using Eloquent model to trigger observer
+            $fromBudgetPhase = BudgetPhase::where('budget_head_id', $request->from_budget_head_id)->first();
+            if ($fromBudgetPhase) {
+                $fromBudgetPhase->update(['budget_amount' => $updatedFromBudget]);
+            }
         }
 
         $updatedToBudget = $toBE + $reappropriationAmount;
 
-        BudgetPhase::where('budget_head_id', $request->to_budget_head_id)
-            ->update(['budget_amount' => $updatedToBudget]);
+        // Update DB using Eloquent model to trigger observer
+        $toBudgetPhase = BudgetPhase::where('budget_head_id', $request->to_budget_head_id)->first();
+        if ($toBudgetPhase) {
+            $toBudgetPhase->update(['budget_amount' => $updatedToBudget]);
+        }
 
         return response()->json($reappropriation, 201);
     }
