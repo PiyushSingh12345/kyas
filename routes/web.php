@@ -16,6 +16,7 @@ use App\Http\Controllers\DailySanctionController;
 use App\Http\Controllers\ReAppropritionController;
 use App\Http\Controllers\AnnualActionPlanController;
 use App\Http\Controllers\StatewiseAapAllocationHistoryController;
+use App\Http\Controllers\PdWiseBudgetAllocationAAPCentralHistoryController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -62,6 +63,9 @@ Route::get('/budget-phase-history', [BudgetPhaseHistoryController::class, 'index
 
 Route::get('/statewise-aap-allocation-history', [StatewiseAapAllocationHistoryController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:1,2,3,4'])->name('statewise-aap-allocation-history');
+
+Route::get('/pdwise-budget-allocation-aap-central-history', [PdWiseBudgetAllocationAAPCentralHistoryController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:1,2,3,4'])->name('pdwise-budget-allocation-aap-central-history');
 
 Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
@@ -170,6 +174,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/statewise-aap-allocation-history', [StatewiseAapAllocationHistoryController::class, 'getHistoryData']);
     Route::get('/api/states-with-history', [StatewiseAapAllocationHistoryController::class, 'getStatesWithHistory']);
     Route::get('/api/program-divisions-with-history', [StatewiseAapAllocationHistoryController::class, 'getProgramDivisionsWithHistory']);
+    Route::get('/api/pdwise-aap-allocation-history', [PdWiseBudgetAllocationAAPCentralHistoryController::class, 'getHistoryData']);
+    Route::get('/api/budget-heads-with-history-pdwise', [PdWiseBudgetAllocationAAPCentralHistoryController::class, 'getBudgetHeadsWithHistory']);
+    Route::get('/api/program-divisions-with-history-pdwise', [PdWiseBudgetAllocationAAPCentralHistoryController::class, 'getProgramDivisionsWithHistory']);
     Route::get('/api/users', function() {
         return response()->json([
             'success' => true,

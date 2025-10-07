@@ -27,7 +27,16 @@
 				<div class="col-md-12">
 				  <div class="card">
 					  <div class="card-header">
-						  						<div class="card-title">PD wise Budget Allocation (AAP) - Budget Heads for FY 2025-26 (₹ In Lakhs)</div>
+						  <div class="card-title d-flex justify-content-between align-items-center">
+							  <span>PD wise Budget Allocation (AAP) - Budget Heads for FY 2025-26 (₹ In Lakhs)</span>
+							  <button 
+								  class="btn btn-outline-info btn-sm d-flex align-items-center" 
+								  @click="viewHistory"
+								  title="View Allocation History"
+							  >
+								  <i class="fas fa-history"></i> &nbsp;History
+							  </button>
+						  </div>
 					  </div>
   
 					  <div class="card-body">
@@ -1077,6 +1086,11 @@
 	// Re-calculate grand total
 	const newGrandTotal = calculateGrandTotal()
 	console.log(`Updated Grand Total: ${newGrandTotal}`)
+  }
+
+  // Navigate to history page in new tab
+  const viewHistory = () => {
+    window.open('/pdwise-budget-allocation-aap-central-history', '_blank')
   }
   
   // Load data on component mount

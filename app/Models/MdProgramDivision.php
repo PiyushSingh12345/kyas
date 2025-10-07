@@ -42,6 +42,14 @@ class MdProgramDivision extends Model
     {
         return $this->hasMany(StatewiseAapAllocationHistory::class, 'pd_id', 'division_id');
     }
+
+    /**
+     * Get the PD wise AAP allocation history for this program division
+     */
+    public function pdWiseAapAllocationHistory()
+    {
+        return $this->hasMany(PdWiseAapAllocationHistory::class, 'pd_id', 'division_id');
+    }
 }
 
 

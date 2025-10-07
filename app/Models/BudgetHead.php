@@ -18,4 +18,12 @@ class BudgetHead extends Model
         return $this->hasMany(BudgetPhaseHistory::class, 'budget_head_id', 'id');
     }
 
+    /**
+     * Get the PD wise AAP allocation history for this budget head
+     */
+    public function pdWiseAapAllocationHistory()
+    {
+        return $this->hasMany(PdWiseAapAllocationHistory::class, 'bh_id', 'id');
+    }
+
 }

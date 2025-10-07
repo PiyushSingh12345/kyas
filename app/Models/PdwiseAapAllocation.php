@@ -40,4 +40,12 @@ class PdwiseAapAllocation extends Model
     {
         return $this->belongsTo(MdProgramDivision::class, 'pd_id', 'division_id');
     }
+
+    /**
+     * Get the PD wise AAP allocation history for this allocation
+     */
+    public function pdWiseAapAllocationHistory()
+    {
+        return $this->hasMany(PdWiseAapAllocationHistory::class, 'id', 'id');
+    }
 }
