@@ -318,6 +318,10 @@ Route::post('/debug-excel', function(Request $request) {
 
     Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
 
+    // PDF processing routes for Daily Sanction
+    Route::post('/api/daily-sanction/process-pdf', [App\Http\Controllers\DailySanctionPdfController::class, 'processPdf'])->name('dailySanction.processPdf');
+    Route::get('/api/daily-sanction/mother-sanctions', [App\Http\Controllers\DailySanctionPdfController::class, 'getMotherSanctionsByState'])->name('dailySanction.motherSanctions');
+
     Route::get('/reports/mother-sanctions-data', [MotherSanctionController::class, 'motherSanctionData']);
 
 

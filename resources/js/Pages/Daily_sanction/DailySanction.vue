@@ -19,6 +19,65 @@
                   <div class="card-title">Daily Sanction Module</div>
                 </div>
                 <div class="card-body">
+                  <!-- PDF Upload Section -->
+                  <div class="row mb-4">
+                    <div class="col-md-12">
+                      <div class="card bg-light">
+                        <div class="card-header">
+                          <h6 class="card-title mb-0">
+                            <i class="fas fa-file-pdf text-danger me-2"></i>
+                            Upload Daily Sanction PDF
+                          </h6>
+                        </div>
+                        <div class="card-body">
+                          <div class="row">
+                            <div class="col-md-8">
+                              <div class="form-group">
+                                <label for="pdfFile" class="form-label">Select PDF File</label>
+                                <input 
+                                  type="file" 
+                                  class="form-control" 
+                                  id="pdfFile" 
+                                  accept=".pdf"
+                                  @change="handleFileSelect"
+                                  ref="fileInput"
+                                >
+                                <div class="form-text">Upload the daily sanction PDF file to automatically populate form fields</div>
+                              </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                              <button 
+                                type="button" 
+                                class="btn btn-primary me-2" 
+                                @click="processPdf"
+                                :disabled="!selectedFile || isProcessing"
+                              >
+                                <i class="fas fa-upload me-1"></i>
+                                <span v-if="isProcessing">Processing...</span>
+                                <span v-else>Process PDF</span>
+                              </button>
+                              <button 
+                                type="button" 
+                                class="btn btn-secondary" 
+                                @click="clearUpload"
+                                :disabled="isProcessing"
+                              >
+                                <i class="fas fa-times me-1"></i>
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+                          <div v-if="selectedFile" class="mt-2">
+                            <small class="text-muted">
+                              <i class="fas fa-file-pdf text-danger me-1"></i>
+                              Selected: {{ selectedFile.name }} ({{ formatFileSize(selectedFile.size) }})
+                            </small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div class="row">
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-3">
@@ -184,6 +243,11 @@ const slsID = ref('')
 const remark = ref('')
 const sanctionDetails = ref([])
 
+// PDF Upload state
+const selectedFile = ref(null)
+const isProcessing = ref(false)
+const fileInput = ref(null)
+
 // Flash message state
 const flashMessage = ref({
   show: false,
@@ -226,6 +290,130 @@ const resetForm = () => {
   selectedMotherSanction.value = ''
   remark.value = ''
   clearDetails()
+  clearUpload()
+}
+
+// PDF Upload Functions
+const handleFileSelect = (event) => {
+  const file = event.target.files[0]
+  if (file && file.type === 'application/pdf') {
+    selectedFile.value = file
+  } else {
+    showFlashMessage('danger', 'Please select a valid PDF file', 'fas fa-exclamation-triangle')
+    event.target.value = ''
+  }
+}
+
+const clearUpload = () => {
+  selectedFile.value = null
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const processPdf = async () => {
+  if (!selectedFile.value) {
+    showFlashMessage('danger', 'Please select a PDF file first', 'fas fa-exclamation-triangle')
+    return
+  }
+
+  isProcessing.value = true
+
+  try {
+    const formData = new FormData()
+    formData.append('pdf_file', selectedFile.value)
+
+    const response = await fetch('/api/daily-sanction/process-pdf', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+      },
+      body: formData
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+      // Populate form fields with extracted data
+      populateFormFromPdf(result.data)
+      
+      showFlashMessage(
+        'success', 
+        'PDF processed successfully! Form fields have been populated.', 
+        'fas fa-check-circle'
+      )
+    } else {
+      showFlashMessage(
+        'danger', 
+        result.message || 'Failed to process PDF', 
+        'fas fa-exclamation-triangle'
+      )
+    }
+  } catch (error) {
+    console.error('Error processing PDF:', error)
+    showFlashMessage(
+      'danger', 
+      'An error occurred while processing the PDF. Please try again.', 
+      'fas fa-exclamation-triangle'
+    )
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+const populateFormFromPdf = (data) => {
+  // Populate basic form fields
+  if (data.financial_year) {
+    financialYear.value = data.financial_year
+  }
+  
+  if (data.state_id) {
+    selectedState.value = data.state_id
+    // Fetch mother sanctions for the selected state
+    fetchMotherSanctions(data.state_id)
+  }
+  
+  if (data.ds_date) {
+    dsDate.value = data.ds_date
+  }
+  
+  if (data.daily_sanction_no) {
+    dailySanctionNo.value = data.daily_sanction_no
+  }
+  
+  if (data.mother_sanction) {
+    selectedMotherSanction.value = data.mother_sanction
+  }
+  
+  if (data.ifd_no) {
+    ifdNo.value = data.ifd_no
+  }
+  
+  if (data.sls_name) {
+    slsName.value = data.sls_name
+  }
+  
+  if (data.remark) {
+    remark.value = data.remark
+  }
+  
+  // Populate sanction details
+  if (data.sanction_details && data.sanction_details.length > 0) {
+    sanctionDetails.value = data.sanction_details.map(detail => ({
+      budget_head: detail.budget_head || '',
+      mother_sanction_amount: detail.mother_sanction_amount || 0,
+      available_fund: detail.available_fund || 0,
+      center_share_amount: detail.center_share_amount || 0
+    }))
+  }
 }
 
 onMounted(async () => {
