@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Models\User;
@@ -228,37 +229,61 @@ class UserController extends Controller
 
     public function update(Request $request, $id)
     {
-        $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email',
-            // 'user_type' => 'required|array',
-            // 'user_type.*' => 'required|integer',
-            // Accept both user_type and user_type_id for compatibility
-            'mobile_number' => 'required|numeric',
-            'program_division_id' => 'required|integer',
-            'user_type_id' => 'required|array',
-            'user_type_id.*' => 'required|integer',
-        ]);
-        $user = User::findOrFail($id);
-        
-        $userTypeString = implode(',', $request->user_type_id);
-        // $userTypeString = implode(',', $request->user_type);
+        try {
+            $validated = $request->validate([
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email,' . $id,
+                'designation' => 'nullable',
+                'mobile_number' => 'required|numeric',
+                'program_division_id' => 'required|integer',
+                'user_type_id' => 'required|array',
+                'user_type_id.*' => 'required|integer',
+            ]);
+            $user = User::findOrFail($id);
+            $userTypeString = implode(',', $request->user_type_id);
 
-        $user->update([
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'name' => $validated['first_name'] . ' ' . $validated['last_name'],
-            'designation_id' => $request->designation,
-            'mobile_number' => $validated['mobile_number'],
-            // 'mobile_number' => $request->mobile,
-            // 'program_division_id' => $request->program_division,
-            'program_division_id' => $validated['program_division_id'],
-            'user_type_id' => $userTypeString,
-            'email' => $validated['email'],
-            'password' => $request->password ? Hash::make($request->password) : $user->password,
-        ]);
-        return redirect()->route('user-listing')->with('success', 'User updated successfully!');
+            $user->update([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'designation_id' => $validated['designation'],
+                'mobile_number' => $validated['mobile_number'],
+                'program_division_id' => $validated['program_division_id'],
+                'user_type_id' => $userTypeString,
+                'email' => $validated['email'],
+                'password' => $request->password ? Hash::make($request->password) : $user->password,
+            ]);
+            // Check if this is an Inertia request
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'User updated successfully!');
+            }
+            return redirect()->route('user-listing')->with('success', 'User updated successfully!');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('User Update Validation Error', [
+                'user_id' => $id,
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+            // Check if this is an Inertia request
+            if ($request->header('X-Inertia')) {
+                throw $e; // Let Inertia handle the validation errors
+            }
+            return redirect()->back()
+                ->withErrors($e->errors())
+                ->withInput();
+        } catch (\Exception $e) {
+            Log::error('User update error: ' . $e->getMessage(), [
+                'user_id' => $id,
+                'request_data' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Check if this is an Inertia request
+            if ($request->header('X-Inertia')) {
+                return back()->withErrors(['error' => 'Failed to update user. Please try again.']);
+            }
+            return redirect()->back()->with('error', 'Failed to update user. Please try again.');
+        }
     }
 
     public function destroy($id)
