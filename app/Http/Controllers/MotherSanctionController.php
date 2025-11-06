@@ -514,5 +514,94 @@ public function getMotherSanctionDetails($kyMsNo)
 }
 
 
+    public function timeSeriesReport(Request $request)
+    {
+        $query = MotherSanction::with('state')
+            ->where('status', 1);
+
+        // Apply filters
+        if ($request->has('state_id') && $request->state_id) {
+            $query->where('state_id', $request->state_id);
+        }
+
+        if ($request->has('financial_year') && $request->financial_year) {
+            $query->where('financial_year', $request->financial_year);
+        }
+
+        if ($request->has('budget_head') && $request->budget_head) {
+            $query->where('budget_head', $request->budget_head);
+        }
+
+        $data = $query->get();
+
+        // Get unique financial years for columns
+        $financialYears = $data->pluck('financial_year')->unique()->sort()->values()->toArray();
+        
+        // Get unique states
+        $states = $data->pluck('state_id')->unique();
+        $statesWithNames = DB::table('states')
+            ->whereIn('id', $states)
+            ->pluck('name', 'id')
+            ->toArray();
+
+        // Group by state and budget head
+        $grouped = [];
+        
+        foreach ($states as $stateId) {
+            $stateName = $statesWithNames[$stateId] ?? 'Unknown';
+            $stateData = $data->where('state_id', $stateId);
+            $budgetHeads = $stateData->pluck('budget_head')->unique();
+            
+            $budgetHeadRows = [];
+            
+            foreach ($budgetHeads as $budgetHead) {
+                $budgetData = $stateData->where('budget_head', $budgetHead);
+                $metrics = [];
+                
+                foreach ($financialYears as $year) {
+                    $yearData = $budgetData->where('financial_year', $year);
+                    $metrics[$year] = [
+                        'mother_sanction_amount' => round($yearData->sum('mother_sanction_amount'), 2),
+                        'available_fund' => round($yearData->sum('available_fund'), 2),
+                        'total_mother_sanction_amount' => round($yearData->sum('total_mother_sanction_amount'), 2),
+                    ];
+                }
+                
+                $budgetHeadRows[] = [
+                    'budget_head' => $budgetHead,
+                    'metrics' => $metrics,
+                ];
+            }
+            
+            // Add total row for the state
+            $totalMetrics = [];
+            foreach ($financialYears as $year) {
+                $yearData = $stateData->where('financial_year', $year);
+                $totalMetrics[$year] = [
+                    'mother_sanction_amount' => round($yearData->sum('mother_sanction_amount'), 2),
+                    'available_fund' => round($yearData->sum('available_fund'), 2),
+                    'total_mother_sanction_amount' => round($yearData->sum('total_mother_sanction_amount'), 2),
+                ];
+            }
+            
+            $budgetHeadRows[] = [
+                'budget_head' => 'Total',
+                'metrics' => $totalMetrics,
+                'is_total' => true,
+            ];
+            
+            $grouped[] = [
+                'state' => $stateName,
+                'state_id' => $stateId,
+                'items' => $budgetHeadRows,
+            ];
+        }
+
+        return response()->json([
+            'years' => $financialYears,
+            'data' => $grouped,
+        ]);
+    }
+
    
 }

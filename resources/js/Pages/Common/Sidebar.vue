@@ -208,6 +208,8 @@
 
                     <li><Link :href="route('re-appropriation-mis-report')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
                     <li><Link :href="route('mother-sanction-list')" class="nav-link"><span class="sub-item">Mother Sanction List</span></Link></li>
+                    <li><Link :href="route('daily-sanction-time-series-report')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li>
+                    <li><Link :href="route('mother-sanction-time-series-report')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li>
                   </ul>
                 </div>
               </li>
@@ -308,6 +310,8 @@ const menuMap = {
   '/fund-allocation-report': 'reports',
   '/rog-report': 'reports',
   '/re-appropriation-mis-report': 'reports',
+  '/daily-sanction-time-series-report': 'reports',
+  '/mother-sanction-time-series-report': 'reports',
   '/re-appropriation-of-funds': 're-appropriation-of-funds',
   '/statewise-aap-allocation': 'annual-action-plan',
   '/state-release-data': 'annual-action-plan',

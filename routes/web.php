@@ -119,6 +119,14 @@ Route::get('/rog-report', function () {
     return Inertia::render('Reports/RogReport');
 })->middleware(['auth', 'verified', 'role:1,2,4'])->name('rog-report');
 
+Route::get('/daily-sanction-time-series-report', function () {
+    return Inertia::render('Reports/DailySanctionTimeSeriesReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('daily-sanction-time-series-report');
+
+Route::get('/mother-sanction-time-series-report', function () {
+    return Inertia::render('Reports/MotherSanctionTimeSeriesReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('mother-sanction-time-series-report');
+
 Route::get('/mother-sanction-list-module', function () {
     return Inertia::render('mother_sanction/MotherSanctionList');
 })->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction-list-module');
@@ -317,12 +325,14 @@ Route::post('/debug-excel', function(Request $request) {
     Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
 
     Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
+    Route::get('/api/daily-sanction-time-series', [DailySanctionController::class, 'timeSeriesReport'])->name('dailySanction.timeSeriesReport');
 
     // PDF processing routes for Daily Sanction
     Route::post('/api/daily-sanction/process-pdf', [App\Http\Controllers\DailySanctionPdfController::class, 'processPdf'])->name('dailySanction.processPdf');
     Route::get('/api/daily-sanction/mother-sanctions', [App\Http\Controllers\DailySanctionPdfController::class, 'getMotherSanctionsByState'])->name('dailySanction.motherSanctions');
 
     Route::get('/reports/mother-sanctions-data', [MotherSanctionController::class, 'motherSanctionData']);
+    Route::get('/api/mother-sanction-time-series', [MotherSanctionController::class, 'timeSeriesReport'])->name('motherSanction.timeSeriesReport');
 
 
 
