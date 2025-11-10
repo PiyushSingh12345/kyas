@@ -101,11 +101,11 @@
                         <span class="sub-item">PD wise Budget Allocation</span>
                       </Link>
                     </li>
-                    <li>
+                    <!-- <li>
                       <Link :href="route('fund-allocation')" class="nav-link">
                         <span class="sub-item">Fund Allocation</span>
                       </Link>
-                    </li>
+                    </li> -->
                   </ul>
                 </div>
               </li>
@@ -200,8 +200,14 @@
                   <span class="caret" :class="{ rotated: activeMenu === 'reports' }"></span>
                 </a>
                 <div v-show="activeMenu === 'reports'">
-                  <ul class="nav nav-collapse">
-                    <li><Link :href="route('budget-phase-report')" class="nav-link"><span class="sub-item">Budget phases Summary Report</span></Link></li>
+                   <ul class="nav nav-collapse">
+                    <li><Link :href="route('budget-phase-report-a')" class="nav-link"><span class="sub-item">Budget phases Report</span></Link></li>
+                    <li><Link :href="route('pd-wise-budget-allocation-report')" class="nav-link"><span class="sub-item">PD wise Budget Allocation Report</span></Link></li>
+                    <li><Link :href="route('daily-sanction-reports')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li>
+                    <li><Link :href="route('mother-sanction-reports')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li>
+                    <!-- <li><Link :href="route('daily-sanction-report')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li> -->
+                    <!--<li><Link :href="route('mother-sanction-report')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li> -->
+                   <!-- <li><Link :href="route('budget-phase-report')" class="nav-link"><span class="sub-item">Budget phases Summary Report</span></Link></li>
                     <li><Link :href="route('mother-sanction-report')" class="nav-link"><span class="sub-item">Mother Sanction Summary</span></Link></li>
                     <li><Link :href="route('fund-allocation-report')" class="nav-link"><span class="sub-item">Fund Allocation Report</span></Link></li>
                     <li><Link :href="route('rog-report')" class="nav-link"><span class="sub-item">RoG Report</span></Link></li>
@@ -209,7 +215,7 @@
                     <li><Link :href="route('re-appropriation-mis-report')" class="nav-link"><span class="sub-item">Re-Appropriation of MIS Report</span></Link></li>
                     <li><Link :href="route('mother-sanction-list')" class="nav-link"><span class="sub-item">Mother Sanction List</span></Link></li>
                     <li><Link :href="route('daily-sanction-time-series-report')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li>
-                    <li><Link :href="route('mother-sanction-time-series-report')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li>
+                    <li><Link :href="route('mother-sanction-time-series-report')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li>-->
                   </ul>
                 </div>
               </li>
@@ -246,6 +252,34 @@
                         <span class="sub-item">PD wise Budget Allocation</span>
                       </Link>
                     </li> -->
+                  </ul>
+                </div>
+              </li>
+
+              <!-- Agency Release Module -->
+              <li class="nav-item" :class="{ active: activeMenu === 'agency-release' }" v-if="hasRole([2])">
+                <a href="#" @click.prevent="toggleMenu('agency-release')">
+                  <i class="fas fa-pen-square"></i>
+                  <p>Agency Release</p>
+                  <span class="caret" :class="{ rotated: activeMenu === 'agency-release' }"></span>
+                </a>
+                <div v-show="activeMenu === 'agency-release'">
+                  <ul class="nav nav-collapse">
+                    <li>
+                      <Link :href="route('agency-release-tsa')" class="nav-link">
+                        <span class="sub-item">TSA</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('agency-release-loa')" class="nav-link">
+                        <span class="sub-item">LOA</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('agency-release-administrative-expenditure')" class="nav-link">
+                        <span class="sub-item">Administrative Expenditure</span>
+                      </Link>
+                    </li>
                   </ul>
                 </div>
               </li>
@@ -316,6 +350,9 @@ const menuMap = {
   '/statewise-aap-allocation': 'annual-action-plan',
   '/state-release-data': 'annual-action-plan',
   '/pd-wise-budget-allocation': 'budget',
+  '/agency-release-tsa': 'agency-release',
+  '/agency-release-loa': 'agency-release',
+  '/agency-release-administrative-expenditure': 'agency-release',
 }
 
 

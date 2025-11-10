@@ -143,6 +143,18 @@ Route::get('/statewise-aap-allocation', function () {
     return Inertia::render('Annual_action_plan/StatewiseAapAllocation');
 })->middleware(['auth', 'verified', 'role:2'])->name('statewise-aap-allocation');
 
+Route::get('/agency-release-tsa', function () {
+    return Inertia::render('agency/AgencyRelease');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-tsa');
+
+Route::get('/agency-release-loa', function () {
+    return Inertia::render('agency/AgencyRelease');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-loa');
+
+Route::get('/agency-release-administrative-expenditure', function () {
+    return Inertia::render('agency/AgencyRelease');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-administrative-expenditure');
+
 Route::get('/role-based-access-demo', function () {
     return Inertia::render('RoleBasedAccessDemo');
 })->middleware(['auth', 'verified'])->name('role-based-access-demo');
@@ -373,5 +385,22 @@ Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
 
 Route::post('/sls-upload', [App\Http\Controllers\SLSController::class, 'upload'])->name('sls.upload');
+
+// Reports
+Route::get('/budget-phase-report-a', function () {
+    return Inertia::render('Reports/BudgetPhaseReportA');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('budget-phase-report-a');
+
+Route::get('/pd-wise-budget-allocation-report', function () {
+    return Inertia::render('Reports/PDwiseBudgetAllocationReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('pd-wise-budget-allocation-report');
+
+Route::get('/daily-sanction-reports', function () {
+    return Inertia::render('Reports/DailySanctionReports');
+})->middleware(['auth', 'verified', 'role:2'])->name('daily-sanction-reports');
+
+Route::get('/mother-sanction-reports', function () {
+    return Inertia::render('Reports/MotherSanctionReports');
+})->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction-reports');
 
 require __DIR__.'/auth.php';
