@@ -96,6 +96,32 @@ class BudgetHeadController extends Controller
         return response()->json($budgetHeads);
     }
 
+    /**
+     * Fetch budget heads filtered by major head (first 4 digits)
+     */
+    public function fetchBudgetHeadsByMajorHead(Request $request)
+    {
+        $majorHead = $request->query('major_head');
+        
+        if (!$majorHead) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Major head parameter is required'
+            ], 400);
+        }
+
+        // Get budget heads where the budget code starts with the major head
+        // The budget code format is like "2435.60.103.04.00.04", so we check if it starts with the major head
+        $budgetHeads = BudgetHead::where('status', 1)
+            ->where(function($query) use ($majorHead) {
+                $query->where('budget', 'LIKE', $majorHead . '.%')
+                      ->orWhere('budget', 'LIKE', $majorHead . '%');
+            })
+            ->get();
+
+        return response()->json($budgetHeads);
+    }
+
     public function upload(Request $request)
     {
         $request->validate([

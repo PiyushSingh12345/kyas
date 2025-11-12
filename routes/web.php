@@ -144,15 +144,15 @@ Route::get('/statewise-aap-allocation', function () {
 })->middleware(['auth', 'verified', 'role:2'])->name('statewise-aap-allocation');
 
 Route::get('/agency-release-tsa', function () {
-    return Inertia::render('agency/AgencyRelease');
+    return Inertia::render('agency/AgencyReleaseTSA');
 })->middleware(['auth', 'verified', 'role:2'])->name('agency-release-tsa');
 
 Route::get('/agency-release-loa', function () {
-    return Inertia::render('agency/AgencyRelease');
+    return Inertia::render('agency/AgencyReleaseLOA');
 })->middleware(['auth', 'verified', 'role:2'])->name('agency-release-loa');
 
 Route::get('/agency-release-administrative-expenditure', function () {
-    return Inertia::render('agency/AgencyRelease');
+    return Inertia::render('agency/AgencyReleaseAdministrativeExpenditure');
 })->middleware(['auth', 'verified', 'role:2'])->name('agency-release-administrative-expenditure');
 
 Route::get('/role-based-access-demo', function () {
@@ -183,6 +183,7 @@ Route::middleware('auth')->group(function () {
 
 
    Route::get('/api/budget-heads', [BudgetPhaseController::class, 'fetchActiveBudgetHeads']);
+   Route::get('/api/budget-heads-by-major-head', [BudgetHeadController::class, 'fetchBudgetHeadsByMajorHead']);
 
     Route::post('/budget-phase', [BudgetPhaseController::class, 'store'])->name('budget-phase.store');
 
