@@ -298,13 +298,24 @@ const submitForm = async () => {
   }
 
   try {
+    // Prepare data with proper types
+    const submitData = {
+      sanctionNumber: formData.value.sanctionNumber,
+      date: formData.value.date,
+      budgetHead: formData.value.budgetHead,
+      purposeOfGrant: formData.value.purposeOfGrant,
+      programDivision: parseInt(formData.value.programDivision),
+      amount: parseFloat(formData.value.amount),
+      ut: formData.value.ut
+    }
+
     const response = await fetch('/api/agency-release-loa', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
       },
-      body: JSON.stringify(formData.value)
+      body: JSON.stringify(submitData)
     })
 
     if (response.ok) {

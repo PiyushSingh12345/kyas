@@ -17,6 +17,7 @@ use App\Http\Controllers\ReAppropritionController;
 use App\Http\Controllers\AnnualActionPlanController;
 use App\Http\Controllers\StatewiseAapAllocationHistoryController;
 use App\Http\Controllers\PdWiseBudgetAllocationAAPCentralHistoryController;
+use App\Http\Controllers\AgencyReleaseController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -346,6 +347,11 @@ Route::post('/debug-excel', function(Request $request) {
 
     Route::get('/reports/mother-sanctions-data', [MotherSanctionController::class, 'motherSanctionData']);
     Route::get('/api/mother-sanction-time-series', [MotherSanctionController::class, 'timeSeriesReport'])->name('motherSanction.timeSeriesReport');
+
+    // Agency Release API routes
+    Route::post('/api/agency-release-tsa', [AgencyReleaseController::class, 'storeTSA'])->middleware(['role:2'])->name('agency-release-tsa.store');
+    Route::post('/api/agency-release-loa', [AgencyReleaseController::class, 'storeLOA'])->middleware(['role:2'])->name('agency-release-loa.store');
+    Route::post('/api/agency-release-administrative-expenditure', [AgencyReleaseController::class, 'storeAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.store');
 
 
 
