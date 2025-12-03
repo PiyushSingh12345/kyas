@@ -15,6 +15,7 @@ class ProgramDivision extends Model
     protected $fillable = [
         'division_name',
         'is_active',
+        'is_pd',
         'created_at'
     ];
 

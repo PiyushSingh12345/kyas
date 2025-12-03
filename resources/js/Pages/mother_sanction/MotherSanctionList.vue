@@ -32,6 +32,13 @@
 
                   </div>
                                     <div class="card-body">
+                    <!-- Flash Message -->
+                    <div v-if="flashMessage.show" :class="`alert alert-${flashMessage.type} alert-dismissible fade show`" role="alert">
+                      <i :class="flashMessage.icon"></i>
+                      {{ flashMessage.message }}
+                      <button type="button" class="btn-close" @click="hideFlashMessage" aria-label="Close"></button>
+                    </div>
+
                     <!-- Loading State -->
                     <div v-if="isLoading" class="text-center py-4">
                       <div class="spinner-border text-primary" role="status">
@@ -99,7 +106,7 @@
                                       <td class="text-center">{{ budget.category }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(budget.available_fund) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget)) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
                                       <td colspan="5" class="text-center text-muted">No budget heads available</td>
@@ -110,17 +117,26 @@
                             </td>
 
                             <td class="text-center status-column">
-                              <div class="form-check form-switch d-flex justify-content-center">
-                                <input 
-                                  class="form-check-input" 
-                                  type="checkbox" 
-                                  :id="`status-${index}`"
-                                  :checked="item.status === 'active'"
-                                  @click="handleStatusToggle($event, item, index)"
+                              <div class="d-flex justify-content-center align-items-center gap-2">
+                                <div class="form-check form-switch">
+                                  <input 
+                                    class="form-check-input" 
+                                    type="checkbox" 
+                                    :id="`status-${index}`"
+                                    :checked="item.status === 'active'"
+                                    @click="handleStatusToggle($event, item, index)"
+                                  >
+                                  <label class="form-check-label ms-2" :for="`status-${index}`">
+                                    {{ item.status === 'active' ? 'Active' : 'Inactive' }}
+                                  </label>
+                                </div>
+                                <button 
+                                  class="btn btn-sm btn-secondary"
+                                  @click="handleClose(item, index)"
+                                  title="Close"
                                 >
-                                <label class="form-check-label ms-2" :for="`status-${index}`">
-                                  {{ item.status === 'active' ? 'Active' : 'Inactive' }}
-                                </label>
+                                  Close
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -191,6 +207,31 @@ const selectedItem = ref(null)
 const selectedIndex = ref(null)
 const originalStatus = ref(null)
 
+// Flash message state
+const flashMessage = ref({
+  show: false,
+  type: 'success',
+  message: '',
+  icon: ''
+})
+
+const showFlashMessage = (type, message, icon) => {
+  flashMessage.value = {
+    show: true,
+    type,
+    message,
+    icon
+  };
+  
+  setTimeout(() => {
+    hideFlashMessage();
+  }, 5000);
+};
+
+const hideFlashMessage = () => {
+  flashMessage.value.show = false;
+};
+
 onMounted(async () => {
   await fetchMotherSanctions()
 })
@@ -254,6 +295,13 @@ const calculateAvailableBalance = (row) => {
   const totalAllocated = parseFloat(row.total_mother_sanction_amount) || 0;
   const totalExpenditure = parseFloat(row.total_expenditure) || 0;
   return (totalAllocated - totalExpenditure).toFixed(2);
+};
+
+// Method to calculate available fund (MS Amount - Expenditure)
+const calculateAvailableFund = (budget) => {
+  const msAmount = parseFloat(budget.mother_sanction_amount) || 0;
+  const expenditure = parseFloat(budget.expenditure) || 0;
+  return msAmount - expenditure;
 };
 
 // Method to format date
@@ -353,6 +401,39 @@ const confirmStatusChange = async () => {
     }
   }
   closeConfirmDialog();
+};
+
+// Method to handle close action
+const handleClose = async (item, index) => {
+  if (!confirm('Are you sure you want to close this record?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/mother-sanction/update-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+      },
+      body: JSON.stringify({
+        ky_ms_no: item.ky_ms_no,
+        action: 'deactivate'
+      })
+    });
+
+    if (response.ok) {
+      // Refresh the data to reflect the status change
+      await fetchMotherSanctions();
+      showFlashMessage('success', 'Record closed successfully', 'fas fa-check-circle');
+    } else {
+      console.error('Failed to close record');
+      showFlashMessage('danger', 'Failed to close record. Please try again.', 'fas fa-exclamation-triangle');
+    }
+  } catch (error) {
+    console.error('Error closing record:', error);
+    showFlashMessage('danger', 'An error occurred while closing the record. Please try again.', 'fas fa-exclamation-triangle');
+  }
 };
 </script>
 
@@ -519,7 +600,46 @@ const confirmStatusChange = async () => {
 
 /* Status column styling */
 .status-column {
-  min-width: 120px;
+  min-width: 200px;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+/* Flash message styling */
+.alert {
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.alert-success {
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  color: #155724;
+  border-left: 4px solid #28a745;
+}
+
+.alert-danger {
+  background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+  color: #721c24;
+  border-left: 4px solid #dc3545;
+}
+
+.alert i {
+  margin-right: 8px;
+  font-size: 1.1em;
+}
+
+.btn-close {
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.btn-close:hover {
+  opacity: 1;
 }
 </style>
 

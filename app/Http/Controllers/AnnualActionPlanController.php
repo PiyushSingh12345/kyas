@@ -107,7 +107,26 @@ class AnnualActionPlanController extends Controller
                 ->get()
                 ->groupBy('state_id')
                 ->map(function ($stateAllocations) {
-                    return $stateAllocations->keyBy('pd_id');
+                    return $stateAllocations->keyBy('pd_id')->map(function ($allocation) {
+                        // Format amount to exactly 5 decimal places without rounding
+                        // Get raw value from database to preserve exact precision
+                        $rawAmount = $allocation->getRawOriginal('amount') ?? $allocation->amount;
+                        
+                        // Convert to string to preserve precision, then format to 5 decimals
+                        $amountStr = (string)$rawAmount;
+                        if (strpos($amountStr, '.') !== false) {
+                            $parts = explode('.', $amountStr);
+                            $integerPart = $parts[0];
+                            $decimalPart = isset($parts[1]) ? substr($parts[1], 0, 5) : '';
+                            $decimalPart = str_pad($decimalPart, 5, '0', STR_PAD_RIGHT);
+                            $amountStr = $integerPart . '.' . $decimalPart;
+                        } else {
+                            $amountStr = $amountStr . '.00000';
+                        }
+                        
+                        $allocation->amount = $amountStr;
+                        return $allocation;
+                    });
                 });
 
             // Get remarks for each state
@@ -183,6 +202,7 @@ class AnnualActionPlanController extends Controller
             $programDivisions = DBFacade::table('md_program_divisions')
                 ->select('division_id', 'division_name')
                 ->where('is_active', 1)
+                ->where('is_pd', 1)
                 ->orderBy('division_name')
                 ->get();
 
@@ -514,7 +534,26 @@ class AnnualActionPlanController extends Controller
                 ->get()
                 ->groupBy('bh_id')
                 ->map(function ($bhAllocations) {
-                    return $bhAllocations->keyBy('pd_id');
+                    return $bhAllocations->keyBy('pd_id')->map(function ($allocation) {
+                        // Format amount to exactly 5 decimal places without rounding
+                        // Get raw value from database to preserve exact precision
+                        $rawAmount = $allocation->getRawOriginal('amount') ?? $allocation->amount;
+                        
+                        // Convert to string to preserve precision, then format to 5 decimals
+                        $amountStr = (string)$rawAmount;
+                        if (strpos($amountStr, '.') !== false) {
+                            $parts = explode('.', $amountStr);
+                            $integerPart = $parts[0];
+                            $decimalPart = isset($parts[1]) ? substr($parts[1], 0, 5) : '';
+                            $decimalPart = str_pad($decimalPart, 5, '0', STR_PAD_RIGHT);
+                            $amountStr = $integerPart . '.' . $decimalPart;
+                        } else {
+                            $amountStr = $amountStr . '.00000';
+                        }
+                        
+                        $allocation->amount = $amountStr;
+                        return $allocation;
+                    });
                 });
 
             // Get remarks for each budget head

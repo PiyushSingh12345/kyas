@@ -54,7 +54,7 @@
 								<table class="table table-bordered table-hover align-middle text-center">
 									<thead class="table-dark">
 										<tr>
-											<th rowspan="2" class="align-middle">State</th>
+											<th rowspan="2" class="align-middle fw-sticky">State</th>
 											<th v-for="pd in programDivisions" :key="pd.division_id" colspan="1">
 												{{ pd.division_name }}
 											</th>
@@ -62,21 +62,23 @@
 											<th rowspan="2" class="align-middle">Remarks</th>
 										</tr>
 										<tr>
-											<th v-for="pd in programDivisions" :key="pd.division_id">
+                      <!-- add class="fw-sticky" to the first th of the second row -->
+											<th v-for="pd in programDivisions" :key="pd.division_id" >
 												Final Allocation
 											</th>
 										</tr>
 									</thead>
 									<tbody>
 										<tr v-for="state in states" :key="state.state_id">
-											<td class="fw-bold">{{ state.state_name }}</td>
+											<td class="fw-bold fw-sticky">{{ state.state_name }}</td>
 											<td v-for="pd in programDivisions" :key="pd.division_id">
 												<input 
 													type="number" 
 													class="form-control tableform-control-withoutbg" 
 													v-model="allocationData[state.state_id][pd.division_id]"
-													placeholder="0.00"
-													step="0.01"
+													@blur="formatInputValue(state.state_id, pd.division_id)"
+													placeholder="0.00000"
+													step="0.00001"
 													min="0"
 												>
 											</td>
@@ -96,7 +98,7 @@
 										
 										<!-- Total Row -->
 										<tr class="table-warning fw-bold">
-											<td>Total</td>
+											<td class="fw-sticky">Total</td>
 											<!-- <td v-for="pd in programDivisions" :key="pd.division_id" class="total-cell"> -->
 											<td v-for="pd in programDivisions" :key="pd.division_id" >
 												{{ calculateColumnTotal(pd.division_id) }}
@@ -200,10 +202,11 @@ const fetchExistingAllocations = async () => {
           console.log(`Processing PD ${pdId} for state ${stateId}:`, allocation)
           
           if (allocationData.value[stateId] && allocationData.value[stateId][pdId] !== undefined) {
-            // Use exact amount as stored
-            const amount = parseFloat(allocation.amount)
-            allocationData.value[stateId][pdId] = amount.toFixed(3)
-            console.log(`Set amount for state ${stateId}, PD ${pdId}: ${amount.toFixed(3)}`)
+            // Use exact amount as stored - preserve the exact value from DB without parsing to float first
+            // This prevents rounding issues (e.g., 4740.97500 should not become 4740.98000)
+            const amount = allocation.amount
+            allocationData.value[stateId][pdId] = formatToFiveDecimals(amount)
+            console.log(`Set amount for state ${stateId}, PD ${pdId}: ${formatToFiveDecimals(amount)} (original: ${amount})`)
           } else {
             console.log(`Data structure not ready for state ${stateId}, PD ${pdId}`)
           }
@@ -249,14 +252,65 @@ const initializeAllocationData = () => {
   console.log('Final allocation data structure:', allocationData.value)
 }
 
+// Helper function to format number to exactly 5 decimal places without rounding
+// This preserves the exact value from the database
+const formatToFiveDecimals = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '0.00000'
+  }
+  
+  // Convert to string first to preserve precision
+  const valueStr = String(value)
+  
+  // If it's already a string with decimal, preserve it
+  if (valueStr.includes('.')) {
+    const parts = valueStr.split('.')
+    const integerPart = parts[0]
+    let decimalPart = parts[1] || ''
+    
+    // Pad or truncate to exactly 5 decimal places
+    if (decimalPart.length > 5) {
+      // Truncate, don't round
+      decimalPart = decimalPart.substring(0, 5)
+    } else {
+      // Pad with zeros
+      decimalPart = decimalPart.padEnd(5, '0')
+    }
+    
+    return `${integerPart}.${decimalPart}`
+  } else {
+    // No decimal point, add .00000
+    return `${valueStr}.00000`
+  }
+}
+
+// Format input value to 5 decimal places when field loses focus
+const formatInputValue = (stateId, pdId) => {
+  const currentValue = allocationData.value[stateId][pdId]
+  if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+    const numValue = parseFloat(currentValue)
+    if (!isNaN(numValue)) {
+      allocationData.value[stateId][pdId] = formatToFiveDecimals(numValue)
+    }
+  }
+}
+
+// Helper function to add two numbers with 5 decimal precision
+const addWithPrecision = (a, b) => {
+  const numA = parseFloat(a) || 0
+  const numB = parseFloat(b) || 0
+  // Multiply by 100000, add, then divide to maintain precision
+  return Math.round((numA * 100000) + (numB * 100000)) / 100000
+}
+
 // Calculate column total
 const calculateColumnTotal = (pdId) => {
   let total = 0
   states.value.forEach(state => {
     const value = parseFloat(allocationData.value[state.state_id][pdId]) || 0
-    total += value
+    total = addWithPrecision(total, value)
   })
-  return total.toFixed(3)
+  return formatToFiveDecimals(total)
 }
 
 // Calculate row total for a specific state
@@ -264,9 +318,9 @@ const calculateRowTotal = (stateId) => {
   let total = 0
   programDivisions.value.forEach(pd => {
     const value = parseFloat(allocationData.value[stateId][pd.division_id]) || 0
-    total += value
+    total = addWithPrecision(total, value)
   })
-  return total.toFixed(3)
+  return formatToFiveDecimals(total)
 }
 
 // Calculate grand total (sum of all allocations)
@@ -275,10 +329,10 @@ const calculateGrandTotal = () => {
   states.value.forEach(state => {
     programDivisions.value.forEach(pd => {
       const value = parseFloat(allocationData.value[state.state_id][pd.division_id]) || 0
-      total += value
+      total = addWithPrecision(total, value)
     })
   })
-  return total.toFixed(3)
+  return formatToFiveDecimals(total)
 }
 
 // Watch for changes in allocation data to trigger reactive updates
@@ -297,14 +351,22 @@ const submitAllocation = async () => {
     states.value.forEach(state => {
       programDivisions.value.forEach(pd => {
         const amount = allocationData.value[state.state_id][pd.division_id]
-        if (amount && amount > 0) {
-          submissionData.push({
-            financial_year: '2025-26',
-            state_id: state.state_id,
-            pd_id: pd.division_id,
-            amount: parseFloat(amount), // Save exact amount as entered
-            status: 1
-          })
+        // Allow zero values to be saved - check if amount is not null/undefined/empty string
+        // but allow 0 as a valid value
+        if (amount !== null && amount !== undefined && amount !== '') {
+          // Parse and format to 5 decimals before submission to ensure exact precision
+          const exactAmount = parseFloat(amount)
+          // Check if it's a valid number (including 0)
+          // This will save 0 when user explicitly enters 0
+          if (!isNaN(exactAmount) && exactAmount >= 0) {
+            submissionData.push({
+              financial_year: '2025-26',
+              state_id: state.state_id,
+              pd_id: pd.division_id,
+              amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)
+              status: 1
+            })
+          }
         }
       })
     })
@@ -314,7 +376,7 @@ const submitAllocation = async () => {
 	// return false;
 
     if (submissionData.length === 0) {
-      alert('Please enter at least one allocation amount')
+      alert('Please enter at least one allocation amount (including 0)')
       submitting.value = false
       return
     }
@@ -449,4 +511,13 @@ onMounted(async () => {
   font-weight: bold;
   color: #856404;
 }
+
+/* to make first column sticky of the table */
+.fw-sticky {
+    position: sticky;
+    left: 0;
+    /* background-color: #f2f2f2; */
+    z-index: 1;
+}
+
 </style>

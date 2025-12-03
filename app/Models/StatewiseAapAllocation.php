@@ -23,7 +23,7 @@ class StatewiseAapAllocation extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
+        'amount' => 'decimal:5',
         'status' => 'integer'
     ];
 

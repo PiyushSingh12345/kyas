@@ -21,7 +21,7 @@ class PdwiseAapAllocation extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:3',
+        'amount' => 'decimal:5',
         'status' => 'integer'
     ];
 

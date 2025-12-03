@@ -100,7 +100,7 @@
 									  <thead class="table-dark">
 										  <tr>
 											<!-- <th rowspan="2" class="align-middle"></th> -->
-											<th class="align-middle"></th>
+											<th class="align-middle fw-sticky"></th>
 											  <th v-for="pd in programDivisions" :key="pd.division_id" colspan="1">
 												  {{ pd.division_name }}<br/>(Proposed by KY)<br/>by as per BE
 											  </th>
@@ -108,7 +108,7 @@
 											  <!-- <th rowspan="2" class="align-middle">Remarks</th> -->
 										  </tr>
 										  <tr>
-											  <th class="align-middle">Unified HoA-KY</th>
+											  <th class="align-middle fw-sticky">Unified HoA-KY</th>
 											  <th v-for="pd in programDivisions" :key="pd.division_id">
 												 ₹ In Lakhs
 											  </th>
@@ -120,7 +120,7 @@
 										  <template v-for="category in categorizedBudgetHeads" :key="category.id">
 											<!-- Major Head Row -->
 											<tr v-if="category.type === 'major_head'" class="table-primary fw-bold">
-											  <td class="text-start" :style="{ paddingLeft: '20px' }">
+											  <td class="text-start fw-sticky" :style="{ paddingLeft: '20px' }">
 												{{ category.label }}
 											  </td>
 											  <td v-for="pd in programDivisions" :key="pd.division_id" class="text-center fw-bold total-cell" 
@@ -134,7 +134,7 @@
 											
 											<!-- Subcategory Row -->
 											<tr v-if="category.type === 'subcategory'" class="table-secondary">
-											  <td class="text-start" :style="{ paddingLeft: '40px' }">
+											  <td class="text-start fw-sticky" :style="{ paddingLeft: '40px' }">
 												{{ category.label }}
 												<!-- <span v-if="category.budgetHeads.length === 1" class="badge bg-warning ms-2" title="Single record subcategory">
 													<i class="fas fa-info-circle"></i> Single
@@ -153,7 +153,7 @@
 											<tr v-for="bh in category.budgetHeads" :key="`bh_${bh.bh_id}`" 
 												 v-if="category.type === 'subcategory'"
 												 class="budget-head-row">
-											  <td class="text-start" :style="{ paddingLeft: '60px' }">
+											  <td class="text-start fw-sticky" :style="{ paddingLeft: '60px' }">
 												{{ bh.budget_code }} - {{ bh.budget_name }}
 											  </td>
 											  <td v-for="pd in programDivisions" :key="pd.division_id">
@@ -161,8 +161,9 @@
 													type="number" 
 													class="form-control tableform-control-withoutbg" 
 													v-model="allocationData[bh.bh_id][pd.division_id]"
-													placeholder="0.00"
-													step="0.01"
+													@blur="formatInputValue(bh.bh_id, pd.division_id)"
+													placeholder="0.00000"
+													step="0.00001"
 													min="0"
 												>
 											  </td>
@@ -174,7 +175,7 @@
 										  
 										  <!-- Total Row -->
 										  <tr class="table-warning fw-bold">
-											  <td>Total</td>
+											  <td class="fw-sticky">Total</td>
 											  <td v-for="pd in programDivisions" :key="pd.division_id">
 												  {{ calculateColumnTotal(pd.division_id) }}
 											  </td>
@@ -434,10 +435,11 @@
 			console.log(`Processing PD ${pdId} for budget head ${bhId}:`, allocation)
 			
 			if (allocationData.value[bhId] && allocationData.value[bhId][pdId] !== undefined) {
-			  // Use exact amount as stored
-			  const amount = parseFloat(allocation.amount)
-			  allocationData.value[bhId][pdId] = amount.toFixed(3)
-			  console.log(`Set amount for budget head ${bhId}, PD ${pdId}: ${amount.toFixed(3)}`)
+			  // Use exact amount as stored - preserve the exact value from DB without parsing to float first
+			  // This prevents rounding issues (e.g., 4740.97500 should not become 4740.98000)
+			  const amount = allocation.amount
+			  allocationData.value[bhId][pdId] = formatToFiveDecimals(amount)
+			  console.log(`Set amount for budget head ${bhId}, PD ${pdId}: ${formatToFiveDecimals(amount)} (original: ${amount})`)
 			} else {
 			  console.log(`Data structure not ready for budget head ${bhId}, PD ${pdId}`)
 			}
@@ -715,6 +717,57 @@
 	console.log('==============================================')
   }
 
+  // Helper function to format number to exactly 5 decimal places without rounding
+  // This preserves the exact value from the database
+  const formatToFiveDecimals = (value) => {
+	if (value === null || value === undefined || value === '') {
+	  return '0.00000'
+	}
+	
+	// Convert to string first to preserve precision
+	const valueStr = String(value)
+	
+	// If it's already a string with decimal, preserve it
+	if (valueStr.includes('.')) {
+	  const parts = valueStr.split('.')
+	  const integerPart = parts[0]
+	  let decimalPart = parts[1] || ''
+	  
+	  // Pad or truncate to exactly 5 decimal places
+	  if (decimalPart.length > 5) {
+		// Truncate, don't round
+		decimalPart = decimalPart.substring(0, 5)
+	  } else {
+		// Pad with zeros
+		decimalPart = decimalPart.padEnd(5, '0')
+	  }
+	  
+	  return `${integerPart}.${decimalPart}`
+	} else {
+	  // No decimal point, add .00000
+	  return `${valueStr}.00000`
+	}
+  }
+
+  // Format input value to 5 decimal places when field loses focus
+  const formatInputValue = (bhId, pdId) => {
+	const currentValue = allocationData.value[bhId][pdId]
+	if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+	  const numValue = parseFloat(currentValue)
+	  if (!isNaN(numValue)) {
+		allocationData.value[bhId][pdId] = formatToFiveDecimals(numValue)
+	  }
+	}
+  }
+
+  // Helper function to add two numbers with 5 decimal precision
+  const addWithPrecision = (a, b) => {
+	const numA = parseFloat(a) || 0
+	const numB = parseFloat(b) || 0
+	// Multiply by 100000, add, then divide to maintain precision
+	return Math.round((numA * 100000) + (numB * 100000)) / 100000
+  }
+
   // Initialize allocation data structure
   const initializeAllocationData = () => {
 	console.log('Initializing allocation data structure...')
@@ -743,9 +796,9 @@
 	const allBudgetHeads = getAllBudgetHeads()
 	allBudgetHeads.forEach(bh => {
 	  const value = parseFloat(allocationData.value[bh.bh_id][pdId]) || 0
-	  total += value
+	  total = addWithPrecision(total, value)
 	})
-	return total.toFixed(3)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate row total for a specific budget head
@@ -753,9 +806,9 @@
 	let total = 0
 	programDivisions.value.forEach(pd => {
 	  const value = parseFloat(allocationData.value[bhId][pd.division_id]) || 0
-	  total += value
+	  total = addWithPrecision(total, value)
 	})
-	return total.toFixed(3)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate grand total (sum of all allocations)
@@ -765,10 +818,10 @@
 	allBudgetHeads.forEach(bh => {
 	  programDivisions.value.forEach(pd => {
 		const value = parseFloat(allocationData.value[bh.bh_id][pd.division_id]) || 0
-		total += value
+		total = addWithPrecision(total, value)
 	  })
 	})
-	return total.toFixed(3)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate total for a specific major head
@@ -783,12 +836,13 @@
 		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
 			// Calculate total for this subcategory across all program divisions
 			const subcategoryTotal = calculateSubcategoryTotal(subCategory.label, majorHeadCode)
-			total += parseFloat(subcategoryTotal) || 0
+			const value = parseFloat(subcategoryTotal) || 0
+			total = addWithPrecision(total, value)
 		  }
 		})
 	  }
 	})
-	return formatTotal(total)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate total for a specific subcategory for a specific program division
@@ -813,7 +867,8 @@
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
 		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
-		  total += parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+		  const value = parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+		  total = addWithPrecision(total, value)
 		}
 	  })
 	  
@@ -822,7 +877,7 @@
 	  if (budgetHeadsInSubcategory.length === 1) {
 		const singleBh = budgetHeadsInSubcategory[0]
 		const singleBhTotal = parseFloat(allocationData.value[singleBh.bh_id]?.[pdId]) || 0
-		return formatTotal(singleBhTotal)
+		return formatToFiveDecimals(singleBhTotal)
 	  }
 	}
 	
@@ -852,7 +907,8 @@
 		const budgetCode = bh.budget_code
 		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
 		  programDivisions.value.forEach(pd => {
-			total += parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+			const value = parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+			total = addWithPrecision(total, value)
 		  })
 		}
 	  })
@@ -863,9 +919,10 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		programDivisions.value.forEach(pd => {
-		  singleBhRowTotal += parseFloat(allocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
+		  const value = parseFloat(allocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
+		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, value)
 		})
-		return formatTotal(singleBhRowTotal)
+		return formatToFiveDecimals(singleBhRowTotal)
 	  }
 	}
 	
@@ -884,19 +941,18 @@
 		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
 			// Calculate total for this subcategory in this program division
 			const subcategoryTotal = calculateSubcategoryTotalForPD(subCategory.label, pdId, majorHeadCode)
-			total += parseFloat(subcategoryTotal) || 0
+			const value = parseFloat(subcategoryTotal) || 0
+			total = addWithPrecision(total, value)
 		  }
 		})
 	  }
 	})
-	return formatTotal(total)
+	return formatToFiveDecimals(total)
   }
 
-  // Function to format totals nicely
+  // Function to format totals nicely (now using 5 decimal places)
   const formatTotal = (value) => {
-	const numValue = parseFloat(value) || 0
-	if (numValue === 0) return '0.00'
-	return numValue.toFixed(2)
+	return formatToFiveDecimals(value)
   }
   
   // Watch for changes in allocation data to trigger reactive updates
@@ -922,14 +978,22 @@
 	  allBudgetHeads.forEach(bh => {
 		programDivisions.value.forEach(pd => {
 		  const amount = allocationData.value[bh.bh_id][pd.division_id]
-		  if (amount && amount > 0) {
-			submissionData.push({
-			  financial_year: '2025-26',
-			  bh_id: bh.bh_id,
-			  pd_id: pd.division_id,
-			  amount: parseFloat(amount), // Save exact amount as entered
-			  status: 1
-			})
+		  // Allow zero values to be saved - check if amount is not null/undefined/empty string
+		  // but allow 0 as a valid value
+		  if (amount !== null && amount !== undefined && amount !== '') {
+			// Parse and format to 5 decimals before submission to ensure exact precision
+			const exactAmount = parseFloat(amount)
+			// Check if it's a valid number (including 0)
+			// This will save 0 when user explicitly enters 0
+			if (!isNaN(exactAmount) && exactAmount >= 0) {
+			  submissionData.push({
+				financial_year: '2025-26',
+				bh_id: bh.bh_id,
+				pd_id: pd.division_id,
+				amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)
+				status: 1
+			  })
+			}
 		  }
 		})
 	  })
@@ -939,7 +1003,7 @@
 	  // return false;
   
 	  if (submissionData.length === 0) {
-		alert('Please enter at least one allocation amount')
+		alert('Please enter at least one allocation amount (including 0)')
 		submitting.value = false
 		return
 	  }
@@ -1304,5 +1368,12 @@
 	  padding: 8px 16px;
 	  font-size: 14px;
 	}
+  }
+  /* to make first column sticky of the table */
+  .fw-sticky {
+		position: sticky;
+		left: 0;
+		background-color: #f2f2f2;
+		z-index: 1;
   }
   </style>

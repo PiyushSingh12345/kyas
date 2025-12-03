@@ -318,7 +318,7 @@
                  <!-- PD Table -->
                 <div class="table-responsive mt-4">
                   <DataTable :columns="pdColumns" :data="pdData" class="table table-bordered table-striped"
-                    :options="{ responsive: true, pageLength: 5, lengthChange: false }">
+                    :options="{ responsive: true, pageLength: 10, lengthChange: false }">
                                          <template #thead>
                        <thead>
                          <tr>

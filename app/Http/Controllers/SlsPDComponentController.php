@@ -23,6 +23,7 @@ class SlsPDComponentController extends Controller
     public function getPDComponents()
     {
         $data = ProgramDivision::where('is_active', 1)
+            ->where('is_pd', 1)
             ->orderBy('division_id','desc')
             ->get();
 
