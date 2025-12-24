@@ -8481,7 +8481,7 @@ label.error {
     display: none;
   }
   .main-panel > .container.container-full {
-    ont-family: system-ui;
+    font-family: system-ui;
     padding: 0 !important;
   }
   .main-panel.full-height > .container,

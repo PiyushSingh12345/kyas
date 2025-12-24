@@ -108,47 +108,72 @@ public function list()
             ->orderBy('ms.created_at', 'desc')
             ->get();
 
-        // Group data by sls_name, ky_ms_no and state_id to get all budget heads
-        
+        // Group data by state_id and sls_code to get all budget heads
         $groupedData = $data->groupBy(function($item) {
-            return $item->sls_name . '|' . $item->ky_ms_no . '|' . $item->state_id;
+            return ($item->state_id ?? '') . '|' . ($item->sls_code ?? '');
         });
 
         // Transform the grouped data
         $transformedData = $groupedData->map(function($group) {
             $firstItem = $group->first();
             
-            // Get all budget heads for this group
-            $budgetHeads = $group->map(function($item) use ($firstItem) {
-                // Get expenditure from daily_sanction table for this budget head
+            // Get all unique budget heads for this group and aggregate their values
+            $budgetHeadMap = [];
+            
+            // Collect all budget heads and aggregate amounts
+            foreach ($group as $item) {
+                if (empty($item->budget_head)) {
+                    continue;
+                }
+                
+                $budgetKey = $item->budget_head;
+                
+                if (!isset($budgetHeadMap[$budgetKey])) {
+                    $budgetHeadMap[$budgetKey] = [
+                        'budget_head' => $item->budget_head,
+                        'category' => $item->category,
+                        'available_fund' => 0,
+                        'mother_sanction_amount' => 0,
+                        'expenditure' => 0,
+                    ];
+                }
+                
+                // Aggregate amounts
+                $budgetHeadMap[$budgetKey]['available_fund'] += floatval($item->available_fund ?? 0);
+                $budgetHeadMap[$budgetKey]['mother_sanction_amount'] += floatval($item->mother_sanction_amount ?? 0);
+            }
+            
+            // Calculate expenditure for each budget head across all mother sanctions in this group
+            $stateId = $firstItem->state_id;
+            $slsCode = $firstItem->sls_code;
+            
+            // Get all ky_ms_no values for this state + sls_code combination
+            $kyMsNos = $group->pluck('ky_ms_no')->unique()->filter()->values();
+            
+            $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($kyMsNos, $stateId) {
+                // Calculate expenditure across all mother sanctions for this budget head
                 $expenditure = DB::table('daily_sanction')
-                    ->where('mother_sanction', $firstItem->ky_ms_no)
-                    ->where('budget_head', $item->budget_head)
-                    ->where('state_id', $firstItem->state_id)
+                    ->whereIn('mother_sanction', $kyMsNos->toArray())
+                    ->where('budget_head', $budgetData['budget_head'])
+                    ->where('state_id', $stateId)
                     ->sum('center_share_amount');
                 
-                // Debug logging for expenditure calculation
-                Log::info('Expenditure calculation', [
-                    'ky_ms_no' => $firstItem->ky_ms_no,
-                    'budget_head' => $item->budget_head,
-                    'state_id' => $firstItem->state_id,
-                    'expenditure' => $expenditure
-                ]);
+                $budgetData['expenditure'] = floatval($expenditure ?? 0);
                 
-                return [
-                    'budget_head' => $item->budget_head,
-                    'category' => $item->category,
-                    'available_fund' => $item->available_fund,
-                    'mother_sanction_amount' => $item->mother_sanction_amount,
-                    'expenditure' => $expenditure ?: 0,
-                ];
-            })->filter(function($item) {
-                return !empty($item['budget_head']);
+                return $budgetData;
             })->values();
 
             // Calculate totals
             $totalAmount = $group->sum('mother_sanction_amount');
             $totalAvailableFund = $group->sum('available_fund');
+            
+            // Get all unique ky_ms_no values for display
+            $allKyMsNos = $kyMsNos->toArray();
+            $kyMsNoDisplay = !empty($allKyMsNos) ? implode(', ', $allKyMsNos) : ($firstItem->ky_ms_no ?? '');
+            
+            // Determine status: if all records are inactive, show inactive; otherwise show active
+            $allStatuses = $group->pluck('status')->unique();
+            $isActive = $allStatuses->contains(1);
 
             return [
                 'id' => $firstItem->id,
@@ -158,7 +183,8 @@ public function list()
                 'file_no' => $firstItem->file_no,
                 'ifd_no' => $firstItem->ifd_no,
                 'sanction_date' => $firstItem->sanction_date,
-                'ky_ms_no' => $firstItem->ky_ms_no,
+                'ky_ms_no' => $kyMsNoDisplay, // Display all ky_ms_no values
+                'ky_ms_no_list' => $allKyMsNos, // Array of all ky_ms_no for programmatic access
                 'sls_name' => $firstItem->sls_name,
                 'pd_component' => $firstItem->pd_component,
                 'total_mother_sanction_amount' => $totalAmount,
@@ -167,7 +193,7 @@ public function list()
                 'uc_received_from_State' => $firstItem->uc_received_from_State,
                 'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
                 'last_id' => $firstItem->last_id,
-                'status' => $firstItem->status == 1 ? 'active' : 'inactive',
+                'status' => $isActive ? 'active' : 'inactive',
                 'created_at' => $firstItem->created_at,
                 'updated_at' => $firstItem->updated_at,
                 'state' => [
@@ -373,7 +399,7 @@ public function listReport(Request $request)
     }
 }
 
-public function motherSanctionData(Request $req){
+    public function motherSanctionData(Request $req){
       $query = MotherSanction::query();
 
     if ($req->filled('year')) {
@@ -398,27 +424,45 @@ public function motherSanctionData(Request $req){
 public function updateStatus(Request $request)
 {
     try {
-        $validated = $request->validate([
-            'ky_ms_no' => 'required|string',
-            'action' => 'required|in:deactivate,activate'
+        // Accept either a single ky_ms_no (string) or an array of ky_ms_no values
+        $request->validate([
+            'ky_ms_no' => 'required', // Can be string or array
+            // Added "close" as a valid action for full closure via Close button
+            // Added "revise" as a valid action to add Available Fund to MS Amount
+            'action' => 'required|in:deactivate,activate,close,revise'
         ]);
 
-        $kyMsNo = $validated['ky_ms_no'];
-        $action = $validated['action'];
+        $kyMsNoInput = $request->input('ky_ms_no');
+        $action = $request->input('action');
 
-        // Find all records with the same ky_ms_no
-        $records = MotherSanction::where('ky_ms_no', $kyMsNo)->get();
+        // Normalize to array: if string, convert to array; if already array, use as is
+        $kyMsNos = is_array($kyMsNoInput) ? $kyMsNoInput : [$kyMsNoInput];
+        
+        // Filter out empty values
+        $kyMsNos = array_filter($kyMsNos, function($value) {
+            return !empty($value);
+        });
+
+        if (empty($kyMsNos)) {
+            return response()->json([
+                'message' => 'No valid KY MS No. provided.',
+                'success' => false
+            ], 400);
+        }
+
+        // Find all records with any of the provided ky_ms_no values
+        $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
 
         if ($records->isEmpty()) {
             return response()->json([
-                'message' => 'No records found with the given KY MS No.',
+                'message' => 'No records found with the given KY MS No(s).',
                 'success' => false
             ], 404);
         }
 
         if ($action === 'deactivate') {
-            // Deactivate all records with the same ky_ms_no
-            $updated = MotherSanction::where('ky_ms_no', $kyMsNo)
+            // Deactivate all records with the provided ky_ms_no values (used by status toggle)
+            $updated = MotherSanction::whereIn('ky_ms_no', $kyMsNos)
                 ->update(['status' => 0]);
             
             return response()->json([
@@ -426,9 +470,9 @@ public function updateStatus(Request $request)
                 'success' => true,
                 'updated_count' => $updated
             ]);
-        } else {
-            // Activate all records with the same ky_ms_no
-            $updated = MotherSanction::where('ky_ms_no', $kyMsNo)
+        } elseif ($action === 'activate') {
+            // Activate all records with the provided ky_ms_no values
+            $updated = MotherSanction::whereIn('ky_ms_no', $kyMsNos)
                 ->update(['status' => 1]);
             
             return response()->json([
@@ -436,9 +480,93 @@ public function updateStatus(Request $request)
                 'success' => true,
                 'updated_count' => $updated
             ]);
+        } elseif ($action === 'revise') {
+            // "Revise" action triggered from Revise button:
+            //  - MS Amount = Current MS Amount + Available Fund (where Available Fund = MS Amount - Expenditure)
+            //  - Available Fund = New MS Amount - Expenditure
+
+            DB::beginTransaction();
+
+            foreach ($records as $record) {
+                // Calculate expenditure for this budget head exactly like in list()
+                $expenditure = DB::table('daily_sanction')
+                    ->where('mother_sanction', $record->ky_ms_no)
+                    ->where('budget_head', $record->budget_head)
+                    ->where('state_id', $record->state_id)
+                    ->sum('center_share_amount');
+
+                // Ensure numeric
+                $expenditure = $expenditure ?: 0;
+
+                // Get current MS Amount
+                $currentMsAmount = floatval($record->mother_sanction_amount ?: 0);
+
+                // Calculate current Available Fund as MS Amount - Expenditure (matching frontend calculation)
+                $currentAvailableFund = $currentMsAmount - $expenditure;
+
+                // New MS Amount = Current MS Amount + Available Fund
+                $newMsAmount = $currentMsAmount + $currentAvailableFund;
+
+                // New Available Fund = New MS Amount - Expenditure
+                $newAvailableFund = $newMsAmount - $expenditure;
+
+                // Update the record
+                $record->mother_sanction_amount = $newMsAmount;
+                $record->available_fund = $newAvailableFund;
+
+                $record->save();
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Records revised successfully. MS Amount has been updated and Available Fund recalculated.',
+                'success' => true,
+                'updated_count' => $records->count()
+            ]);
+        } else {
+            // "Close" action triggered from Close button:
+            //  - MS Amount should become equal to Expenditure
+            //  - Available Fund should be added back to BE (here reflected by setting it to zero)
+            //  - Record is marked inactive
+
+            DB::beginTransaction();
+
+            foreach ($records as $record) {
+                // Calculate expenditure for this budget head exactly like in list()
+                $expenditure = DB::table('daily_sanction')
+                    ->where('mother_sanction', $record->ky_ms_no)
+                    ->where('budget_head', $record->budget_head)
+                    ->where('state_id', $record->state_id)
+                    ->sum('center_share_amount');
+
+                // Ensure numeric
+                $expenditure = $expenditure ?: 0;
+
+                // MS Amount should be equivalent to Expenditure
+                $record->mother_sanction_amount = $expenditure;
+
+                // Available fund is considered returned to BE, so set to zero here
+                $record->available_fund = 0;
+
+                // Mark record as inactive/closed
+                $record->status = 0;
+
+                $record->save();
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Records closed successfully. MS Amount updated to match expenditure and available fund set to zero.',
+                'success' => true,
+                'updated_count' => $records->count()
+            ]);
         }
 
     } catch (\Exception $e) {
+        DB::rollBack();
+
         Log::error('Error updating mother sanction status:', [
             'error' => $e->getMessage(),
             'request' => $request->all()

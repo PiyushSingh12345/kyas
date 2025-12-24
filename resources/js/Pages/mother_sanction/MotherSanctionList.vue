@@ -77,7 +77,7 @@
                           </thead>
                           
                           <tbody>
-                          <tr v-for="(item, index) in secondTableData" :key="item.ky_ms_no" :class="{ 'table-secondary': item.status === 'inactive' }">
+                          <tr v-for="(item, index) in secondTableData" :key="`${item.state_id}-${item.sl_scode}`" :class="{ 'table-secondary': item.status === 'inactive' }">
                             <td>{{ item.financial_year }}</td>
                             <td>{{ item.state }}</td>
                             <td>{{ item.ky_ms_no }}</td>
@@ -136,6 +136,13 @@
                                   title="Close"
                                 >
                                   Close
+                                </button>
+                                <button 
+                                  class="btn btn-sm btn-primary"
+                                  @click="handleRevise(item, index)"
+                                  title="Revise"
+                                >
+                                  Revise
                                 </button>
                               </div>
                             </td>
@@ -269,14 +276,15 @@ const fetchMotherSanctions = async () => {
 const secondTableData = computed(() => {
   if (!motherSanctions.value.length) return [];
   
-  // The backend now provides data already grouped with budget_heads
+  // The backend now provides data already grouped with budget_heads by state + sls_code
   // We just need to transform it for the second table format
   return motherSanctions.value.map(item => ({
-    ky_ms_no: item.ky_ms_no,
+    ky_ms_no: item.ky_ms_no, // This now contains comma-separated list of all ky_ms_no values
+    ky_ms_no_list: item.ky_ms_no_list || [], // Array of all ky_ms_no values
     financial_year: item.financial_year,
     sanction_date: item.sanction_date,
     state: item.state?.name || '',
-    state_id: item.state?.id || '',
+    state_id: item.state?.id || item.state_id || '',
     sls_name: item.sls_name,
     sls_id: item.sls_id || '',
     ms_sequence_no: item.ms_sequence_no || '',
@@ -350,6 +358,17 @@ const confirmStatusChange = async () => {
       // Determine the action based on current status
       const action = selectedItem.value.status === 'active' ? 'deactivate' : 'activate';
       
+      // Get all ky_ms_no values for this group
+      const kyMsNos = selectedItem.value.ky_ms_no_list && selectedItem.value.ky_ms_no_list.length > 0
+        ? selectedItem.value.ky_ms_no_list
+        : (selectedItem.value.ky_ms_no ? [selectedItem.value.ky_ms_no] : []);
+      
+      if (kyMsNos.length === 0) {
+        alert('No mother sanction numbers found.');
+        closeConfirmDialog();
+        return;
+      }
+      
       const response = await fetch('/api/mother-sanction/update-status', {
         method: 'POST',
         headers: {
@@ -357,7 +376,7 @@ const confirmStatusChange = async () => {
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
         },
         body: JSON.stringify({
-          ky_ms_no: selectedItem.value.ky_ms_no,
+          ky_ms_no: kyMsNos, // Send array of ky_ms_no values
           action: action
         })
       });
@@ -368,10 +387,13 @@ const confirmStatusChange = async () => {
         
         // Only redirect to add page if deactivating (creating new instance)
         if (action === 'deactivate') {
+          // Use the first ky_ms_no for the redirect (or the single one if only one exists)
+          const firstKyMsNo = kyMsNos.length > 0 ? kyMsNos[0] : selectedItem.value.ky_ms_no;
+          
           // Create query parameters for prefilling the form
           const queryParams = new URLSearchParams({
             edit: 'true',
-            ky_ms_no: selectedItem.value.ky_ms_no,
+            ky_ms_no: firstKyMsNo,
             financial_year: selectedItem.value.financial_year,
             state_id: selectedItem.value.state_id || '',
             sls_id: selectedItem.value.sls_id || '',
@@ -404,8 +426,26 @@ const confirmStatusChange = async () => {
 };
 
 // Method to handle close action
+// On close:
+//  - MS Amount should be made equivalent to Expenditure
+//  - Available Fund should be added back to BE (reflected by setting it to zero here)
+//  - Record is marked inactive/closed
+// Note: Since records are now grouped by state + sls_code, we may have multiple ky_ms_no values
 const handleClose = async (item, index) => {
-  if (!confirm('Are you sure you want to close this record?')) {
+  const kyMsNosToClose = item.ky_ms_no_list && item.ky_ms_no_list.length > 0 
+    ? item.ky_ms_no_list 
+    : (item.ky_ms_no ? [item.ky_ms_no] : []);
+  
+  if (kyMsNosToClose.length === 0) {
+    showFlashMessage('danger', 'No mother sanction numbers found to close.', 'fas fa-exclamation-triangle');
+    return;
+  }
+
+  const confirmMessage = kyMsNosToClose.length > 1
+    ? `Are you sure you want to close ${kyMsNosToClose.length} mother sanction(s)? This will affect all records: ${kyMsNosToClose.join(', ')}`
+    : 'Are you sure you want to close this record?';
+  
+  if (!confirm(confirmMessage)) {
     return;
   }
 
@@ -417,15 +457,19 @@ const handleClose = async (item, index) => {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
       },
       body: JSON.stringify({
-        ky_ms_no: item.ky_ms_no,
-        action: 'deactivate'
+        ky_ms_no: kyMsNosToClose, // Send array of ky_ms_no values
+        action: 'close'
       })
     });
 
     if (response.ok) {
-      // Refresh the data to reflect the status change
+      // Refresh the data to reflect the status & amount changes
       await fetchMotherSanctions();
-      showFlashMessage('success', 'Record closed successfully', 'fas fa-check-circle');
+      showFlashMessage(
+        'success',
+        'Record closed successfully. MS Amount is now equal to Expenditure and Available Fund has been set to zero.',
+        'fas fa-check-circle'
+      );
     } else {
       console.error('Failed to close record');
       showFlashMessage('danger', 'Failed to close record. Please try again.', 'fas fa-exclamation-triangle');
@@ -433,6 +477,61 @@ const handleClose = async (item, index) => {
   } catch (error) {
     console.error('Error closing record:', error);
     showFlashMessage('danger', 'An error occurred while closing the record. Please try again.', 'fas fa-exclamation-triangle');
+  }
+};
+
+// Method to handle revise action
+// On revise:
+//  - MS Amount = Current MS Amount + Available Fund
+//  - Available Fund = New MS Amount - Expenditure
+// Note: Since records are now grouped by state + sls_code, we may have multiple ky_ms_no values
+const handleRevise = async (item, index) => {
+  const kyMsNosToRevise = item.ky_ms_no_list && item.ky_ms_no_list.length > 0 
+    ? item.ky_ms_no_list 
+    : (item.ky_ms_no ? [item.ky_ms_no] : []);
+  
+  if (kyMsNosToRevise.length === 0) {
+    showFlashMessage('danger', 'No mother sanction numbers found to revise.', 'fas fa-exclamation-triangle');
+    return;
+  }
+
+  const confirmMessage = kyMsNosToRevise.length > 1
+    ? `Are you sure you want to revise ${kyMsNosToRevise.length} mother sanction(s)? This will add Available Fund to MS Amount for all budget heads: ${kyMsNosToRevise.join(', ')}`
+    : 'Are you sure you want to revise this record? This will add Available Fund to MS Amount for all budget heads.';
+  
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/mother-sanction/update-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+      },
+      body: JSON.stringify({
+        ky_ms_no: kyMsNosToRevise, // Send array of ky_ms_no values
+        action: 'revise'
+      })
+    });
+
+    if (response.ok) {
+      // Refresh the data to reflect the amount changes
+      await fetchMotherSanctions();
+      showFlashMessage(
+        'success',
+        'Record revised successfully. MS Amount has been updated and Available Fund recalculated.',
+        'fas fa-check-circle'
+      );
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Failed to revise record:', errorData);
+      showFlashMessage('danger', errorData.message || 'Failed to revise record. Please try again.', 'fas fa-exclamation-triangle');
+    }
+  } catch (error) {
+    console.error('Error revising record:', error);
+    showFlashMessage('danger', 'An error occurred while revising the record. Please try again.', 'fas fa-exclamation-triangle');
   }
 };
 </script>
