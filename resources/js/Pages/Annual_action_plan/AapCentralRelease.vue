@@ -7,7 +7,7 @@
 			<div class="page-inner allinsideform">
 			  <div class="page-header">
 				<!-- <h3 class="fw-bold mb-3">Annual Action Plan Module</h3> -->
-				<h3 class="fw-bold mb-3">Reports</h3>
+				<h3 class="fw-bold mb-3">Budget Allocation Module</h3>
 				<ul class="breadcrumbs mb-3">
 				  <li class="nav-home">
 					<a href="login.html">
@@ -18,7 +18,7 @@
 					<i class="icon-arrow-right"></i>
 				  </li>
 				  <li class="nav-item">
-					<a href="#">PD wise Budget Allocation Reports</a>
+					<a href="#">PD wise Budget Allocation (AAP) with release - Budget Heads</a>
 				  </li>
 				</ul>
 			  </div>
@@ -28,7 +28,7 @@
 				  <div class="card">
 					  <div class="card-header">
 						  <div class="card-title d-flex justify-content-between align-items-center">
-							  <span>PD wise Budget Allocation Reports</span>
+							  <span>PD wise Budget Allocation (AAP) with release - Budget Heads for FY 2025-26 (₹ In Lakhs)</span>
 							  <!-- <button 
 								  class="btn btn-outline-info btn-sm d-flex align-items-center" 
 								  @click="viewHistory"
@@ -59,117 +59,6 @@
 						  </div>
   
 						  <div v-else>
-							  <!-- Filters Section -->
-							  <div class="row mb-4">
-								  <div class="col-12">
-									  <div class="card border-primary">
-										  <div class="card-header bg-primary text-white">
-											  <h6 class="mb-0">
-												  <i class="fas fa-filter me-2"></i>Filters
-											  </h6>
-										  </div>
-										  <div class="card-body">
-											  <div class="row g-3">
-												  <!-- Financial Year Filter -->
-												  <div class="col-md-3">
-													  <label for="financialYear" class="form-label fw-bold">Financial Year</label>
-													  <select 
-														  id="financialYear" 
-														  class="form-select" 
-														  v-model="selectedFinancialYear"
-														  @change="onFinancialYearChange"
-													  >
-														  <option value="2025-26">2025-26</option>
-														  <option value="2024-25">2024-25</option>
-														  <option value="2023-24">2023-24</option>
-														  <option value="2022-23">2022-23</option>
-													  </select>
-												  </div>
-
-												  <!-- Program Division Filter -->
-												  <div class="col-md-3">
-													  <label class="form-label fw-bold">Program Division</label>
-													  <div class="filter-multiselect-container">
-														  <div class="selected-tags mb-2" v-if="selectedProgramDivisions.length > 0">
-															  <span 
-																  v-for="pdId in selectedProgramDivisions" 
-																  :key="pdId"
-																  class="badge bg-primary me-1 mb-1 filter-tag"
-															  >
-																  {{ getProgramDivisionName(pdId) }}
-																  <button 
-																	  type="button" 
-																	  class="btn-close btn-close-white ms-1" 
-																	  @click="removeProgramDivision(pdId)"
-																	  aria-label="Remove"
-																  ></button>
-															  </span>
-														  </div>
-														  <select 
-															  class="form-select" 
-															  v-model="tempProgramDivision"
-															  @change="addProgramDivision"
-															  :disabled="availableProgramDivisions.length === 0"
-														  >
-															  <option value="">{{ availableProgramDivisions.length === 0 ? 'All Program Divisions Selected' : 'Select Program Division' }}</option>
-															  <option 
-																  v-for="pd in availableProgramDivisions" 
-																  :key="pd.division_id" 
-																  :value="pd.division_id"
-															  >
-																  {{ pd.division_name }}
-															  </option>
-														  </select>
-													  </div>
-												  </div>
-
-												  <!-- Major Head Filter -->
-												  <div class="col-md-3">
-													  <label for="majorHead" class="form-label fw-bold">Major Head</label>
-													  <select 
-														  id="majorHead" 
-														  class="form-select" 
-														  v-model="selectedMajorHead"
-													  >
-														  <option value="">All Major Heads</option>
-														  <option v-for="majorHead in availableMajorHeads" :key="majorHead.code" :value="majorHead.code">
-															  {{ majorHead.label }}
-														  </option>
-													  </select>
-												  </div>
-
-												  <!-- Search Filter -->
-												  <div class="col-md-3">
-													  <label for="searchTerm" class="form-label fw-bold">Search Budget Head</label>
-													  <input 
-														  type="text" 
-														  id="searchTerm" 
-														  class="form-control" 
-														  v-model="searchTerm"
-														  placeholder="Search by code or name..."
-													  >
-												  </div>
-											  </div>
-
-											  <!-- Filter Actions -->
-											  <div class="row mt-3">
-												  <div class="col-12">
-													  <button 
-														  class="btn btn-secondary btn-sm me-2" 
-														  @click="clearFilters"
-													  >
-														  <i class="fas fa-times me-1"></i>Clear Filters
-													  </button>
-													  <span class="text-muted ms-2">
-														  Showing {{ filteredCategorizedBudgetHeads.length }} categories
-													  </span>
-												  </div>
-											  </div>
-										  </div>
-									  </div>
-								  </div>
-							  </div>
-
 							  <!-- Summary Section -->
 							  <!-- <div class="row mb-3">
 								  <div class="col-12">
@@ -206,67 +95,53 @@
 								  </div>
 							  </div> -->
 
-							  <!-- Export Buttons -->
-							  <div class="row mb-3">
-								  <div class="col-12 d-flex justify-content-end align-items-center">
-									  <div class="export-buttons">
-										  <button 
-											  class="btn btn-success btn-sm me-2" 
-											  @click="exportToExcel"
-											  title="Export to Excel"
-										  >
-											  <i class="fas fa-file-excel me-1"></i>EXCEL
-										  </button>
-										  <button 
-											  class="btn btn-info btn-sm me-2" 
-											  @click="exportToCSV"
-											  title="Export to CSV"
-										  >
-											  <i class="fas fa-file-csv me-1"></i>CSV
-										  </button>
-										  <button 
-											  class="btn btn-danger btn-sm" 
-											  @click="exportToPDF"
-											  title="Export to PDF"
-										  >
-											  <i class="fas fa-file-pdf me-1"></i>PDF
-										  </button>
-									  </div>
-								  </div>
-							  </div>
-
-							  <div class="table-responsive" id="reportTable">
+							  <div class="table-responsive">
 								  <table class="table table-bordered table-hover align-middle text-center">
 									  <thead class="table-dark">
 										  <tr>
-											<!-- <th rowspan="2" class="align-middle"></th> -->
-											  <th class="align-middle"></th>
-											  <th v-for="pd in filteredProgramDivisions" :key="pd.division_id" colspan="1">
+											<th class="align-middle fw-sticky" rowspan="3">Unified HoA-KY</th>
+											  <th v-for="pd in programDivisions" :key="pd.division_id" colspan="3">
 												  {{ pd.division_name }}<br/>(Proposed by KY)<br/>by as per BE
 											  </th>
-											  <th class="align-middle">Final Allocation</th>
-											  <!-- <th rowspan="2" class="align-middle">Remarks</th> -->
+											  <th class="align-middle" rowspan="3">Final Allocation</th>
 										  </tr>
 										  <tr>
-											  <th class="align-middle">Unified HoA-KY</th>
-											  <th v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												 ₹ In Lakhs
-											  </th>
-											  <th class="align-middle">₹ In Lakhs</th>
+											  <template v-for="pd in programDivisions" :key="pd.division_id">
+												  <th class="sub-column-header">Allocation</th>
+												  <th class="sub-column-header">Release</th>
+												  <th class="sub-column-header">Expenditure</th>
+											  </template>
+										  </tr>
+										  <tr>
+											  <template v-for="pd in programDivisions" :key="pd.division_id">
+												  <th>₹ In Lakhs</th>
+												  <th>₹ In Lakhs</th>
+												  <th>₹ In Lakhs</th>
+											  </template>
 										  </tr>
 									  </thead>
-									  <tbody>
+										<tbody>
 										  <!-- Categorized Budget Heads -->
-										  <template v-for="category in filteredCategorizedBudgetHeads" :key="category.id">
+										  <template v-for="category in categorizedBudgetHeads" :key="category.id">
 											<!-- Major Head Row -->
 											<tr v-if="category.type === 'major_head'" class="table-primary fw-bold">
-											  <td class="text-start" :style="{ paddingLeft: '20px' }">
+											  <td class="text-start fw-sticky" :style="{ paddingLeft: '20px' }">
 												{{ category.label }}
 											  </td>
-											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id" class="text-center fw-bold total-cell" 
-												   :title="`Total for ${pd.division_name} under ${category.label}`">
-												{{ calculateMajorHeadTotalForPD(category.label, pd.division_id) }}
-											  </td>
+											  <template v-for="pd in programDivisions" :key="pd.division_id">
+												  <td class="text-center fw-bold total-cell" 
+													   :title="`Allocation Total for ${pd.division_name} under ${category.label}`">
+													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'allocation') }}
+												  </td>
+												  <td class="text-center fw-bold total-cell" 
+													   :title="`Release Total for ${pd.division_name} under ${category.label}`">
+													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'release') }}
+												  </td>
+												  <td class="text-center fw-bold total-cell" 
+													   :title="`Expenditure Total for ${pd.division_name} under ${category.label}`">
+													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'expenditure') }}
+												  </td>
+											  </template>
 											  <td class="text-center fw-bold grand-total-cell" title="Grand total for all program divisions">
 												{{ calculateMajorHeadTotal(category.label) }}
 											  </td>
@@ -274,16 +149,26 @@
 											
 											<!-- Subcategory Row -->
 											<tr v-if="category.type === 'subcategory'" class="table-secondary">
-											  <td class="text-start" :style="{ paddingLeft: '40px' }">
+											  <td class="text-start fw-sticky" :style="{ paddingLeft: '40px' }">
 												{{ category.label }}
 												<!-- <span v-if="category.budgetHeads.length === 1" class="badge bg-warning ms-2" title="Single record subcategory">
 													<i class="fas fa-info-circle"></i> Single
 												</span> -->
 											  </td>
-											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id" class="text-center fw-bold total-cell"
-												   :title="`Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
-												{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead) }}
-											  </td>
+											  <template v-for="pd in programDivisions" :key="pd.division_id">
+												  <td class="text-center fw-bold total-cell"
+													   :title="`Allocation Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
+													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'allocation') }}
+												  </td>
+												  <td class="text-center fw-bold total-cell"
+													   :title="`Release Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
+													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'release') }}
+												  </td>
+												  <td class="text-center fw-bold total-cell"
+													   :title="`Expenditure Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
+													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'expenditure') }}
+												  </td>
+											  </template>
 											  <td class="text-center fw-bold grand-total-cell" title="Grand total for all program divisions">
 												{{ calculateSubcategoryTotal(category.label, category.parentMajorHead) }}
 											  </td>
@@ -293,21 +178,28 @@
 											<tr v-for="bh in category.budgetHeads" :key="`bh_${bh.bh_id}`" 
 												 v-if="category.type === 'subcategory'"
 												 class="budget-head-row">
-											  <td class="text-start" :style="{ paddingLeft: '60px' }">
+											  <td class="text-start fw-sticky" :style="{ paddingLeft: '60px' }">
 												{{ bh.budget_code }} - {{ bh.budget_name }}
 											  </td>
-											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												<input 
-													type="number" 
-													class="form-control tableform-control-withoutbg" 
-													v-model="allocationData[bh.bh_id][pd.division_id]"
-													placeholder="0.00000"
-													step="0.00001"
-													min="0"
-													readonly
-													disabled
-												>
-											  </td>
+											  <template v-for="pd in programDivisions" :key="pd.division_id">
+												  <td>
+													<input 
+														type="number" 
+														class="form-control tableform-control-withoutbg" 
+														v-model="allocationData[bh.bh_id][pd.division_id]"
+														@blur="formatInputValue(bh.bh_id, pd.division_id)"
+														placeholder="0.00000"
+														step="0.00001"
+														min="0"
+													>
+												  </td>
+												  <td class="text-center">
+													{{ getReleaseAmount(bh.bh_id, pd.division_id) }}
+												  </td>
+												  <td class="text-center">
+													{{ getExpenditureAmount(bh.bh_id, pd.division_id) }}
+												  </td>
+											  </template>
 											  <td class="text-center fw-bold bg-success-subtle">
 												{{ calculateRowTotal(bh.bh_id) }}
 											  </td>
@@ -316,10 +208,18 @@
 										  
 										  <!-- Total Row -->
 										  <tr class="table-warning fw-bold">
-											  <td>Total</td>
-											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												  {{ calculateColumnTotal(pd.division_id) }}
-											  </td>
+											  <td class="fw-sticky">Total</td>
+											  <template v-for="pd in programDivisions" :key="pd.division_id">
+												  <td>
+													  {{ calculateColumnTotal(pd.division_id, 'allocation') }}
+												  </td>
+												  <td>
+													  {{ calculateColumnTotal(pd.division_id, 'release') }}
+												  </td>
+												  <td>
+													  {{ calculateColumnTotal(pd.division_id, 'expenditure') }}
+												  </td>
+											  </template>
 											  <td class="text-center grand-total">
 												  {{ calculateGrandTotal() }}
 											  </td>
@@ -329,7 +229,7 @@
 							  </div>
   
 							  <!-- Submit Button -->
-							  <!-- <div class="row mt-4">
+							  <div class="row mt-4">
 								  <div class="col-12 text-center">
 									  <button 
 										  @click="submitAllocation" 
@@ -339,8 +239,44 @@
 										  <span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
 										  {{ submitting ? 'Saving...' : 'Submit Allocation' }}
 									  </button>
+									  
+									  <!-- <button 
+										  @click="testDifferentMajorHeads" 
+										  class="btn btn-info btn-lg me-3"
+										  :disabled="categorizedBudgetHeads.length === 0"
+									  >
+										  <i class="fas fa-calculator me-2"></i>
+										  Test Major Heads
+									  </button> -->
+									  
+									  <!-- <button 
+										  @click="validateAllMajorHeads" 
+										  class="btn btn-warning btn-lg me-3"
+										  :disabled="categorizedBudgetHeads.length === 0"
+									  >
+										  <i class="fas fa-check-circle me-2"></i>
+										  Validate All Major Heads
+									  </button>
+									   -->
+									  <!-- <button 
+										  @click="showMajorHeadSummary" 
+										  class="btn btn-secondary btn-lg me-3"
+										  :disabled="categorizedBudgetHeads.length === 0"
+									  >
+										  <i class="fas fa-list me-2"></i>
+										  Major Head Summary
+									  </button> -->
+									  
+									  <!-- <button 
+										  @click="showUniqueSubcategories" 
+										  class="btn btn-primary btn-lg me-3"
+										  :disabled="categorizedBudgetHeads.length === 0"
+									  >
+										  <i class="fas fa-layer-group me-2"></i>
+										  Unique Subcategories
+									  </button> -->
 								  </div>
-							  </div> -->
+							  </div>
 						  </div>
 					  </div>
 				  </div>
@@ -365,19 +301,14 @@
   const budgetHeads = ref([])
   const programDivisions = ref([])
   const allocationData = ref({})
+  const releaseData = ref({}) // Mother sanction release data
+  const expenditureData = ref({}) // Daily sanction expenditure data
   const remarksData = ref({})
   const loading = ref(true)
   const error = ref(null)
   const submitting = ref(false)
   const categorizedBudgetHeads = ref([])
   const categorizing = ref(false)
-
-  // Filter reactive data
-  const selectedFinancialYear = ref('2025-26')
-  const selectedProgramDivisions = ref([]) // Changed to array for multiple selections
-  const tempProgramDivision = ref('') // Temporary value for dropdown
-  const selectedMajorHead = ref('')
-  const searchTerm = ref('')
 
   // Function to categorize budget heads based on the logic provided
   const categorizeBudgetHeads = (budgetHeadsList) => {
@@ -530,29 +461,11 @@
   // Fetch existing allocation data
   const fetchExistingAllocations = async () => {
 	try {
-	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}`)
+	  const response = await fetch('/api/pdwise-aap-allocation?financial_year=2025-26')
 	  if (!response.ok) throw new Error('Failed to fetch existing allocations')
 	  const result = await response.json()
 	  
 	  console.log('Existing allocations result:', result)
-	  
-	  // Ensure allocation data structure is initialized
-	  const allBudgetHeads = getAllBudgetHeads()
-	  allBudgetHeads.forEach(bh => {
-		if (!allocationData.value[bh.bh_id]) {
-		  allocationData.value[bh.bh_id] = {}
-		}
-		if (!remarksData.value[bh.bh_id]) {
-		  remarksData.value[bh.bh_id] = ''
-		}
-		
-		// Initialize all program divisions with empty values
-		programDivisions.value.forEach(pd => {
-		  if (allocationData.value[bh.bh_id][pd.division_id] === undefined) {
-			allocationData.value[bh.bh_id][pd.division_id] = ''
-		  }
-		})
-	  })
 	  
 	  if (result.success && result.data) {
 		// Populate existing data
@@ -560,19 +473,19 @@
 		  const bhAllocations = result.data[bhId]
 		  console.log(`Processing budget head ${bhId}:`, bhAllocations)
 		  
-		  // Ensure the budget head structure exists
-		  if (!allocationData.value[bhId]) {
-			allocationData.value[bhId] = {}
-		  }
-		  
 		  Object.keys(bhAllocations).forEach(pdId => {
 			const allocation = bhAllocations[pdId]
 			console.log(`Processing PD ${pdId} for budget head ${bhId}:`, allocation)
 			
-			// Use exact amount as stored
-			const amount = parseFloat(allocation.amount)
-			allocationData.value[bhId][pdId] = isNaN(amount) ? '' : amount.toFixed(5)
-			console.log(`Set amount for budget head ${bhId}, PD ${pdId}: ${allocationData.value[bhId][pdId]}`)
+			if (allocationData.value[bhId] && allocationData.value[bhId][pdId] !== undefined) {
+			  // Use exact amount as stored - preserve the exact value from DB without parsing to float first
+			  // This prevents rounding issues (e.g., 4740.97500 should not become 4740.98000)
+			  const amount = allocation.amount
+			  allocationData.value[bhId][pdId] = formatToFiveDecimals(amount)
+			  console.log(`Set amount for budget head ${bhId}, PD ${pdId}: ${formatToFiveDecimals(amount)} (original: ${amount})`)
+			} else {
+			  console.log(`Data structure not ready for budget head ${bhId}, PD ${pdId}`)
+			}
 		  })
 		})
 		
@@ -580,24 +493,113 @@
 		if (result.remarks) {
 		  console.log('Processing remarks:', result.remarks)
 		  Object.keys(result.remarks).forEach(bhId => {
-			remarksData.value[bhId] = result.remarks[bhId] || ''
-			console.log(`Set remark for budget head ${bhId}: ${result.remarks[bhId]}`)
+			if (remarksData.value[bhId] !== undefined) {
+			  remarksData.value[bhId] = result.remarks[bhId]
+			  console.log(`Set remark for budget head ${bhId}: ${result.remarks[bhId]}`)
+			}
 		  })
 		}
 	  } else {
 		console.log('No existing data found or API returned error')
-		// Ensure all values are reset to empty if no data exists
-		allBudgetHeads.forEach(bh => {
-		  programDivisions.value.forEach(pd => {
-			allocationData.value[bh.bh_id][pd.division_id] = ''
-		  })
-		  remarksData.value[bh.bh_id] = ''
-		})
 	  }
 	} catch (err) {
 	  console.error('Error fetching existing allocations:', err)
 	  // Don't show error for existing data, just log it
 	}
+  }
+
+  // Fetch mother sanction release data
+  const fetchReleaseData = async () => {
+	try {
+	  const response = await fetch('/api/mother-sanction-release-data?financial_year=2025-26')
+	  if (!response.ok) {
+		const errorText = await response.text()
+		console.error('Failed to fetch release data:', response.status, errorText)
+		throw new Error(`Failed to fetch release data: ${response.status}`)
+	  }
+	  const result = await response.json()
+	  
+	  console.log('Release data API response:', result)
+	  
+	  if (result.success && result.data) {
+		releaseData.value = result.data
+		console.log('Release data fetched and stored:', releaseData.value)
+		console.log('Release data debug info:', result.debug)
+		
+		// Log sample data
+		const sampleKeys = Object.keys(releaseData.value).slice(0, 3)
+		sampleKeys.forEach(bhId => {
+		  console.log(`Release data for budget head ${bhId}:`, releaseData.value[bhId])
+		})
+	  } else {
+		console.warn('Release data API returned success=false or no data:', result)
+	  }
+	} catch (err) {
+	  console.error('Error fetching release data:', err)
+	}
+  }
+
+  // Fetch daily sanction expenditure data
+  const fetchExpenditureData = async () => {
+	try {
+	  const response = await fetch('/api/daily-sanction-expenditure-data?financial_year=2025-26')
+	  if (!response.ok) {
+		const errorText = await response.text()
+		console.error('Failed to fetch expenditure data:', response.status, errorText)
+		throw new Error(`Failed to fetch expenditure data: ${response.status}`)
+	  }
+	  const result = await response.json()
+	  
+	  console.log('Expenditure data API response:', result)
+	  
+	  if (result.success && result.data) {
+		expenditureData.value = result.data
+		console.log('Expenditure data fetched and stored:', expenditureData.value)
+		console.log('Expenditure data debug info:', result.debug)
+		
+		// Log sample data
+		const sampleKeys = Object.keys(expenditureData.value).slice(0, 3)
+		sampleKeys.forEach(bhId => {
+		  console.log(`Expenditure data for budget head ${bhId}:`, expenditureData.value[bhId])
+		})
+	  } else {
+		console.warn('Expenditure data API returned success=false or no data:', result)
+	  }
+	} catch (err) {
+	  console.error('Error fetching expenditure data:', err)
+	}
+  }
+
+  // Get release amount for a budget head and PD
+  const getReleaseAmount = (bhId, pdId) => {
+	if (!releaseData.value) {
+	  return '0.00000'
+	}
+	// Convert to string to match API response keys
+	const bhIdStr = String(bhId)
+	const pdIdStr = String(pdId)
+	
+	if (!releaseData.value[bhIdStr] || !releaseData.value[bhIdStr][pdIdStr]) {
+	  return '0.00000'
+	}
+	const amount = releaseData.value[bhIdStr][pdIdStr] || 0
+	return formatToFiveDecimals(amount)
+  }
+
+  // Get expenditure amount for a budget head and PD
+  const getExpenditureAmount = (bhId, pdId) => {
+	if (!expenditureData.value) {
+	  return '0.00000'
+	}
+	// Convert to string to match API response keys
+	const bhIdStr = String(bhId)
+	const pdIdStr = String(pdId)
+	
+	if (!expenditureData.value[bhIdStr] || !expenditureData.value[bhIdStr][pdIdStr]) {
+	  return '0.00000'
+	}
+	const amount = expenditureData.value[bhIdStr][pdIdStr] || 0
+	return formatToFiveDecimals(amount)
   }
   
   // Get all budget heads from categorized structure
@@ -852,6 +854,57 @@
 	console.log('==============================================')
   }
 
+  // Helper function to format number to exactly 5 decimal places without rounding
+  // This preserves the exact value from the database
+  const formatToFiveDecimals = (value) => {
+	if (value === null || value === undefined || value === '') {
+	  return '0.00000'
+	}
+	
+	// Convert to string first to preserve precision
+	const valueStr = String(value)
+	
+	// If it's already a string with decimal, preserve it
+	if (valueStr.includes('.')) {
+	  const parts = valueStr.split('.')
+	  const integerPart = parts[0]
+	  let decimalPart = parts[1] || ''
+	  
+	  // Pad or truncate to exactly 5 decimal places
+	  if (decimalPart.length > 5) {
+		// Truncate, don't round
+		decimalPart = decimalPart.substring(0, 5)
+	  } else {
+		// Pad with zeros
+		decimalPart = decimalPart.padEnd(5, '0')
+	  }
+	  
+	  return `${integerPart}.${decimalPart}`
+	} else {
+	  // No decimal point, add .00000
+	  return `${valueStr}.00000`
+	}
+  }
+
+  // Format input value to 5 decimal places when field loses focus
+  const formatInputValue = (bhId, pdId) => {
+	const currentValue = allocationData.value[bhId][pdId]
+	if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+	  const numValue = parseFloat(currentValue)
+	  if (!isNaN(numValue)) {
+		allocationData.value[bhId][pdId] = formatToFiveDecimals(numValue)
+	  }
+	}
+  }
+
+  // Helper function to add two numbers with 5 decimal precision
+  const addWithPrecision = (a, b) => {
+	const numA = parseFloat(a) || 0
+	const numB = parseFloat(b) || 0
+	// Multiply by 100000, add, then divide to maintain precision
+	return Math.round((numA * 100000) + (numB * 100000)) / 100000
+  }
+
   // Initialize allocation data structure
   const initializeAllocationData = () => {
 	console.log('Initializing allocation data structure...')
@@ -875,14 +928,21 @@
   }
   
   // Calculate column total
-  const calculateColumnTotal = (pdId) => {
+  const calculateColumnTotal = (pdId, columnType = 'allocation') => {
 	let total = 0
 	const allBudgetHeads = getAllBudgetHeads()
 	allBudgetHeads.forEach(bh => {
-	  const value = parseFloat(allocationData.value[bh.bh_id][pdId]) || 0
-	  total += value
+	  let value = 0
+	  if (columnType === 'allocation') {
+		value = parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+	  } else if (columnType === 'release') {
+		value = parseFloat(releaseData.value[bh.bh_id]?.[pdId]) || 0
+	  } else if (columnType === 'expenditure') {
+		value = parseFloat(expenditureData.value[bh.bh_id]?.[pdId]) || 0
+	  }
+	  total = addWithPrecision(total, value)
 	})
-	return total.toFixed(5)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate row total for a specific budget head
@@ -890,9 +950,9 @@
 	let total = 0
 	programDivisions.value.forEach(pd => {
 	  const value = parseFloat(allocationData.value[bhId][pd.division_id]) || 0
-	  total += value
+	  total = addWithPrecision(total, value)
 	})
-	return total.toFixed(5)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate grand total (sum of all allocations)
@@ -902,10 +962,10 @@
 	allBudgetHeads.forEach(bh => {
 	  programDivisions.value.forEach(pd => {
 		const value = parseFloat(allocationData.value[bh.bh_id][pd.division_id]) || 0
-		total += value
+		total = addWithPrecision(total, value)
 	  })
 	})
-	return total.toFixed(5)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate total for a specific major head
@@ -920,16 +980,17 @@
 		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
 			// Calculate total for this subcategory across all program divisions
 			const subcategoryTotal = calculateSubcategoryTotal(subCategory.label, majorHeadCode)
-			total += parseFloat(subcategoryTotal) || 0
+			const value = parseFloat(subcategoryTotal) || 0
+			total = addWithPrecision(total, value)
 		  }
 		})
 	  }
 	})
-	return formatTotal(total)
+	return formatToFiveDecimals(total)
   }
 
   // Calculate total for a specific subcategory for a specific program division
-  const calculateSubcategoryTotalForPD = (subcategoryLabel, pdId, majorHeadLabel = null) => {
+  const calculateSubcategoryTotalForPD = (subcategoryLabel, pdId, majorHeadLabel = null, columnType = 'allocation') => {
 	let total = 0
 	let budgetHeadsInSubcategory = []
 	let parentMajorHead = ''
@@ -950,7 +1011,15 @@
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
 		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
-		  total += parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+		  let value = 0
+		  if (columnType === 'allocation') {
+			value = parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+		  } else if (columnType === 'release') {
+			value = parseFloat(releaseData.value[bh.bh_id]?.[pdId]) || 0
+		  } else if (columnType === 'expenditure') {
+			value = parseFloat(expenditureData.value[bh.bh_id]?.[pdId]) || 0
+		  }
+		  total = addWithPrecision(total, value)
 		}
 	  })
 	  
@@ -958,8 +1027,15 @@
 	  // show the same value as the individual budget head row
 	  if (budgetHeadsInSubcategory.length === 1) {
 		const singleBh = budgetHeadsInSubcategory[0]
-		const singleBhTotal = parseFloat(allocationData.value[singleBh.bh_id]?.[pdId]) || 0
-		return formatTotal(singleBhTotal)
+		let singleBhTotal = 0
+		if (columnType === 'allocation') {
+		  singleBhTotal = parseFloat(allocationData.value[singleBh.bh_id]?.[pdId]) || 0
+		} else if (columnType === 'release') {
+		  singleBhTotal = parseFloat(releaseData.value[singleBh.bh_id]?.[pdId]) || 0
+		} else if (columnType === 'expenditure') {
+		  singleBhTotal = parseFloat(expenditureData.value[singleBh.bh_id]?.[pdId]) || 0
+		}
+		return formatToFiveDecimals(singleBhTotal)
 	  }
 	}
 	
@@ -989,7 +1065,8 @@
 		const budgetCode = bh.budget_code
 		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
 		  programDivisions.value.forEach(pd => {
-			total += parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+			const value = parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+			total = addWithPrecision(total, value)
 		  })
 		}
 	  })
@@ -1000,9 +1077,10 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		programDivisions.value.forEach(pd => {
-		  singleBhRowTotal += parseFloat(allocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
+		  const value = parseFloat(allocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
+		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, value)
 		})
-		return formatTotal(singleBhRowTotal)
+		return formatToFiveDecimals(singleBhRowTotal)
 	  }
 	}
 	
@@ -1010,7 +1088,7 @@
   }
 
   // Calculate total for a specific major head for a specific program division
-  const calculateMajorHeadTotalForPD = (majorHeadLabel, pdId) => {
+  const calculateMajorHeadTotalForPD = (majorHeadLabel, pdId, columnType = 'allocation') => {
 	let total = 0
 	const majorHeadCode = majorHeadLabel.replace('Major Head-', '')
 	
@@ -1020,351 +1098,19 @@
 		categorizedBudgetHeads.value.forEach(subCategory => {
 		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
 			// Calculate total for this subcategory in this program division
-			const subcategoryTotal = calculateSubcategoryTotalForPD(subCategory.label, pdId, majorHeadCode)
-			total += parseFloat(subcategoryTotal) || 0
+			const subcategoryTotal = calculateSubcategoryTotalForPD(subCategory.label, pdId, majorHeadCode, columnType)
+			const value = parseFloat(subcategoryTotal) || 0
+			total = addWithPrecision(total, value)
 		  }
 		})
 	  }
 	})
-	return formatTotal(total)
+	return formatToFiveDecimals(total)
   }
 
-  // Function to format totals nicely
+  // Function to format totals nicely (now using 5 decimal places)
   const formatTotal = (value) => {
-	const numValue = parseFloat(value) || 0
-	if (numValue === 0) return '0.00000'
-	return numValue.toFixed(5)
-  }
-
-  // Computed property for available major heads
-  const availableMajorHeads = computed(() => {
-	const majorHeads = []
-	categorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head') {
-		const majorHeadCode = category.label.replace('Major Head-', '')
-		if (!majorHeads.find(mh => mh.code === majorHeadCode)) {
-		  majorHeads.push({
-			code: majorHeadCode,
-			label: category.label
-		  })
-		}
-	  }
-	})
-	return majorHeads.sort((a, b) => a.code.localeCompare(b.code))
-  })
-
-  // Computed property for available program divisions (excluding already selected ones)
-  const availableProgramDivisions = computed(() => {
-	return programDivisions.value.filter(pd => !selectedProgramDivisions.value.includes(pd.division_id))
-  })
-
-  // Computed property for filtered program divisions
-  const filteredProgramDivisions = computed(() => {
-	if (selectedProgramDivisions.value.length === 0) {
-	  return programDivisions.value
-	}
-	return programDivisions.value.filter(pd => selectedProgramDivisions.value.includes(pd.division_id))
-  })
-
-  // Helper function to get program division name by ID
-  const getProgramDivisionName = (pdId) => {
-	const pd = programDivisions.value.find(p => p.division_id == pdId)
-	return pd ? pd.division_name : ''
-  }
-
-  // Function to add program division to selection
-  const addProgramDivision = () => {
-	if (tempProgramDivision.value && !selectedProgramDivisions.value.includes(tempProgramDivision.value)) {
-	  selectedProgramDivisions.value.push(tempProgramDivision.value)
-	  tempProgramDivision.value = '' // Reset dropdown
-	}
-  }
-
-  // Function to remove program division from selection
-  const removeProgramDivision = (pdId) => {
-	const index = selectedProgramDivisions.value.indexOf(pdId)
-	if (index > -1) {
-	  selectedProgramDivisions.value.splice(index, 1)
-	}
-  }
-
-  // Computed property for filtered categorized budget heads
-  const filteredCategorizedBudgetHeads = computed(() => {
-	let filtered = categorizedBudgetHeads.value
-
-	// Filter by major head
-	if (selectedMajorHead.value) {
-	  filtered = filtered.filter(category => {
-		if (category.type === 'major_head') {
-		  const majorHeadCode = category.label.replace('Major Head-', '')
-		  return majorHeadCode === selectedMajorHead.value
-		} else if (category.type === 'subcategory') {
-		  return category.parentMajorHead === selectedMajorHead.value
-		}
-		return false
-	  })
-	}
-
-	// Filter by search term
-	if (searchTerm.value && searchTerm.value.trim() !== '') {
-	  const searchLower = searchTerm.value.toLowerCase().trim()
-	  filtered = filtered.map(category => {
-		if (category.type === 'major_head') {
-		  // Check if major head label matches
-		  if (category.label.toLowerCase().includes(searchLower)) {
-			return category
-		  }
-		  return null
-		} else if (category.type === 'subcategory') {
-		  // Check if subcategory label matches
-		  const labelMatches = category.label.toLowerCase().includes(searchLower)
-		  
-		  // Filter budget heads within subcategory
-		  const filteredBudgetHeads = category.budgetHeads.filter(bh => {
-			const codeMatches = bh.budget_code?.toLowerCase().includes(searchLower)
-			const nameMatches = bh.budget_name?.toLowerCase().includes(searchLower)
-			return codeMatches || nameMatches
-		  })
-
-		  if (labelMatches || filteredBudgetHeads.length > 0) {
-			return {
-			  ...category,
-			  budgetHeads: filteredBudgetHeads
-			}
-		  }
-		  return null
-		}
-		return category
-	  }).filter(category => category !== null)
-	}
-
-	// Ensure major head rows are shown if their subcategories are visible
-	const result = []
-	const visibleMajorHeads = new Set()
-	
-	filtered.forEach(category => {
-	  if (category.type === 'subcategory') {
-		visibleMajorHeads.add(category.parentMajorHead)
-	  }
-	})
-
-	filtered.forEach(category => {
-	  if (category.type === 'major_head') {
-		const majorHeadCode = category.label.replace('Major Head-', '')
-		if (visibleMajorHeads.has(majorHeadCode) || !selectedMajorHead.value) {
-		  result.push(category)
-		}
-	  } else if (category.type === 'subcategory') {
-		// Only show subcategory if it has budget heads or matches search
-		if (category.budgetHeads && category.budgetHeads.length > 0) {
-		  result.push(category)
-		}
-	  }
-	})
-
-	return result
-  })
-
-  // Function to clear all filters
-  const clearFilters = () => {
-	selectedProgramDivisions.value = []
-	tempProgramDivision.value = ''
-	selectedMajorHead.value = ''
-	searchTerm.value = ''
-  }
-
-  // Function to prepare table data for export
-  const prepareTableData = () => {
-	const data = []
-	const allBudgetHeads = getAllBudgetHeads()
-	
-	// Add header row
-	const headerRow = ['Unified HoA-KY']
-	filteredProgramDivisions.value.forEach(pd => {
-	  headerRow.push(pd.division_name)
-	})
-	headerRow.push('Final Allocation')
-	data.push(headerRow)
-	
-	// Add data rows from filtered categories
-	filteredCategorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head') {
-		const row = [category.label]
-		filteredProgramDivisions.value.forEach(pd => {
-		  row.push(calculateMajorHeadTotalForPD(category.label, pd.division_id))
-		})
-		row.push(calculateMajorHeadTotal(category.label))
-		data.push(row)
-	  } else if (category.type === 'subcategory') {
-		const row = [category.label]
-		filteredProgramDivisions.value.forEach(pd => {
-		  row.push(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead))
-		})
-		row.push(calculateSubcategoryTotal(category.label, category.parentMajorHead))
-		data.push(row)
-		
-		// Add individual budget head rows
-		category.budgetHeads.forEach(bh => {
-		  const bhRow = [`${bh.budget_code} - ${bh.budget_name}`]
-		  filteredProgramDivisions.value.forEach(pd => {
-			const value = allocationData.value[bh.bh_id]?.[pd.division_id] || ''
-			bhRow.push(value)
-		  })
-		  bhRow.push(calculateRowTotal(bh.bh_id))
-		  data.push(bhRow)
-		})
-	  }
-	})
-	
-	// Add total row
-	const totalRow = ['Total']
-	filteredProgramDivisions.value.forEach(pd => {
-	  totalRow.push(calculateColumnTotal(pd.division_id))
-	})
-	totalRow.push(calculateGrandTotal())
-	data.push(totalRow)
-	
-	return data
-  }
-
-  // Function to export to Excel (CSV format that opens in Excel)
-  const exportToExcel = () => {
-	const data = prepareTableData()
-	let csvContent = ''
-	
-	data.forEach(row => {
-	  const csvRow = row.map(cell => {
-		// Escape quotes and wrap in quotes if contains comma or quote
-		const cellValue = String(cell || '')
-		if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
-		  return `"${cellValue.replace(/"/g, '""')}"`
-		}
-		return cellValue
-	  })
-	  csvContent += csvRow.join(',') + '\n'
-	})
-	
-	// Create BOM for UTF-8 to support special characters
-	const BOM = '\uFEFF'
-	const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-	const link = document.createElement('a')
-	const url = URL.createObjectURL(blob)
-	
-	link.setAttribute('href', url)
-	link.setAttribute('download', `PDwise_Budget_Allocation_${selectedFinancialYear.value}_${new Date().getTime()}.xlsx`)
-	link.style.visibility = 'hidden'
-	document.body.appendChild(link)
-	link.click()
-	document.body.removeChild(link)
-  }
-
-  // Function to export to CSV
-  const exportToCSV = () => {
-	const data = prepareTableData()
-	let csvContent = ''
-	
-	data.forEach(row => {
-	  const csvRow = row.map(cell => {
-		const cellValue = String(cell || '')
-		if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
-		  return `"${cellValue.replace(/"/g, '""')}"`
-		}
-		return cellValue
-	  })
-	  csvContent += csvRow.join(',') + '\n'
-	})
-	
-	const BOM = '\uFEFF'
-	const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-	const link = document.createElement('a')
-	const url = URL.createObjectURL(blob)
-	
-	link.setAttribute('href', url)
-	link.setAttribute('download', `PDwise_Budget_Allocation_${selectedFinancialYear.value}_${new Date().getTime()}.csv`)
-	link.style.visibility = 'hidden'
-	document.body.appendChild(link)
-	link.click()
-	document.body.removeChild(link)
-  }
-
-  // Function to export to PDF using print
-  const exportToPDF = () => {
-	// Create a new window with the table content
-	const printWindow = window.open('', '_blank')
-	const tableElement = document.getElementById('reportTable')
-	
-	if (!tableElement) {
-	  alert('Table not found')
-	  return
-	}
-	
-	// Get the table HTML
-	const tableHTML = tableElement.outerHTML
-	
-	// Build HTML content using string concatenation to avoid Vue parsing issues
-	const headStart = '<head>'
-	const titleTag = '<title>PD wise Budget Allocation Report - ' + selectedFinancialYear.value + '</title>'
-	const styleStart = '<style>'
-	const styles = 'body { font-family: Arial, sans-serif; margin: 20px; }' +
-	  'h2 { text-align: center; color: #333; }' +
-	  '.meta-info { text-align: center; margin-bottom: 20px; color: #666; }' +
-	  'table { width: 100%; border-collapse: collapse; margin-top: 20px; }' +
-	  'table th, table td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 10px; }' +
-	  'table th { background-color: #343a40; color: white; font-weight: bold; }' +
-	  '.table-primary { background-color: #cce7ff !important; }' +
-	  '.table-secondary { background-color: #e2e3e5 !important; }' +
-	  '.table-warning { background-color: #fff3cd !important; }' +
-	  '@media print { @page { size: landscape; margin: 1cm; } body { margin: 0; } }'
-	const styleEnd = '</style>'
-	const headEnd = '</head>'
-	
-	const bodyStart = '<body>'
-	const h2Tag = '<h2>PD wise Budget Allocation Report</h2>'
-	const metaInfoStart = '<div class="meta-info">'
-	const financialYearP = '<p><strong>Financial Year:</strong> ' + selectedFinancialYear.value + '</p>'
-	const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'
-	const programDivisionsP = selectedProgramDivisions.value.length > 0 
-	  ? '<p><strong>Program Divisions:</strong> ' + selectedProgramDivisions.value.map(id => getProgramDivisionName(id)).join(', ') + '</p>' 
-	  : ''
-	const majorHeadP = selectedMajorHead.value 
-	  ? '<p><strong>Major Head:</strong> Major Head-' + selectedMajorHead.value + '</p>' 
-	  : ''
-	const metaInfoEnd = '</div>'
-	const scriptStart = '<' + 'script' + '>'
-	const scriptContent = 'window.onload = function() { window.print(); }'
-	const scriptEnd = '<' + '/' + 'script' + '>'
-	const scriptTag = scriptStart + scriptContent + scriptEnd
-	const bodyEnd = '<' + '/' + 'body' + '>'
-	const htmlEnd = '<' + '/' + 'html' + '>'
-	
-	const htmlContent = '<!DOCTYPE html><html>' +
-	  headStart + titleTag + styleStart + styles + styleEnd + headEnd +
-	  bodyStart + h2Tag + metaInfoStart + financialYearP + generatedP + programDivisionsP + majorHeadP + metaInfoEnd +
-	  tableHTML + scriptTag + bodyEnd + htmlEnd
-	
-	printWindow.document.write(htmlContent)
-	printWindow.document.close()
-  }
-
-  // Function to handle financial year change
-  const onFinancialYearChange = async () => {
-	loading.value = true
-	try {
-	  // Clear existing allocation data
-	  allocationData.value = {}
-	  remarksData.value = {}
-	  
-	  // Re-initialize allocation data structure
-	  initializeAllocationData()
-	  
-	  // Fetch allocations for the new financial year
-	  await fetchExistingAllocations()
-	} catch (err) {
-	  console.error('Error fetching allocations for new financial year:', err)
-	  error.value = 'Failed to load data for selected financial year: ' + err.message
-	} finally {
-	  loading.value = false
-	}
+	return formatToFiveDecimals(value)
   }
   
   // Watch for changes in allocation data to trigger reactive updates
@@ -1390,14 +1136,22 @@
 	  allBudgetHeads.forEach(bh => {
 		programDivisions.value.forEach(pd => {
 		  const amount = allocationData.value[bh.bh_id][pd.division_id]
-		  if (amount && amount > 0) {
-			submissionData.push({
-			  financial_year: selectedFinancialYear.value,
-			  bh_id: bh.bh_id,
-			  pd_id: pd.division_id,
-			  amount: parseFloat(amount), // Save exact amount as entered
-			  status: 1
-			})
+		  // Allow zero values to be saved - check if amount is not null/undefined/empty string
+		  // but allow 0 as a valid value
+		  if (amount !== null && amount !== undefined && amount !== '') {
+			// Parse and format to 5 decimals before submission to ensure exact precision
+			const exactAmount = parseFloat(amount)
+			// Check if it's a valid number (including 0)
+			// This will save 0 when user explicitly enters 0
+			if (!isNaN(exactAmount) && exactAmount >= 0) {
+			  submissionData.push({
+				financial_year: '2025-26',
+				bh_id: bh.bh_id,
+				pd_id: pd.division_id,
+				amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)
+				status: 1
+			  })
+			}
 		  }
 		})
 	  })
@@ -1407,7 +1161,7 @@
 	  // return false;
   
 	  if (submissionData.length === 0) {
-		alert('Please enter at least one allocation amount')
+		alert('Please enter at least one allocation amount (including 0)')
 		submitting.value = false
 		return
 	  }
@@ -1575,8 +1329,12 @@
 	  
 	  initializeAllocationData()
 	  
-	  console.log('Allocation data initialized, fetching existing allocations...')
-	  await fetchExistingAllocations()
+	  console.log('Allocation data initialized, fetching existing allocations, release and expenditure data...')
+	  await Promise.all([
+		fetchExistingAllocations(),
+		fetchReleaseData(),
+		fetchExpenditureData()
+	  ])
 	  
 	  console.log('Component initialization completed')
 	} catch (err) {
@@ -1590,75 +1348,6 @@
   </script>
   
   <style scoped>
-  /* Export buttons styling */
-  .export-buttons {
-	display: flex;
-	gap: 8px;
-  }
-
-  .export-buttons .btn {
-	font-weight: 600;
-	padding: 8px 16px;
-	border-radius: 4px;
-	transition: all 0.3s ease;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  .export-buttons .btn:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  }
-
-  .export-buttons .btn-success {
-	background-color: #28a745;
-	border-color: #28a745;
-  }
-
-  .export-buttons .btn-info {
-	background-color: #17a2b8;
-	border-color: #17a2b8;
-  }
-
-  .export-buttons .btn-danger {
-	background-color: #dc3545;
-	border-color: #dc3545;
-  }
-
-  /* Filter multiselect container */
-  .filter-multiselect-container {
-	position: relative;
-  }
-
-  .selected-tags {
-	min-height: 30px;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-  }
-
-  .filter-tag {
-	display: inline-flex;
-	align-items: center;
-	padding: 4px 8px;
-	font-size: 0.875rem;
-	font-weight: 500;
-	border-radius: 4px;
-	cursor: default;
-  }
-
-  .filter-tag .btn-close {
-	font-size: 0.7rem;
-	margin-left: 4px;
-	opacity: 0.8;
-	padding: 0;
-	width: 14px;
-	height: 14px;
-  }
-
-  .filter-tag .btn-close:hover {
-	opacity: 1;
-  }
-
   .tableform-control-withoutbg {
 	background: transparent;
 	border: 1px solid #dee2e6;
@@ -1841,5 +1530,26 @@
 	  padding: 8px 16px;
 	  font-size: 14px;
 	}
+  }
+  /* to make first column sticky of the table */
+  .fw-sticky {
+		position: sticky;
+		left: 0;
+		background-color: #f2f2f2;
+		z-index: 1;
+  }
+
+  /* Sub-column header styling */
+  .sub-column-header {
+		font-size: 0.85em;
+		padding: 8px 4px;
+		background-color: #495057;
+		border: 1px solid #343a40;
+  }
+
+  /* Ensure proper spacing for 3 columns per PD */
+  .table th.sub-column-header {
+		white-space: nowrap;
+		font-weight: 600;
   }
   </style>

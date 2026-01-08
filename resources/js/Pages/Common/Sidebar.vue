@@ -101,6 +101,11 @@
                         <span class="sub-item">PD wise Budget Allocation</span>
                       </Link>
                     </li>
+                    <li>
+                      <Link :href="route('pd-wise-budget-allocation-release')" class="nav-link">
+                        <span class="sub-item">PD wise Budget Allocation Release</span>
+                      </Link>
+                    </li>
                     <!-- <li>
                       <Link :href="route('fund-allocation')" class="nav-link">
                         <span class="sub-item">Fund Allocation</span>
@@ -133,6 +138,11 @@
                     <li>
                       <Link :href="route('mother-sanction-list-module')" class="nav-link">
                         <span class="sub-item">Mother Sanction List</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('mother-sanction-history')" class="nav-link">
+                        <span class="sub-item">Mother Sanction History</span>
                       </Link>
                     </li>
                   </ul>
@@ -271,13 +281,28 @@
                       </Link>
                     </li>
                     <li>
+                      <Link :href="route('agency-release-tsa-list')" class="nav-link">
+                        <span class="sub-item">TSA List</span>
+                      </Link>
+                    </li>
+                    <li>
                       <Link :href="route('agency-release-loa')" class="nav-link">
                         <span class="sub-item">LOA</span>
                       </Link>
                     </li>
                     <li>
+                      <Link :href="route('agency-release-loa-list')" class="nav-link">
+                        <span class="sub-item">LOA List</span>
+                      </Link>
+                    </li>
+                    <li>
                       <Link :href="route('agency-release-administrative-expenditure')" class="nav-link">
                         <span class="sub-item">Administrative Expenditure</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('agency-release-administrative-expenditure-list')" class="nav-link">
+                        <span class="sub-item">Administrative Expenditure List</span>
                       </Link>
                     </li>
                   </ul>
@@ -339,6 +364,7 @@ const menuMap = {
   '/mother-sanction': 'module-mother-sanction',
   '/mother-sanction-list': 'module-mother-sanction',
   '/mother-sanction-list-module': 'module-mother-sanction',
+  '/mother-sanction-history': 'module-mother-sanction',
   '/budget-phase-report': 'reports',
   '/mother-sanction-report': 'reports',
   '/fund-allocation-report': 'reports',
@@ -351,8 +377,11 @@ const menuMap = {
   '/state-release-data': 'annual-action-plan',
   '/pd-wise-budget-allocation': 'budget',
   '/agency-release-tsa': 'agency-release',
+  '/agency-release-tsa-list': 'agency-release',
   '/agency-release-loa': 'agency-release',
+  '/agency-release-loa-list': 'agency-release',
   '/agency-release-administrative-expenditure': 'agency-release',
+  '/agency-release-administrative-expenditure-list': 'agency-release',
 }
 
 

@@ -49,10 +49,149 @@
                       </button>
                     </div>
 
+                    <!-- Filters Section -->
+                    <div v-if="!isLoading && !error" class="row mb-4">
+                      <div class="col-12">
+                        <div class="card border-primary">
+                          <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">
+                              <i class="fas fa-filter me-2"></i>Filters
+                            </h6>
+                          </div>
+                          <div class="card-body">
+                            <div class="row g-3">
+                              <!-- Financial Year Filter -->
+                              <div class="col-md-3">
+                                <label for="financialYear" class="form-label fw-bold">Financial Year</label>
+                                <select 
+                                  id="financialYear" 
+                                  class="form-select" 
+                                  v-model="selectedFinancialYear"
+                                  @change="onFinancialYearChange"
+                                >
+                                  <option value="">All Financial Years</option>
+                                  <option value="2025-26">2025-26</option>
+                                  <option value="2024-25">2024-25</option>
+                                  <option value="2023-24">2023-24</option>
+                                  <option value="2022-23">2022-23</option>
+                                </select>
+                              </div>
+
+                              <!-- State Filter -->
+                              <div class="col-md-3">
+                                <label for="stateFilter" class="form-label fw-bold">State</label>
+                                <select 
+                                  id="stateFilter" 
+                                  class="form-select" 
+                                  v-model="selectedState"
+                                >
+                                  <option value="">All States</option>
+                                  <option v-for="state in uniqueStates" :key="state" :value="state">
+                                    {{ state }}
+                                  </option>
+                                </select>
+                              </div>
+
+                              <!-- Status Filter -->
+                              <div class="col-md-3">
+                                <label for="statusFilter" class="form-label fw-bold">Status</label>
+                                <select 
+                                  id="statusFilter" 
+                                  class="form-select" 
+                                  v-model="selectedStatus"
+                                >
+                                  <option value="">All Status</option>
+                                  <option value="active">Active</option>
+                                  <option value="inactive">Inactive</option>
+                                </select>
+                              </div>
+
+                              <!-- Date From Filter -->
+                              <div class="col-md-3">
+                                <label for="dateFrom" class="form-label fw-bold">Date From</label>
+                                <input 
+                                  type="date" 
+                                  id="dateFrom" 
+                                  class="form-control" 
+                                  v-model="dateFrom"
+                                >
+                              </div>
+
+                              <!-- Date To Filter -->
+                              <div class="col-md-3">
+                                <label for="dateTo" class="form-label fw-bold">Date To</label>
+                                <input 
+                                  type="date" 
+                                  id="dateTo" 
+                                  class="form-control" 
+                                  v-model="dateTo"
+                                >
+                              </div>
+
+                              <!-- Search Filter -->
+                              <div class="col-md-9">
+                                <label for="searchTerm" class="form-label fw-bold">Search</label>
+                                <input 
+                                  type="text" 
+                                  id="searchTerm" 
+                                  class="form-control" 
+                                  v-model="searchTerm"
+                                  placeholder="Search by MS No, SLS, IFD No..."
+                                >
+                              </div>
+                            </div>
+
+                            <!-- Filter Actions -->
+                            <div class="row mt-3">
+                              <div class="col-12">
+                                <button 
+                                  class="btn btn-secondary btn-sm me-2" 
+                                  @click="clearFilters"
+                                >
+                                  <i class="fas fa-times me-1"></i>Clear Filters
+                                </button>
+                                <span class="text-muted ms-2">
+                                  Showing {{ filteredSecondTableData.length }} of {{ secondTableData.length }} records
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Export Buttons -->
+                    <div v-if="!isLoading && !error && filteredSecondTableData.length > 0" class="row mb-3">
+                      <div class="col-12 d-flex justify-content-end align-items-center">
+                        <div class="export-buttons">
+                          <button 
+                            class="btn btn-success btn-sm me-2" 
+                            @click="exportToExcel"
+                            title="Export to Excel"
+                          >
+                            <i class="fas fa-file-excel me-1"></i>EXCEL
+                          </button>
+                          <button 
+                            class="btn btn-info btn-sm me-2" 
+                            @click="exportToCSV"
+                            title="Export to CSV"
+                          >
+                            <i class="fas fa-file-csv me-1"></i>CSV
+                          </button>
+                          <button 
+                            class="btn btn-danger btn-sm" 
+                            @click="exportToPDF"
+                            title="Export to PDF"
+                          >
+                            <i class="fas fa-file-pdf me-1"></i>PDF
+                          </button>
+                        </div>
+                      </div>
+                    </div>
 
                     <!-- Data Tables -->
-                    <div>
-                      <div class="table-responsive">
+                    <div v-if="!isLoading && !error">
+                      <div class="table-responsive" id="reportTable">
                         <table class="table table-bordered table-head-bg-primary">
                           <thead>
                             <tr>
@@ -70,7 +209,7 @@
                           </thead>
                           
                           <tbody>
-                          <tr v-for="(item, index) in secondTableData" :key="item.ky_ms_no" :class="{ 'table-secondary': item.status === 'inactive' }">
+                          <tr v-for="(item, index) in filteredSecondTableData" :key="item.ky_ms_no" :class="{ 'table-secondary': item.status === 'inactive' }">
                             <td>{{ item.financial_year }}</td>
                             <td>{{ item.state }}</td>
                             <td>{{ item.ky_ms_no }}</td>
@@ -125,8 +264,8 @@
                             </td>
                           </tr>
                           
-                          <tr v-if="secondTableData.length === 0">
-                            <td colspan="9" class="text-center text-muted py-4">
+                          <tr v-if="filteredSecondTableData.length === 0">
+                            <td colspan="10" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No mother sanction data available
                             </td>
@@ -190,39 +329,106 @@ const showConfirmDialog = ref(false)
 const selectedItem = ref(null)
 const selectedIndex = ref(null)
 const originalStatus = ref(null)
+const selectedFinancialYear = ref('')
+const selectedState = ref('')
+const selectedStatus = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
+const searchTerm = ref('')
 
 onMounted(async () => {
-  await fetchMotherSanctions()
+  // Fetch all data initially
+  await fetchMotherSanctions('')
+  
+  // Log available financial years from the data
+  if (motherSanctions.value.length > 0) {
+    const uniqueYears = [...new Set(motherSanctions.value.map(item => item.financial_year))]
+    console.log('Available financial years in data:', uniqueYears)
+  }
 })
 
-const fetchMotherSanctions = async () => {
+// Helper function to normalize financial year format for comparison
+const normalizeFinancialYear = (year) => {
+  if (!year) return ''
+  // Convert "2025-26" to "2025-2026" or keep as is if already in full format
+  if (year.match(/^\d{4}-\d{2}$/)) {
+    const [start, end] = year.split('-')
+    const startYear = parseInt(start)
+    const endYear = parseInt('20' + end)
+    return `${startYear}-${endYear}`
+  }
+  return year
+}
+
+// Helper function to check if financial year matches (handles both formats)
+const matchesFinancialYear = (dataYear, filterYear) => {
+  if (!filterYear) return true
+  if (!dataYear) return false
+  
+  // Normalize both to full format for comparison
+  const normalizedData = normalizeFinancialYear(dataYear)
+  const normalizedFilter = normalizeFinancialYear(filterYear)
+  
+  return normalizedData === normalizedFilter || dataYear === filterYear
+}
+
+const fetchMotherSanctions = async (financialYear = '') => {
   isLoading.value = true
   error.value = null
   
   try {
-    const res = await fetch('/api/mother-sanctions-list');
+    // Use the list endpoint which provides the correct data structure
+    const res = await fetch('/api/mother-sanctions-list')
     if (res.ok) {
-      const data = await res.json();
-      motherSanctions.value = data;
+      let data = await res.json()
+      
+      // Log first item to see actual format
+      if (data.length > 0) {
+        console.log('Sample financial_year from API:', data[0].financial_year)
+        console.log('Filter financial_year:', financialYear)
+      }
+      
+      // Filter by financial year on client side since the API doesn't support it
+      if (financialYear) {
+        data = data.filter(item => matchesFinancialYear(item.financial_year, financialYear))
+        console.log('Filtered data count:', data.length)
+      }
+      
+      motherSanctions.value = data
       
       // Debug: Log the first item to verify sls_code is received
       if (data.length > 0) {
-        console.log('First mother sanction item:', data[0]);
-        console.log('SLS Code received:', data[0].sls_code);
-        console.log('Budget heads received:', data[0].budget_heads);
-        console.log('Data structure:', JSON.stringify(data[0], null, 2));
+        console.log('First mother sanction item:', data[0])
+        console.log('SLS Code received:', data[0].sls_code)
+        console.log('Budget heads received:', data[0].budget_heads)
+        console.log('Data structure:', JSON.stringify(data[0], null, 2))
+      } else {
+        console.log('No data found after filtering')
       }
     } else {
-      console.error('Failed to fetch data');
-      error.value = 'Failed to fetch data from server';
+      console.error('Failed to fetch data')
+      error.value = 'Failed to fetch data from server'
     }
   } catch (err) {
-    console.error('Error fetching data:', err);
-    error.value = 'Network error occurred while fetching data';
+    console.error('Error fetching data:', err)
+    error.value = 'Network error occurred while fetching data'
   } finally {
     isLoading.value = false
   }
-};
+}
+
+// Function to handle financial year change
+const onFinancialYearChange = async () => {
+  // Clear other filters when financial year changes
+  selectedState.value = ''
+  selectedStatus.value = ''
+  dateFrom.value = ''
+  dateTo.value = ''
+  searchTerm.value = ''
+  
+  // Fetch data for the selected financial year
+  await fetchMotherSanctions(selectedFinancialYear.value || '')
+}
 
 // Computed property to transform data for the second table
 const secondTableData = computed(() => {
@@ -248,6 +454,220 @@ const secondTableData = computed(() => {
     ifd_no: item.ifd_no || '',
   }));
 });
+
+// Computed property for unique states
+const uniqueStates = computed(() => {
+  const states = new Set()
+  secondTableData.value.forEach(item => {
+    if (item.state) {
+      states.add(item.state)
+    }
+  })
+  return Array.from(states).sort()
+})
+
+// Computed property for filtered data
+const filteredSecondTableData = computed(() => {
+  let filtered = secondTableData.value
+
+  // Note: Financial year filtering is done when fetching data, but we also filter here for consistency
+  if (selectedFinancialYear.value) {
+    filtered = filtered.filter(item => matchesFinancialYear(item.financial_year, selectedFinancialYear.value))
+  }
+
+  // Filter by state
+  if (selectedState.value) {
+    filtered = filtered.filter(item => item.state === selectedState.value)
+  }
+
+  // Filter by status
+  if (selectedStatus.value) {
+    filtered = filtered.filter(item => item.status === selectedStatus.value)
+  }
+
+  // Filter by date range
+  if (dateFrom.value) {
+    filtered = filtered.filter(item => {
+      if (!item.sanction_date) return false
+      const itemDate = new Date(item.sanction_date)
+      return itemDate >= new Date(dateFrom.value)
+    })
+  }
+
+  if (dateTo.value) {
+    filtered = filtered.filter(item => {
+      if (!item.sanction_date) return false
+      const itemDate = new Date(item.sanction_date)
+      const toDate = new Date(dateTo.value)
+      toDate.setHours(23, 59, 59, 999)
+      return itemDate <= toDate
+    })
+  }
+
+  // Filter by search term
+  if (searchTerm.value && searchTerm.value.trim() !== '') {
+    const searchLower = searchTerm.value.toLowerCase().trim()
+    filtered = filtered.filter(item => {
+      const msNo = String(item.ky_ms_no || '').toLowerCase()
+      const slsName = String(item.sls_name || '').toLowerCase()
+      const ifdNo = String(item.ifd_no || '').toLowerCase()
+      return msNo.includes(searchLower) || slsName.includes(searchLower) || ifdNo.includes(searchLower)
+    })
+  }
+
+  return filtered
+})
+
+// Function to clear filters
+const clearFilters = async () => {
+  selectedFinancialYear.value = ''
+  selectedState.value = ''
+  selectedStatus.value = ''
+  dateFrom.value = ''
+  dateTo.value = ''
+  searchTerm.value = ''
+  // Fetch all data when filters are cleared
+  await fetchMotherSanctions('')
+}
+
+// Function to prepare table data for export
+const prepareTableData = () => {
+  const data = []
+  
+  // Add header row
+  data.push([
+    'Fy',
+    'State',
+    'MS NO',
+    'Date',
+    'SLS Details',
+    'SL Scode',
+    'Annual Allocation',
+    'MS Total Amount',
+    'Status'
+  ])
+  
+  // Add data rows
+  filteredSecondTableData.value.forEach(item => {
+    data.push([
+      item.financial_year || '',
+      item.state || '',
+      item.ky_ms_no || '',
+      formatDate(item.sanction_date),
+      item.sls_name || '',
+      item.sl_scode || '',
+      formatCurrency(item.annual_allocation),
+      formatCurrency(item.total_mother_sanction_amount),
+      item.status || 'active'
+    ])
+  })
+  
+  return data
+}
+
+// Function to export to Excel
+const exportToExcel = () => {
+  const data = prepareTableData()
+  let csvContent = ''
+  
+  data.forEach(row => {
+    const csvRow = row.map(cell => {
+      const cellValue = String(cell || '')
+      if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
+        return `"${cellValue.replace(/"/g, '""')}"`
+      }
+      return cellValue
+    })
+    csvContent += csvRow.join(',') + '\n'
+  })
+  
+  const BOM = '\uFEFF'
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  
+  link.setAttribute('href', url)
+  link.setAttribute('download', `Mother_Sanction_Report_${new Date().getTime()}.xlsx`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+// Function to export to CSV
+const exportToCSV = () => {
+  const data = prepareTableData()
+  let csvContent = ''
+  
+  data.forEach(row => {
+    const csvRow = row.map(cell => {
+      const cellValue = String(cell || '')
+      if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
+        return `"${cellValue.replace(/"/g, '""')}"`
+      }
+      return cellValue
+    })
+    csvContent += csvRow.join(',') + '\n'
+  })
+  
+  const BOM = '\uFEFF'
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  
+  link.setAttribute('href', url)
+  link.setAttribute('download', `Mother_Sanction_Report_${new Date().getTime()}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+// Function to export to PDF
+const exportToPDF = () => {
+  const printWindow = window.open('', '_blank')
+  const tableElement = document.getElementById('reportTable')
+  
+  if (!tableElement) {
+    alert('Table not found')
+    return
+  }
+  
+  const tableHTML = tableElement.outerHTML
+  
+  const headStart = '<head>'
+  const titleTag = '<title>Mother Sanction Report</title>'
+  const styleStart = '<style>'
+  const styles = 'body { font-family: Arial, sans-serif; margin: 20px; }' +
+    'h2 { text-align: center; color: #333; }' +
+    '.meta-info { text-align: center; margin-bottom: 20px; color: #666; }' +
+    'table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 8px; }' +
+    'table th, table td { border: 1px solid #ddd; padding: 4px; text-align: left; }' +
+    'table th { background-color: #007bff; color: white; font-weight: bold; }' +
+    '@media print { @page { size: landscape; margin: 1cm; } body { margin: 0; } }'
+  const styleEnd = '</style>'
+  const headEnd = '</head>'
+  
+  const bodyStart = '<body>'
+  const h2Tag = '<h2>Mother Sanction Report</h2>'
+  const metaInfoStart = '<div class="meta-info">'
+  const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'
+  const metaInfoEnd = '</div>'
+  const scriptStart = '<' + 'script' + '>'
+  const scriptContent = 'window.onload = function() { window.print(); }'
+  const scriptEnd = '<' + '/' + 'script' + '>'
+  const scriptTag = scriptStart + scriptContent + scriptEnd
+  const bodyEnd = '<' + '/' + 'body' + '>'
+  const htmlEnd = '<' + '/' + 'html' + '>'
+  
+  const htmlContent = '<!DOCTYPE html><html>' +
+    headStart + titleTag + styleStart + styles + styleEnd + headEnd +
+    bodyStart + h2Tag + metaInfoStart + generatedP + metaInfoEnd +
+    tableHTML + scriptTag + bodyEnd + htmlEnd
+  
+  printWindow.document.write(htmlContent)
+  printWindow.document.close()
+}
 
 // Method to calculate available balance
 const calculateAvailableBalance = (row) => {
@@ -520,6 +940,40 @@ const confirmStatusChange = async () => {
 /* Status column styling */
 .status-column {
   min-width: 120px;
+}
+
+/* Export buttons styling */
+.export-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.export-buttons .btn {
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.export-buttons .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.export-buttons .btn-success {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+.export-buttons .btn-info {
+  background-color: #17a2b8;
+  border-color: #17a2b8;
+}
+
+.export-buttons .btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
 }
 </style>
 

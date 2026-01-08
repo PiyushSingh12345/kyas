@@ -677,4 +677,174 @@ class AnnualActionPlanController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get mother sanction release data grouped by budget head and program division
+     */
+    public function getMotherSanctionReleaseData(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2025-26');
+            
+            // First, get all mother sanctions with their budget heads and pd_components
+            // Use inner joins to ensure we only get records where both budget_head and pd_component match
+            $releaseData = DB::table('mother_sanction as ms')
+                ->join('budget_heads as bh', function($join) {
+                    $join->on(DB::raw('TRIM(ms.budget_head)'), '=', DB::raw('TRIM(bh.budget)'));
+                })
+                ->join('md_program_divisions as pd', function($join) {
+                    $join->on(DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'), '=', DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci'));
+                })
+                ->where('ms.status', 1)
+                ->whereNotNull('ms.budget_head')
+                ->whereNotNull('ms.pd_component')
+                ->whereNotNull('ms.mother_sanction_amount')
+                ->where('ms.mother_sanction_amount', '>', 0)
+                ->select(
+                    'bh.id as bh_id',
+                    'pd.division_id as pd_id',
+                    'ms.budget_head',
+                    'ms.pd_component',
+                    DB::raw('SUM(COALESCE(ms.mother_sanction_amount, 0)) as total_release')
+                )
+                ->groupBy('bh.id', 'pd.division_id', 'ms.budget_head', 'ms.pd_component')
+                ->get();
+
+            Log::info('Mother Sanction Release Data Query Result', [
+                'count' => $releaseData->count(),
+                'sample' => $releaseData->take(5)->toArray()
+            ]);
+
+            // Format data as {bh_id: {pd_id: amount}}
+            // Use string keys to match JavaScript object key behavior
+            $formattedData = [];
+            foreach ($releaseData as $record) {
+                // Only include records where both bh_id and pd_id are not null
+                if ($record->bh_id && $record->pd_id) {
+                    $bhId = (string)$record->bh_id;
+                    $pdId = (string)$record->pd_id;
+                    
+                    if (!isset($formattedData[$bhId])) {
+                        $formattedData[$bhId] = [];
+                    }
+                    $amount = floatval($record->total_release ?? 0);
+                    if (isset($formattedData[$bhId][$pdId])) {
+                        $formattedData[$bhId][$pdId] += $amount;
+                    } else {
+                        $formattedData[$bhId][$pdId] = $amount;
+                    }
+                }
+            }
+
+            Log::info('Formatted Mother Sanction Release Data', [
+                'total_budget_heads' => count($formattedData),
+                'sample' => array_slice($formattedData, 0, 3, true)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedData,
+                'debug' => [
+                    'raw_count' => $releaseData->count(),
+                    'formatted_count' => count($formattedData)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching mother sanction release data: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch mother sanction release data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get daily sanction expenditure data grouped by budget head and program division
+     */
+    public function getDailySanctionExpenditureData(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2025-26');
+            
+            // Aggregate daily sanction expenditure data by budget_head and pd_id (through slsComponent -> pd_component)
+            // Use inner joins to ensure we only get records where all joins match
+            $expenditureData = DB::table('daily_sanction as ds')
+                ->join('pd_and_sls_comp as psc', function($join) {
+                    $join->on(DB::raw('TRIM(ds.sls_name)'), '=', DB::raw('TRIM(psc.name)'));
+                })
+                ->join('md_program_divisions as pd', function($join) {
+                    $join->on(DB::raw('TRIM(psc.slsPD) COLLATE utf8mb4_unicode_ci'), '=', DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci'));
+                })
+                ->join('budget_heads as bh', function($join) {
+                    $join->on(DB::raw('TRIM(ds.budget_head)'), '=', DB::raw('TRIM(bh.budget)'));
+                })
+                ->where('ds.status', 1)
+                ->whereNotNull('ds.budget_head')
+                ->whereNotNull('ds.center_share_amount')
+                ->where('ds.center_share_amount', '>', 0)
+                ->select(
+                    'bh.id as bh_id',
+                    'pd.division_id as pd_id',
+                    'ds.budget_head',
+                    'psc.slsPD',
+                    DB::raw('SUM(COALESCE(ds.center_share_amount, 0)) as total_expenditure')
+                )
+                ->groupBy('bh.id', 'pd.division_id', 'ds.budget_head', 'psc.slsPD')
+                ->get();
+
+            Log::info('Daily Sanction Expenditure Data Query Result', [
+                'count' => $expenditureData->count(),
+                'sample' => $expenditureData->take(5)->toArray()
+            ]);
+
+            // Format data as {bh_id: {pd_id: amount}}
+            // Use string keys to match JavaScript object key behavior
+            $formattedData = [];
+            foreach ($expenditureData as $record) {
+                // Only include records where both bh_id and pd_id are not null
+                if ($record->bh_id && $record->pd_id) {
+                    $bhId = (string)$record->bh_id;
+                    $pdId = (string)$record->pd_id;
+                    
+                    if (!isset($formattedData[$bhId])) {
+                        $formattedData[$bhId] = [];
+                    }
+                    $amount = floatval($record->total_expenditure ?? 0);
+                    if (isset($formattedData[$bhId][$pdId])) {
+                        $formattedData[$bhId][$pdId] += $amount;
+                    } else {
+                        $formattedData[$bhId][$pdId] = $amount;
+                    }
+                }
+            }
+
+            Log::info('Formatted Daily Sanction Expenditure Data', [
+                'total_budget_heads' => count($formattedData),
+                'sample' => array_slice($formattedData, 0, 3, true)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedData,
+                'debug' => [
+                    'raw_count' => $expenditureData->count(),
+                    'formatted_count' => count($formattedData)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching daily sanction expenditure data: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch daily sanction expenditure data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

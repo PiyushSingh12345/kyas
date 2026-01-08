@@ -6,8 +6,11 @@ use App\Models\BudgetHead;
 use App\Models\SlsPDComponent;
 use App\Models\FundAllocation;
 use App\Models\MotherSanction;
+use App\Models\MotherSanctionHistory;
+use App\Models\BudgetPhase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 use Inertia\Inertia;
 
@@ -135,12 +138,14 @@ public function list()
                         'available_fund' => 0,
                         'mother_sanction_amount' => 0,
                         'expenditure' => 0,
+                        'carry_forward_amount' => 0,
                     ];
                 }
                 
                 // Aggregate amounts
                 $budgetHeadMap[$budgetKey]['available_fund'] += floatval($item->available_fund ?? 0);
                 $budgetHeadMap[$budgetKey]['mother_sanction_amount'] += floatval($item->mother_sanction_amount ?? 0);
+                $budgetHeadMap[$budgetKey]['carry_forward_amount'] += floatval($item->carry_forward_amount ?? 0);
             }
             
             // Calculate expenditure for each budget head across all mother sanctions in this group
@@ -372,8 +377,11 @@ public function listReport(Request $request)
                 'category' => $row['category'],
                 'available_fund' => $row['available_amount'],
                 'mother_sanction_amount' => $row['sanction_amount'],
-                
+                'carry_forward_amount' => $row['carry_forward'] ?? 0,
             ]));
+
+            // Save history for creation
+            $this->saveHistory($sanction, 'CREATE', 'New mother sanction record created');
 
             $lastInserted = $sanction; // Keep reference to the last inserted record
         }
@@ -462,26 +470,49 @@ public function updateStatus(Request $request)
 
         if ($action === 'deactivate') {
             // Deactivate all records with the provided ky_ms_no values (used by status toggle)
-            $updated = MotherSanction::whereIn('ky_ms_no', $kyMsNos)
-                ->update(['status' => 0]);
+            DB::beginTransaction();
+            
+            $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
+            
+            foreach ($records as $record) {
+                // Save history before update
+                $this->saveHistory($record, 'DEACTIVATE', 'Record deactivated');
+                
+                $record->status = 0;
+                $record->save();
+            }
+            
+            DB::commit();
             
             return response()->json([
                 'message' => 'Records deactivated successfully',
                 'success' => true,
-                'updated_count' => $updated
+                'updated_count' => $records->count()
             ]);
         } elseif ($action === 'activate') {
             // Activate all records with the provided ky_ms_no values
-            $updated = MotherSanction::whereIn('ky_ms_no', $kyMsNos)
-                ->update(['status' => 1]);
+            DB::beginTransaction();
+            
+            $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
+            
+            foreach ($records as $record) {
+                // Save history before update
+                $this->saveHistory($record, 'ACTIVATE', 'Record activated');
+                
+                $record->status = 1;
+                $record->save();
+            }
+            
+            DB::commit();
             
             return response()->json([
                 'message' => 'Records activated successfully',
                 'success' => true,
-                'updated_count' => $updated
+                'updated_count' => $records->count()
             ]);
         } elseif ($action === 'revise') {
             // "Revise" action triggered from Revise button:
+            //  - Set old data status to inactive
             //  - MS Amount = Current MS Amount + Available Fund (where Available Fund = MS Amount - Expenditure)
             //  - Available Fund = New MS Amount - Expenditure
 
@@ -500,9 +531,13 @@ public function updateStatus(Request $request)
 
                 // Get current MS Amount
                 $currentMsAmount = floatval($record->mother_sanction_amount ?: 0);
+                $oldAvailableFund = floatval($record->available_fund ?: 0);
 
                 // Calculate current Available Fund as MS Amount - Expenditure (matching frontend calculation)
                 $currentAvailableFund = $currentMsAmount - $expenditure;
+
+                // Store the current Available Fund as Carry Forward Amount (this is what was added)
+                $carryForwardAmount = $currentAvailableFund;
 
                 // New MS Amount = Current MS Amount + Available Fund
                 $newMsAmount = $currentMsAmount + $currentAvailableFund;
@@ -510,9 +545,17 @@ public function updateStatus(Request $request)
                 // New Available Fund = New MS Amount - Expenditure
                 $newAvailableFund = $newMsAmount - $expenditure;
 
-                // Update the record
+                // Save history before update
+                $this->saveHistory($record, 'REVISE', 
+                    "Record revised. MS Amount: {$currentMsAmount} -> {$newMsAmount}, Available Fund: {$oldAvailableFund} -> {$newAvailableFund}",
+                    $currentMsAmount, $newMsAmount, $oldAvailableFund, $newAvailableFund
+                );
+
+                // Set status to inactive for revise
+                $record->status = 0;
                 $record->mother_sanction_amount = $newMsAmount;
                 $record->available_fund = $newAvailableFund;
+                $record->carry_forward_amount = $carryForwardAmount;
 
                 $record->save();
             }
@@ -527,10 +570,12 @@ public function updateStatus(Request $request)
         } else {
             // "Close" action triggered from Close button:
             //  - MS Amount should become equal to Expenditure
-            //  - Available Fund should be added back to BE (here reflected by setting it to zero)
-            //  - Record is marked inactive
+            //  - Available Fund should be added back to BE budget phase amount
+            //  - Record is marked inactive/closed
 
             DB::beginTransaction();
+
+            $financialYear = $request->input('financial_year');
 
             foreach ($records as $record) {
                 // Calculate expenditure for this budget head exactly like in list()
@@ -543,6 +588,30 @@ public function updateStatus(Request $request)
                 // Ensure numeric
                 $expenditure = $expenditure ?: 0;
 
+                $oldMsAmount = floatval($record->mother_sanction_amount ?: 0);
+                $oldAvailableFund = floatval($record->available_fund ?: 0);
+
+                // Get available fund to add back to BE
+                $availableFundToReturn = $oldAvailableFund;
+
+                // Find BudgetHead by budget string
+                $budgetHead = BudgetHead::where('budget', $record->budget_head)->first();
+                
+                if ($budgetHead && $availableFundToReturn > 0) {
+                    // Find or create BE budget phase for this budget head and financial year
+                    $budgetPhase = BudgetPhase::where('budget_head_id', $budgetHead->id)
+                        ->where('budget_phase', 'BE')
+                        ->where('financial_year', $financialYear ?: $record->financial_year)
+                        ->where('status', 1)
+                        ->first();
+                    
+                    if ($budgetPhase) {
+                        // Add back the available amount to BE budget phase
+                        $budgetPhase->budget_amount = floatval($budgetPhase->budget_amount) + $availableFundToReturn;
+                        $budgetPhase->save();
+                    }
+                }
+
                 // MS Amount should be equivalent to Expenditure
                 $record->mother_sanction_amount = $expenditure;
 
@@ -552,13 +621,19 @@ public function updateStatus(Request $request)
                 // Mark record as inactive/closed
                 $record->status = 0;
 
+                // Save history before update
+                $this->saveHistory($record, 'CLOSE', 
+                    "Record closed. MS Amount: {$oldMsAmount} -> {$expenditure}, Available Fund: {$oldAvailableFund} -> 0 (returned to BE)",
+                    $oldMsAmount, $expenditure, $oldAvailableFund, 0
+                );
+
                 $record->save();
             }
 
             DB::commit();
 
             return response()->json([
-                'message' => 'Records closed successfully. MS Amount updated to match expenditure and available fund set to zero.',
+                'message' => 'Records closed successfully. MS Amount updated to match expenditure, available fund returned to BE, and status set to close.',
                 'success' => true,
                 'updated_count' => $records->count()
             ]);
@@ -729,6 +804,140 @@ public function getMotherSanctionDetails($kyMsNo)
             'years' => $financialYears,
             'data' => $grouped,
         ]);
+    }
+
+    /**
+     * Save history record for mother sanction changes
+     */
+    private function saveHistory($record, $actionType, $description = null, $oldMsAmount = null, $newMsAmount = null, $oldAvailableFund = null, $newAvailableFund = null)
+    {
+        $changedBy = Auth::check() ? Auth::user()->name : 'System';
+        
+        MotherSanctionHistory::create([
+            'mother_sanction_id' => $record->id,
+            'financial_year' => $record->financial_year,
+            'state_id' => $record->state_id,
+            'ms_sequence_no' => $record->ms_sequence_no,
+            'file_no' => $record->file_no,
+            'ifd_no' => $record->ifd_no,
+            'sanction_date' => $record->sanction_date,
+            'ky_ms_no' => $record->ky_ms_no,
+            'sls_name' => $record->sls_name,
+            'pd_component' => $record->pd_component,
+            'total_mother_sanction_amount' => $record->total_mother_sanction_amount,
+            'budget_head' => $record->budget_head,
+            'category' => $record->category,
+            'available_fund' => $record->available_fund,
+            'mother_sanction_amount' => $record->mother_sanction_amount,
+            'carry_forward_amount' => $record->carry_forward_amount,
+            'uc_received_from_State' => $record->uc_received_from_State,
+            'signed_copy_of_mother_sanction' => $record->signed_copy_of_mother_sanction,
+            'last_id' => $record->last_id,
+            'status' => $record->status,
+            'remark' => $record->remark,
+            'action_type' => $actionType,
+            'changed_by' => $changedBy,
+            'change_description' => $description,
+            'old_mother_sanction_amount' => $oldMsAmount ?? $record->mother_sanction_amount,
+            'new_mother_sanction_amount' => $newMsAmount ?? $record->mother_sanction_amount,
+            'old_available_fund' => $oldAvailableFund ?? $record->available_fund,
+            'new_available_fund' => $newAvailableFund ?? $record->available_fund,
+        ]);
+    }
+
+    /**
+     * Get mother sanction history list
+     */
+    public function historyList()
+    {
+        try {
+            $history = MotherSanctionHistory::with(['state', 'motherSanction'])
+                ->orderBy('history_timestamp', 'desc')
+                ->get();
+
+            // Group by state_id and sls_code similar to list method
+            $groupedData = $history->groupBy(function($item) {
+                return ($item->state_id ?? '') . '|' . ($item->sls_name ?? '');
+            });
+
+            $transformedData = $groupedData->map(function($group) {
+                $firstItem = $group->first();
+                
+                // Get all unique budget heads for this group
+                $budgetHeadMap = [];
+                
+                foreach ($group as $item) {
+                    if (empty($item->budget_head)) {
+                        continue;
+                    }
+                    
+                    $budgetKey = $item->budget_head;
+                    
+                    if (!isset($budgetHeadMap[$budgetKey])) {
+                        $budgetHeadMap[$budgetKey] = [
+                            'budget_head' => $item->budget_head,
+                            'category' => $item->category,
+                            'mother_sanction_amount' => 0,
+                            'available_fund' => 0,
+                            'old_mother_sanction_amount' => 0,
+                            'new_mother_sanction_amount' => 0,
+                            'old_available_fund' => 0,
+                            'new_available_fund' => 0,
+                            'action_type' => $item->action_type,
+                            'change_description' => $item->change_description,
+                            'changed_by' => $item->changed_by,
+                            'history_timestamp' => $item->history_timestamp,
+                        ];
+                    }
+                    
+                    // Aggregate amounts
+                    $budgetHeadMap[$budgetKey]['mother_sanction_amount'] += floatval($item->mother_sanction_amount ?? 0);
+                    $budgetHeadMap[$budgetKey]['available_fund'] += floatval($item->available_fund ?? 0);
+                    $budgetHeadMap[$budgetKey]['old_mother_sanction_amount'] += floatval($item->old_mother_sanction_amount ?? 0);
+                    $budgetHeadMap[$budgetKey]['new_mother_sanction_amount'] += floatval($item->new_mother_sanction_amount ?? 0);
+                    $budgetHeadMap[$budgetKey]['old_available_fund'] += floatval($item->old_available_fund ?? 0);
+                    $budgetHeadMap[$budgetKey]['new_available_fund'] += floatval($item->new_available_fund ?? 0);
+                }
+
+                $budgetHeads = collect($budgetHeadMap)->values();
+
+                // Get all unique ky_ms_no values
+                $allKyMsNos = $group->pluck('ky_ms_no')->unique()->filter()->values()->toArray();
+                $kyMsNoDisplay = !empty($allKyMsNos) ? implode(', ', $allKyMsNos) : ($firstItem->ky_ms_no ?? '');
+
+                return [
+                    'id' => $firstItem->history_id,
+                    'financial_year' => $firstItem->financial_year,
+                    'state_id' => $firstItem->state_id,
+                    'ky_ms_no' => $kyMsNoDisplay,
+                    'ky_ms_no_list' => $allKyMsNos,
+                    'sls_name' => $firstItem->sls_name,
+                    'pd_component' => $firstItem->pd_component,
+                    'sanction_date' => $firstItem->sanction_date,
+                    'budget_heads' => $budgetHeads,
+                    'action_type' => $firstItem->action_type,
+                    'changed_by' => $firstItem->changed_by,
+                    'history_timestamp' => $firstItem->history_timestamp,
+                    'change_description' => $firstItem->change_description,
+                    'state' => [
+                        'id' => $firstItem->state_id,
+                        'name' => $firstItem->state->name ?? ''
+                    ],
+                ];
+            })->values();
+
+            return response()->json($transformedData);
+        } catch (\Exception $e) {
+            Log::error('Error fetching mother sanction history:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => 'An error occurred while fetching history',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
    

@@ -72,6 +72,7 @@
                               <th>Annual Allocation</th>
                               <th>MS Total Amount</th>
                               <th>Budget Head</th>
+                              <th>Action</th>
                               <th>Status</th>
                             </tr>
                           </thead>
@@ -98,6 +99,7 @@
                                       <th class="text-center">MS Amount</th>
                                       <th class="text-center">Expenditure</th>
                                       <th class="text-center">Available Fund</th>
+                                      <th class="text-center">Carry Forward Amount</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -107,9 +109,10 @@
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget)) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCarryForwardAmount(budget.carry_forward_amount || 0) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
-                                      <td colspan="5" class="text-center text-muted">No budget heads available</td>
+                                      <td colspan="6" class="text-center text-muted">No budget heads available</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -118,22 +121,11 @@
 
                             <td class="text-center status-column">
                               <div class="d-flex justify-content-center align-items-center gap-2">
-                                <div class="form-check form-switch">
-                                  <input 
-                                    class="form-check-input" 
-                                    type="checkbox" 
-                                    :id="`status-${index}`"
-                                    :checked="item.status === 'active'"
-                                    @click="handleStatusToggle($event, item, index)"
-                                  >
-                                  <label class="form-check-label ms-2" :for="`status-${index}`">
-                                    {{ item.status === 'active' ? 'Active' : 'Inactive' }}
-                                  </label>
-                                </div>
                                 <button 
                                   class="btn btn-sm btn-secondary"
                                   @click="handleClose(item, index)"
                                   title="Close"
+                                  :disabled="item.status === 'close'"
                                 >
                                   Close
                                 </button>
@@ -141,10 +133,23 @@
                                   class="btn btn-sm btn-primary"
                                   @click="handleRevise(item, index)"
                                   title="Revise"
+                                  :disabled="item.status === 'close'"
                                 >
                                   Revise
                                 </button>
                               </div>
+                            </td>
+
+                            <td class="text-center status-column">
+                              <span 
+                                :class="{
+                                  'badge bg-success': item.status === 'active',
+                                  'badge bg-secondary': item.status === 'inactive',
+                                  'badge bg-danger': item.status === 'close'
+                                }"
+                              >
+                                {{ item.status === 'active' ? 'Active' : item.status === 'inactive' ? 'Inactive' : 'Close' }}
+                              </span>
                             </td>
                           </tr>
                           
@@ -171,7 +176,7 @@
         <Footer />
     </div>
     
-    <!-- Confirmation Dialog -->
+    <!-- Confirmation Dialog for Status Toggle -->
     <div v-if="showConfirmDialog" class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1055;" @click="closeConfirmDialog">
       <div class="modal-backdrop fade show" style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"></div>
       <div class="modal-dialog modal-dialog-centered" role="document" style="z-index: 1055; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0;" @click.stop>
@@ -195,6 +200,48 @@
         </div>
       </div>
     </div>
+
+    <!-- Close Confirmation Dialog -->
+    <div v-if="showCloseDialog" class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1055;" @click="closeCloseDialog">
+      <div class="modal-backdrop fade show" style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"></div>
+      <div class="modal-dialog modal-dialog-centered" role="document" style="z-index: 1055; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0;" @click.stop>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Close Action</h5>
+            <button type="button" class="btn-close" @click="closeCloseDialog"></button>
+          </div>
+          <div class="modal-body">
+            <p>Do you really want to proceed?</p>
+            <p class="text-muted small mt-2">This will add back the available amount to the budget phase amount for BE corresponding to the budget head respectively. MS amount will be equal to Expenditure amount, available amount will become zero, and status will be set to close.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeCloseDialog">Cancel</button>
+            <button type="button" class="btn btn-primary" @click="confirmClose">Proceed</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Revise Confirmation Dialog -->
+    <div v-if="showReviseDialog" class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1055;" @click="closeReviseDialog">
+      <div class="modal-backdrop fade show" style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"></div>
+      <div class="modal-dialog modal-dialog-centered" role="document" style="z-index: 1055; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0;" @click.stop>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Revise Action</h5>
+            <button type="button" class="btn-close" @click="closeReviseDialog"></button>
+          </div>
+          <div class="modal-body">
+            <p>Do you really want to proceed?</p>
+            <p class="text-muted small mt-2">This will make the older data status inactive and open the mother sanction page with these data prefilled. The available amount value will be filled in the carry forward field and MS amount in the MS amount field. On submit, MS amount will equal (MS amount field value + Carry Forward field value).</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeReviseDialog">Cancel</button>
+            <button type="button" class="btn btn-primary" @click="confirmRevise">Proceed</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -213,6 +260,12 @@ const showConfirmDialog = ref(false)
 const selectedItem = ref(null)
 const selectedIndex = ref(null)
 const originalStatus = ref(null)
+const showCloseDialog = ref(false)
+const closeItem = ref(null)
+const closeIndex = ref(null)
+const showReviseDialog = ref(false)
+const reviseItem = ref(null)
+const reviseIndex = ref(null)
 
 // Flash message state
 const flashMessage = ref({
@@ -293,7 +346,7 @@ const secondTableData = computed(() => {
     total_expenditure: 0, // This would come from daily sanctions if available
     annual_allocation: item.total_available_fund || 0, // Use total available fund from backend
     sl_scode: item.sls_code || item.sls_name?.substring(0, 2) || '', // Use sls_code from DB, fallback to substring
-    status: item.status || 'active', // Default to active if not specified
+    status: item.status || 'active', // Default to active if not specified - can be 'active', 'inactive', or 'close'
     ifd_no: item.ifd_no || '',
   }));
 });
@@ -325,6 +378,15 @@ const formatCurrency = (amount) => {
   return parseFloat(amount).toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
+  });
+};
+
+// Method to format carry forward amount with 5 decimal places
+const formatCarryForwardAmount = (amount) => {
+  if (!amount) return '0.00000';
+  return parseFloat(amount).toLocaleString('en-IN', {
+    minimumFractionDigits: 5,
+    maximumFractionDigits: 5
   });
 };
 
@@ -425,27 +487,34 @@ const confirmStatusChange = async () => {
   closeConfirmDialog();
 };
 
-// Method to handle close action
-// On close:
-//  - MS Amount should be made equivalent to Expenditure
-//  - Available Fund should be added back to BE (reflected by setting it to zero here)
-//  - Record is marked inactive/closed
-// Note: Since records are now grouped by state + sls_code, we may have multiple ky_ms_no values
-const handleClose = async (item, index) => {
-  const kyMsNosToClose = item.ky_ms_no_list && item.ky_ms_no_list.length > 0 
-    ? item.ky_ms_no_list 
-    : (item.ky_ms_no ? [item.ky_ms_no] : []);
-  
-  if (kyMsNosToClose.length === 0) {
-    showFlashMessage('danger', 'No mother sanction numbers found to close.', 'fas fa-exclamation-triangle');
+// Method to handle close action - show dialog
+const handleClose = (item, index) => {
+  closeItem.value = item;
+  closeIndex.value = index;
+  showCloseDialog.value = true;
+};
+
+// Method to close the close dialog
+const closeCloseDialog = () => {
+  showCloseDialog.value = false;
+  closeItem.value = null;
+  closeIndex.value = null;
+};
+
+// Method to confirm close action
+const confirmClose = async () => {
+  if (!closeItem.value) {
+    closeCloseDialog();
     return;
   }
 
-  const confirmMessage = kyMsNosToClose.length > 1
-    ? `Are you sure you want to close ${kyMsNosToClose.length} mother sanction(s)? This will affect all records: ${kyMsNosToClose.join(', ')}`
-    : 'Are you sure you want to close this record?';
+  const kyMsNosToClose = closeItem.value.ky_ms_no_list && closeItem.value.ky_ms_no_list.length > 0 
+    ? closeItem.value.ky_ms_no_list 
+    : (closeItem.value.ky_ms_no ? [closeItem.value.ky_ms_no] : []);
   
-  if (!confirm(confirmMessage)) {
+  if (kyMsNosToClose.length === 0) {
+    showFlashMessage('danger', 'No mother sanction numbers found to close.', 'fas fa-exclamation-triangle');
+    closeCloseDialog();
     return;
   }
 
@@ -457,8 +526,9 @@ const handleClose = async (item, index) => {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
       },
       body: JSON.stringify({
-        ky_ms_no: kyMsNosToClose, // Send array of ky_ms_no values
-        action: 'close'
+        ky_ms_no: kyMsNosToClose,
+        action: 'close',
+        financial_year: closeItem.value.financial_year
       })
     });
 
@@ -467,43 +537,55 @@ const handleClose = async (item, index) => {
       await fetchMotherSanctions();
       showFlashMessage(
         'success',
-        'Record closed successfully. MS Amount is now equal to Expenditure and Available Fund has been set to zero.',
+        'Record closed successfully. Available amount has been added back to BE budget phase, MS Amount is now equal to Expenditure, Available Fund is zero, and status is set to close.',
         'fas fa-check-circle'
       );
     } else {
-      console.error('Failed to close record');
-      showFlashMessage('danger', 'Failed to close record. Please try again.', 'fas fa-exclamation-triangle');
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Failed to close record:', errorData);
+      showFlashMessage('danger', errorData.message || 'Failed to close record. Please try again.', 'fas fa-exclamation-triangle');
     }
   } catch (error) {
     console.error('Error closing record:', error);
     showFlashMessage('danger', 'An error occurred while closing the record. Please try again.', 'fas fa-exclamation-triangle');
+  } finally {
+    closeCloseDialog();
   }
 };
 
-// Method to handle revise action
-// On revise:
-//  - MS Amount = Current MS Amount + Available Fund
-//  - Available Fund = New MS Amount - Expenditure
-// Note: Since records are now grouped by state + sls_code, we may have multiple ky_ms_no values
-const handleRevise = async (item, index) => {
-  const kyMsNosToRevise = item.ky_ms_no_list && item.ky_ms_no_list.length > 0 
-    ? item.ky_ms_no_list 
-    : (item.ky_ms_no ? [item.ky_ms_no] : []);
-  
-  if (kyMsNosToRevise.length === 0) {
-    showFlashMessage('danger', 'No mother sanction numbers found to revise.', 'fas fa-exclamation-triangle');
+// Method to handle revise action - show dialog
+const handleRevise = (item, index) => {
+  reviseItem.value = item;
+  reviseIndex.value = index;
+  showReviseDialog.value = true;
+};
+
+// Method to close the revise dialog
+const closeReviseDialog = () => {
+  showReviseDialog.value = false;
+  reviseItem.value = null;
+  reviseIndex.value = null;
+};
+
+// Method to confirm revise action
+const confirmRevise = async () => {
+  if (!reviseItem.value) {
+    closeReviseDialog();
     return;
   }
 
-  const confirmMessage = kyMsNosToRevise.length > 1
-    ? `Are you sure you want to revise ${kyMsNosToRevise.length} mother sanction(s)? This will add Available Fund to MS Amount for all budget heads: ${kyMsNosToRevise.join(', ')}`
-    : 'Are you sure you want to revise this record? This will add Available Fund to MS Amount for all budget heads.';
+  const kyMsNosToRevise = reviseItem.value.ky_ms_no_list && reviseItem.value.ky_ms_no_list.length > 0 
+    ? reviseItem.value.ky_ms_no_list 
+    : (reviseItem.value.ky_ms_no ? [reviseItem.value.ky_ms_no] : []);
   
-  if (!confirm(confirmMessage)) {
+  if (kyMsNosToRevise.length === 0) {
+    showFlashMessage('danger', 'No mother sanction numbers found to revise.', 'fas fa-exclamation-triangle');
+    closeReviseDialog();
     return;
   }
 
   try {
+    // First, set old data status to inactive
     const response = await fetch('/api/mother-sanction/update-status', {
       method: 'POST',
       headers: {
@@ -511,27 +593,52 @@ const handleRevise = async (item, index) => {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
       },
       body: JSON.stringify({
-        ky_ms_no: kyMsNosToRevise, // Send array of ky_ms_no values
+        ky_ms_no: kyMsNosToRevise,
         action: 'revise'
       })
     });
 
     if (response.ok) {
-      // Refresh the data to reflect the amount changes
-      await fetchMotherSanctions();
-      showFlashMessage(
-        'success',
-        'Record revised successfully. MS Amount has been updated and Available Fund recalculated.',
-        'fas fa-check-circle'
-      );
+      // Get the first ky_ms_no for redirect
+      const firstKyMsNo = kyMsNosToRevise.length > 0 ? kyMsNosToRevise[0] : reviseItem.value.ky_ms_no;
+      
+      // Prepare budget heads data with available amount in carry forward and MS amount in MS amount field
+      const budgetHeadsForForm = reviseItem.value.budget_heads.map(budget => ({
+        budget_head: budget.budget_head,
+        category: budget.category,
+        available_amount: budget.available_fund || calculateAvailableFund(budget), // This will be used to fetch available fund
+        sanction_amount: budget.mother_sanction_amount || '', // MS amount field
+        carry_forward: calculateAvailableFund(budget) || '0.00000' // Available amount in carry forward field
+      }));
+      
+      // Create query parameters for prefilling the form
+      const queryParams = new URLSearchParams({
+        revise: 'true',
+        ky_ms_no: firstKyMsNo,
+        financial_year: reviseItem.value.financial_year,
+        state_id: reviseItem.value.state_id || '',
+        sls_id: reviseItem.value.sls_id || '',
+        ms_sequence_no: reviseItem.value.ms_sequence_no || '',
+        sanction_date: reviseItem.value.sanction_date || '',
+        ifd_no: reviseItem.value.ifd_no || '',
+        sls_name: reviseItem.value.sls_name || '',
+        pd_component: reviseItem.value.pd_component || '',
+        remark: reviseItem.value.remark || '',
+        budget_heads: JSON.stringify(budgetHeadsForForm)
+      });
+      
+      // Redirect to the mother sanction page with prefilled data
+      window.location.href = `/mother-sanction?${queryParams.toString()}`;
     } else {
       const errorData = await response.json().catch(() => ({}));
       console.error('Failed to revise record:', errorData);
       showFlashMessage('danger', errorData.message || 'Failed to revise record. Please try again.', 'fas fa-exclamation-triangle');
+      closeReviseDialog();
     }
   } catch (error) {
     console.error('Error revising record:', error);
     showFlashMessage('danger', 'An error occurred while revising the record. Please try again.', 'fas fa-exclamation-triangle');
+    closeReviseDialog();
   }
 };
 </script>

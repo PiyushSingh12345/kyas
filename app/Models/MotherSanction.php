@@ -26,6 +26,7 @@ class MotherSanction extends Model
         'category',
         'available_fund',
         'mother_sanction_amount',
+        'carry_forward_amount',
         'uc_received_from_State',
         'signed_copy_of_mother_sanction',
         'last_id',

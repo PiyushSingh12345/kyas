@@ -32,84 +32,114 @@
                 </div>
 
                 <div class="card-body">
-                  <div class="row">
-                    <div class="col-md-6 col-lg-4">
-                      <div class="form-group">
-                        <label for="financialYear">F.Y</label>
-                        <select class="form-select" id="financialYear" v-model="financialYear">
-                          <option value="2025-26">2025-26</option>
-                          <option value="2024-25">2024-25</option>
-                          <!-- Add more years if needed -->
-                        </select>
+                  <!-- Filters Section -->
+                  <div class="row mb-4">
+                    <div class="col-12">
+                      <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                          <h6 class="mb-0">
+                            <i class="fas fa-filter me-2"></i>Filters
+                          </h6>
+                        </div>
+                        <div class="card-body">
+                          <div class="row g-3">
+                              <!-- Financial Year Filter -->
+                              <div class="col-md-4">
+                                <label for="financialYear" class="form-label fw-bold">Financial Year</label>
+                                <select class="form-select" id="financialYear" v-model="financialYear" @change="onFinancialYearChange">
+                                  <option value="2025-26">2025-26</option>
+                                  <option value="2024-25">2024-25</option>
+                                  <option value="2023-24">2023-24</option>
+                                  <option value="2022-23">2022-23</option>
+                                </select>
+                              </div>
+
+                            <!-- Budget Phase Filter -->
+                            <div class="col-md-4">
+                              <label for="budgetPhase" class="form-label fw-bold">Budget Phase</label>
+                              <select class="form-select" id="budgetPhase" v-model="selectedPhase" @change="fetchBudgetHeads">
+                                <option disabled value="0">Select Budget Phase</option>
+                                <option value="BE">BE</option>
+                                <option value="RE">RE</option>
+                                <option value="FE">FE</option>
+                              </select>
+                            </div>
+
+                            <!-- Search Filter -->
+                            <div class="col-md-4">
+                              <label for="searchTerm" class="form-label fw-bold">Search Budget Head</label>
+                              <input 
+                                type="text" 
+                                id="searchTerm" 
+                                class="form-control" 
+                                v-model="searchTerm"
+                                placeholder="Search by code or description..."
+                              >
+                            </div>
+                          </div>
+
+                          <!-- Filter Actions -->
+                          <div class="row mt-3">
+                            <div class="col-12">
+                              <button 
+                                class="btn btn-secondary btn-sm me-2" 
+                                @click="clearFilters"
+                              >
+                                <i class="fas fa-times me-1"></i>Clear Filters
+                              </button>
+                              <span class="text-muted ms-2">
+                                Showing {{ computedFilteredBudgetHeads.length }} budget heads
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  </div>
 
-                    <div class="col-md-6 col-lg-4">
-                      <div class="form-group">
-                        <label for="budgetPhase">Budget Phase</label>
-                        <div class="d-flex gap-2">
-                          <select class="form-select" id="budgetPhase" v-model="selectedPhase" @change="fetchBudgetHeads">
-                            <option disabled value="0">Select Budget Phase</option>
-                            <option value="BE">BE</option>
-                            <option value="RE">RE</option>
-                            <option value="FE">FE</option>
-                          </select>
-                          <!-- <button 
-                            class="btn btn-outline-info btn-sm d-flex align-items-center" 
-                            @click="viewHistory"
-                            title="View Budget Phase History"
-                          >
-                          <i class="fas fa-history"></i> &nbspHistory
-                          </button> -->
-                        </div>
+                  <!-- Export Buttons -->
+                  <div class="row mb-3" v-if="filteredBudgetHeads.length > 0">
+                    <div class="col-12 d-flex justify-content-end align-items-center">
+                      <div class="export-buttons">
+                        <button 
+                          class="btn btn-success btn-sm me-2" 
+                          @click="exportToExcel"
+                          title="Export to Excel"
+                        >
+                          <i class="fas fa-file-excel me-1"></i>EXCEL
+                        </button>
+                        <button 
+                          class="btn btn-info btn-sm me-2" 
+                          @click="exportToCSV"
+                          title="Export to CSV"
+                        >
+                          <i class="fas fa-file-csv me-1"></i>CSV
+                        </button>
+                        <button 
+                          class="btn btn-danger btn-sm" 
+                          @click="exportToPDF"
+                          title="Export to PDF"
+                        >
+                          <i class="fas fa-file-pdf me-1"></i>PDF
+                        </button>
                       </div>
                     </div>
                   </div>
 
                   <!-- No data message -->
-                  <div v-if="selectedPhase !== '0' && filteredBudgetHeads.length === 0" class="alert alert-info mt-3">
+                  <div v-if="selectedPhase !== '0' && computedFilteredBudgetHeads.length === 0" class="alert alert-info mt-3">
                     <i class="fas fa-info-circle me-2"></i>
                     <strong>No budget data found</strong> for the selected Financial Year ({{ financialYear }}) and Budget Phase ({{ selectedPhase }}).
                     <br>Please ensure that budget heads are available for this combination.
                   </div>
 
-                  <div v-if="filteredBudgetHeads.length !== 0" class="table-responsive mt-3">
+                  <div v-if="computedFilteredBudgetHeads.length !== 0" class="table-responsive mt-3" id="reportTable">
                     <div class="d-flex justify-content-between align-items-center mb-2 float-end">
-                      <!-- <span class="rscss">(Rs In Lakhs)</span>
                       <div class="alert alert-info py-2 px-3 mb-0">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Total Budget Amount:</strong> 
-                        <span class="fw-bold text-primary">{{ totalBudgetAmount.toLocaleString() }}</span> Lakhs
-                        <span class="text-muted ms-2">({{ filteredBudgetHeads.length }} budget heads)</span>
-                      </div> -->
-                      <!-- <span class="rscss">(Rs In Lakhs)</span> -->
-                      <div class="alert alert-info py-2 px-3 mb-0">
-                        <!-- <i class="fas fa-info-circle me-2"></i> -->
                         <strong>(₹ In Lakhs)</strong> 
-                        <!-- <span class="fw-bold text-primary">{{ totalBudgetAmount.toLocaleString() }}</span> Lakhs -->
-                        <!-- <span class="text-muted ms-2">({{ filteredBudgetHeads.length }} budget heads)</span> -->
                       </div>
                     </div>
                     
-                    <!-- Budget Summary Card -->
-                    <!-- <div class="row mb-3">
-                      <div class="col-md-4">
-                        <div class="card bg-primary text-white">
-                          <div class="card-body text-center">
-                            <h5 class="card-title">Total Budget</h5>
-                            <h3 class="mb-0">₹ {{ formattedTotalBudget }} Lakhs</h3>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col-md-4">
-                        <div class="card bg-success text-white">
-                          <div class="card-body text-center">
-                            <h5 class="card-title">Allocated Amount</h5>
-                            <h3 class="mb-0">₹ {{ formattedAllocatedAmount }} Lakhs</h3>
-                          </div>
-                        </div>
-                      </div>
-                    </div> -->
                     <table class="table table-bordered table-head-bg-primary">
                       <thead>
                         <tr>
@@ -119,7 +149,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(item, index) in filteredBudgetHeads" :key="item.id">
+                        <tr v-for="(item, index) in computedFilteredBudgetHeads" :key="item.id">
                           <td>
                             <input
                               type="text"
@@ -230,6 +260,7 @@ export default {
     const selectedPhase = ref('0')
     const financialYear = ref('2025-26')
     const filteredBudgetHeads = ref([])
+    const searchTerm = ref('')
     const isSubmitted = ref(false)
     const isProcessing = ref(false)
     const message = ref('')
@@ -269,6 +300,16 @@ export default {
       } catch (error) {
         console.error('Error fetching budget heads:', error)
         showMessage('Error fetching budget heads. Please try again.', 'danger')
+      }
+    }
+
+    // Function to handle financial year change
+    const onFinancialYearChange = async () => {
+      // Clear search when financial year changes
+      searchTerm.value = ''
+      // Fetch data for the new financial year if phase is selected
+      if (selectedPhase.value !== '0') {
+        await fetchBudgetHeads()
       }
     }
 
@@ -470,6 +511,155 @@ export default {
       window.open('/budget-phase-history', '_blank')
     }
 
+    // Computed property for filtered budget heads based on search
+    const computedFilteredBudgetHeads = computed(() => {
+      if (!searchTerm.value || searchTerm.value.trim() === '') {
+        return filteredBudgetHeads.value
+      }
+      const searchLower = searchTerm.value.toLowerCase().trim()
+      return filteredBudgetHeads.value.filter(item => {
+        const budget = String(item.budget || '').toLowerCase()
+        const description = String(item.description || '').toLowerCase()
+        return budget.includes(searchLower) || description.includes(searchLower)
+      })
+    })
+
+    // Function to clear filters
+    const clearFilters = () => {
+      searchTerm.value = ''
+    }
+
+    // Function to prepare table data for export
+    const prepareTableData = () => {
+      const data = []
+      
+      // Add header row
+      data.push(['Budget Head', 'Head Description', 'Budget Amount (₹ In Lakhs)'])
+      
+      // Add data rows
+      computedFilteredBudgetHeads.value.forEach(item => {
+        data.push([
+          item.budget || '',
+          item.description || '',
+          item.amount || '0.00'
+        ])
+      })
+      
+      // Add total row
+      const total = computedFilteredBudgetHeads.value.reduce((sum, item) => {
+        return sum + (parseFloat(item.amount) || 0)
+      }, 0)
+      data.push(['', 'Total', total.toFixed(2)])
+      
+      return data
+    }
+
+    // Function to export to Excel
+    const exportToExcel = () => {
+      const data = prepareTableData()
+      let csvContent = ''
+      
+      data.forEach(row => {
+        const csvRow = row.map(cell => {
+          const cellValue = String(cell || '')
+          if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
+            return `"${cellValue.replace(/"/g, '""')}"`
+          }
+          return cellValue
+        })
+        csvContent += csvRow.join(',') + '\n'
+      })
+      
+      const BOM = '\uFEFF'
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      
+      link.setAttribute('href', url)
+      link.setAttribute('download', `Budget_Phase_Report_${financialYear.value}_${selectedPhase.value}_${new Date().getTime()}.xlsx`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+
+    // Function to export to CSV
+    const exportToCSV = () => {
+      const data = prepareTableData()
+      let csvContent = ''
+      
+      data.forEach(row => {
+        const csvRow = row.map(cell => {
+          const cellValue = String(cell || '')
+          if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
+            return `"${cellValue.replace(/"/g, '""')}"`
+          }
+          return cellValue
+        })
+        csvContent += csvRow.join(',') + '\n'
+      })
+      
+      const BOM = '\uFEFF'
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      
+      link.setAttribute('href', url)
+      link.setAttribute('download', `Budget_Phase_Report_${financialYear.value}_${selectedPhase.value}_${new Date().getTime()}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+
+    // Function to export to PDF
+    const exportToPDF = () => {
+      const printWindow = window.open('', '_blank')
+      const tableElement = document.getElementById('reportTable')
+      
+      if (!tableElement) {
+        alert('Table not found')
+        return
+      }
+      
+      const tableHTML = tableElement.outerHTML
+      
+      const headStart = '<head>'
+      const titleTag = '<title>Budget Phase Report - ' + financialYear.value + ' - ' + selectedPhase.value + '</title>'
+      const styleStart = '<style>'
+      const styles = 'body { font-family: Arial, sans-serif; margin: 20px; }' +
+        'h2 { text-align: center; color: #333; }' +
+        '.meta-info { text-align: center; margin-bottom: 20px; color: #666; }' +
+        'table { width: 100%; border-collapse: collapse; margin-top: 20px; }' +
+        'table th, table td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }' +
+        'table th { background-color: #007bff; color: white; font-weight: bold; }' +
+        '@media print { @page { size: landscape; margin: 1cm; } body { margin: 0; } }'
+      const styleEnd = '</style>'
+      const headEnd = '</head>'
+      
+      const bodyStart = '<body>'
+      const h2Tag = '<h2>Budget Phase Report</h2>'
+      const metaInfoStart = '<div class="meta-info">'
+      const financialYearP = '<p><strong>Financial Year:</strong> ' + financialYear.value + '</p>'
+      const phaseP = '<p><strong>Budget Phase:</strong> ' + selectedPhase.value + '</p>'
+      const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'
+      const metaInfoEnd = '</div>'
+      const scriptStart = '<' + 'script' + '>'
+      const scriptContent = 'window.onload = function() { window.print(); }'
+      const scriptEnd = '<' + '/' + 'script' + '>'
+      const scriptTag = scriptStart + scriptContent + scriptEnd
+      const bodyEnd = '<' + '/' + 'body' + '>'
+      const htmlEnd = '<' + '/' + 'html' + '>'
+      
+      const htmlContent = '<!DOCTYPE html><html>' +
+        headStart + titleTag + styleStart + styles + styleEnd + headEnd +
+        bodyStart + h2Tag + metaInfoStart + financialYearP + phaseP + generatedP + metaInfoEnd +
+        tableHTML + scriptTag + bodyEnd + htmlEnd
+      
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
+    }
+
     return {
       selectedPhase,
       financialYear,
@@ -489,8 +679,51 @@ export default {
       formatIndianNumber,
       formattedTotalBudget,
       formattedAllocatedAmount,
-      viewHistory
+      viewHistory,
+      searchTerm,
+      computedFilteredBudgetHeads,
+      clearFilters,
+      exportToExcel,
+      exportToCSV,
+      exportToPDF,
+      onFinancialYearChange
     }
   }
 }
 </script>
+
+<style scoped>
+/* Export buttons styling */
+.export-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.export-buttons .btn {
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.export-buttons .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.export-buttons .btn-success {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+.export-buttons .btn-info {
+  background-color: #17a2b8;
+  border-color: #17a2b8;
+}
+
+.export-buttons .btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+</style>

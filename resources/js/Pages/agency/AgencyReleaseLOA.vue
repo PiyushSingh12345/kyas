@@ -333,9 +333,45 @@ const submitForm = async () => {
   }
 }
 
+// Function to prefill form from URL parameters
+const prefillFormFromURL = async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  if (urlParams.get('revise') === 'true') {
+    // Prefill form fields from URL parameters
+    if (urlParams.get('sanctionNumber')) {
+      formData.value.sanctionNumber = urlParams.get('sanctionNumber');
+    }
+    if (urlParams.get('date')) {
+      formData.value.date = urlParams.get('date');
+    }
+    if (urlParams.get('budgetHead')) {
+      formData.value.budgetHead = urlParams.get('budgetHead');
+      // Set select2 value after it's initialized
+      await nextTick();
+      if (window.$ && window.$('#budgetHead').data('select2')) {
+        window.$('#budgetHead').val(formData.value.budgetHead).trigger('change');
+      }
+    }
+    if (urlParams.get('purposeOfGrant')) {
+      formData.value.purposeOfGrant = urlParams.get('purposeOfGrant');
+    }
+    if (urlParams.get('programDivision')) {
+      formData.value.programDivision = urlParams.get('programDivision');
+    }
+    if (urlParams.get('amount')) {
+      formData.value.amount = urlParams.get('amount');
+    }
+    if (urlParams.get('ut')) {
+      formData.value.ut = urlParams.get('ut');
+    }
+  }
+}
+
 onMounted(async () => {
   await fetchBudgetHeads()
   await fetchProgramDivisions()
+  await prefillFormFromURL()
 })
 </script>
 

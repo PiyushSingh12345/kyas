@@ -132,9 +132,17 @@ Route::get('/mother-sanction-list-module', function () {
     return Inertia::render('mother_sanction/MotherSanctionList');
 })->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction-list-module');
 
+Route::get('/mother-sanction-history', function () {
+    return Inertia::render('mother_sanction/MotherSanctionHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction-history');
+
 Route::get('/pd-wise-budget-allocation', function () {
     return Inertia::render('Annual_action_plan/AapCentral');
 })->middleware(['auth', 'verified', 'role:2'])->name('pd-wise-budget-allocation');
+
+Route::get('/pd-wise-budget-allocation-release', function () {
+    return Inertia::render('Annual_action_plan/AapCentralRelease');
+})->middleware(['auth', 'verified', 'role:2'])->name('pd-wise-budget-allocation-release');
 
 Route::get('/state-release-data', function () {
     return Inertia::render('Annual_action_plan/AapState');
@@ -155,6 +163,18 @@ Route::get('/agency-release-loa', function () {
 Route::get('/agency-release-administrative-expenditure', function () {
     return Inertia::render('agency/AgencyReleaseAdministrativeExpenditure');
 })->middleware(['auth', 'verified', 'role:2'])->name('agency-release-administrative-expenditure');
+
+Route::get('/agency-release-tsa-list', function () {
+    return Inertia::render('agency/AgencyReleaseTSAList');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-tsa-list');
+
+Route::get('/agency-release-loa-list', function () {
+    return Inertia::render('agency/AgencyReleaseLOAList');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-loa-list');
+
+Route::get('/agency-release-administrative-expenditure-list', function () {
+    return Inertia::render('agency/AgencyReleaseAdministrativeExpenditureList');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-administrative-expenditure-list');
 
 Route::get('/role-based-access-demo', function () {
     return Inertia::render('RoleBasedAccessDemo');
@@ -226,6 +246,10 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::post('/api/pdwise-aap-allocation', [AnnualActionPlanController::class, 'storePdwiseAllocation']);
     Route::get('/api/pdwise-aap-allocation', [AnnualActionPlanController::class, 'getPdwiseAllocation']);
     Route::get('/api/aap-budget-heads', [AnnualActionPlanController::class, 'getBudgetHeads']);
+    
+    // Release and Expenditure data API routes
+    Route::get('/api/mother-sanction-release-data', [AnnualActionPlanController::class, 'getMotherSanctionReleaseData']);
+    Route::get('/api/daily-sanction-expenditure-data', [AnnualActionPlanController::class, 'getDailySanctionExpenditureData']);
     
     // State Release Data API routes
     Route::get('/api/aap-sls-components', [AnnualActionPlanController::class, 'getSLSComponentsByState']);
@@ -333,6 +357,7 @@ Route::post('/debug-excel', function(Request $request) {
     Route::post('/api/mother-sanction/update-status', [MotherSanctionController::class, 'updateStatus'])->name('motherSanction.updateStatus');
 
     Route::get('/api/mother-sanction-details/{ky_ms_no}', [MotherSanctionController::class, 'getMotherSanctionDetails'])->name('motherSanction.details');
+    Route::get('/api/mother-sanction-history', [MotherSanctionController::class, 'historyList'])->name('motherSanction.historyList');
 
     Route::get('/api/mother-sanctions', [DailySanctionController::class, 'getMotherSanctions']);
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
@@ -350,8 +375,12 @@ Route::post('/debug-excel', function(Request $request) {
 
     // Agency Release API routes
     Route::post('/api/agency-release-tsa', [AgencyReleaseController::class, 'storeTSA'])->middleware(['role:2'])->name('agency-release-tsa.store');
+    Route::get('/api/agency-release-tsa-list', [AgencyReleaseController::class, 'listTSA'])->middleware(['role:2'])->name('agency-release-tsa.list');
     Route::post('/api/agency-release-loa', [AgencyReleaseController::class, 'storeLOA'])->middleware(['role:2'])->name('agency-release-loa.store');
+    Route::get('/api/agency-release-loa-list', [AgencyReleaseController::class, 'listLOA'])->middleware(['role:2'])->name('agency-release-loa.list');
     Route::post('/api/agency-release-administrative-expenditure', [AgencyReleaseController::class, 'storeAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.store');
+    Route::get('/api/agency-release-administrative-expenditure-list', [AgencyReleaseController::class, 'listAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.list');
+    Route::post('/api/agency-release/update-status', [AgencyReleaseController::class, 'updateStatus'])->middleware(['role:2'])->name('agency-release.updateStatus');
 
 
 

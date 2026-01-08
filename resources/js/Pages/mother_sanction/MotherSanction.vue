@@ -158,6 +158,9 @@
                           <td>
                             <label class="highlight_textbox">Mother Sanction Amount</label>
                           </td>
+                          <td>
+                            <label class="highlight_textbox">Carry Forward</label>
+                          </td>
                         </tr>
 
                         <!-- Example Rows -->
@@ -189,6 +192,13 @@
                               v-model="row.sanction_amount" 
                               class="form-control tableform-control-withoutbg"
                               @input="checkSanctionAmount(row)"
+                            >
+                          </td>
+                          <td>
+                           <input 
+                              type="number" 
+                              v-model="row.carry_forward" 
+                              class="form-control tableform-control-withoutbg"
                             >
                           </td>
                           <td class="text-center">
@@ -388,7 +398,7 @@ const resetForm = () => {
   ucFilePreview.value = null;
   sanctionFilePreview.value = null;
 
-  reappropriations.value = [{ budget_head: '', category: '', available_amount: '', sanction_amount: '' }];
+  reappropriations.value = [{ budget_head: '', category: '', available_amount: '', sanction_amount: '', carry_forward: '0.00000' }];
   
   // Clear fund allocations when form is reset
   fundAllocations.value = [];
@@ -404,7 +414,7 @@ const resetForm = () => {
 
 
 const reappropriations = ref([
-  { budget_head: '', category: '', available_amount: '', sanction_amount: '' }
+  { budget_head: '', category: '', available_amount: '', sanction_amount: '', carry_forward: '0.00000' }
 ])
 
 const handleUcFileChange = (e) => {
@@ -501,7 +511,25 @@ const submitData = async (status) => {
     console.log('Sanction File not selected, sending empty string');
   }
 
-  formData.append('reappropriations', JSON.stringify(reappropriations.value));
+  // Handle revise mode: MS amount = (MS amount field value + Carry Forward field value)
+  const urlParams = new URLSearchParams(window.location.search);
+  const isRevise = urlParams.get('revise') === 'true';
+  
+  let reappropriationsToSubmit = reappropriations.value;
+  if (isRevise) {
+    reappropriationsToSubmit = reappropriations.value.map(row => {
+      const msAmount = parseFloat(row.sanction_amount) || 0;
+      const carryForward = parseFloat(row.carry_forward) || 0;
+      const finalMsAmount = msAmount + carryForward;
+      
+      return {
+        ...row,
+        sanction_amount: finalMsAmount.toString()
+      };
+    });
+  }
+  
+  formData.append('reappropriations', JSON.stringify(reappropriationsToSubmit));
 
   // Debug: Log all FormData entries
   console.log('FormData contents:');
@@ -557,7 +585,8 @@ function addReappropriationRow() {
     budget_head: '',
     category: '',
     available_amount: '',
-    sanction_amount: ''
+    sanction_amount: '',
+    carry_forward: '0.00000'
   })
 }
 
@@ -565,7 +594,7 @@ function addReappropriationRow() {
 const prefillFormFromURL = async () => {
   const urlParams = new URLSearchParams(window.location.search);
   
-  if (urlParams.get('edit') === 'true') {
+  if (urlParams.get('edit') === 'true' || urlParams.get('revise') === 'true') {
     console.log('Prefilling form from URL parameters');
     
     // Prefill basic fields
@@ -627,12 +656,40 @@ const prefillFormFromURL = async () => {
       try {
         const budgetHeadsData = JSON.parse(urlParams.get('budget_heads'));
         if (Array.isArray(budgetHeadsData) && budgetHeadsData.length > 0) {
-          reappropriations.value = budgetHeadsData.map(budget => ({
-            budget_head: budget.budget_head || '',
-            category: budget.category || '',
-            available_amount: budget.available_fund || budget.available_amount || '',
-            sanction_amount: budget.mother_sanction_amount || budget.sanction_amount || ''
-          }));
+          const isRevise = urlParams.get('revise') === 'true';
+          
+          reappropriations.value = budgetHeadsData.map(budget => {
+            if (isRevise) {
+              // For revise: carry_forward = available amount, sanction_amount = MS amount
+              return {
+                budget_head: budget.budget_head || '',
+                category: budget.category || '',
+                available_amount: budget.available_amount || '', // This will be fetched from fund allocation
+                sanction_amount: budget.sanction_amount || '', // MS amount field
+                carry_forward: budget.carry_forward || '0.00000' // Available amount in carry forward
+              };
+            } else {
+              // For edit: normal prefilling
+              return {
+                budget_head: budget.budget_head || '',
+                category: budget.category || '',
+                available_amount: budget.available_fund || budget.available_amount || '',
+                sanction_amount: budget.mother_sanction_amount || budget.sanction_amount || '',
+                carry_forward: budget.carry_forward || '0.00000'
+              };
+            }
+          });
+          
+          // After setting budget heads, fetch available amounts for revise mode
+          if (isRevise && selectedSlsId.value && selectedState.value) {
+            await fetchFundAllocationData();
+            // Update available_amount for each row after fund allocation is fetched
+            reappropriations.value.forEach(row => {
+              if (row.budget_head) {
+                fetchBudgetDetails(row);
+              }
+            });
+          }
         }
       } catch (error) {
         console.error('Error parsing budget heads data:', error);
@@ -665,7 +722,8 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
           budget_head: entry.budget_head,
           category: entry.category,
           available_amount: entry.available_fund,
-          sanction_amount: entry.mother_sanction_amount
+          sanction_amount: entry.mother_sanction_amount,
+          carry_forward: entry.carry_forward || '0.00000'
         }));
       }
       
@@ -833,6 +891,7 @@ const clearRowData = (row) => {
   row.category = '';
   row.available_amount = '';
   row.sanction_amount = '';
+  row.carry_forward = '0.00000';
 };
 
 
