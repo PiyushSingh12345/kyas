@@ -47,22 +47,22 @@
                               <div class="col-md-4">
                                 <label for="financialYear" class="form-label fw-bold">Financial Year</label>
                                 <select class="form-select" id="financialYear" v-model="financialYear" @change="onFinancialYearChange">
-                                  <option value="2025-26">2025-26</option>
-                                  <option value="2024-25">2024-25</option>
+                          <option value="2025-26">2025-26</option>
+                          <option value="2024-25">2024-25</option>
                                   <option value="2023-24">2023-24</option>
                                   <option value="2022-23">2022-23</option>
-                                </select>
-                              </div>
+                        </select>
+                    </div>
 
                             <!-- Budget Phase Filter -->
                             <div class="col-md-4">
                               <label for="budgetPhase" class="form-label fw-bold">Budget Phase</label>
-                              <select class="form-select" id="budgetPhase" v-model="selectedPhase" @change="fetchBudgetHeads">
-                                <option disabled value="0">Select Budget Phase</option>
-                                <option value="BE">BE</option>
-                                <option value="RE">RE</option>
-                                <option value="FE">FE</option>
-                              </select>
+                          <select class="form-select" id="budgetPhase" v-model="selectedPhase" @change="fetchBudgetHeads">
+                            <option disabled value="0">Select Budget Phase</option>
+                            <option value="BE">BE</option>
+                            <option value="RE">RE</option>
+                            <option value="FE">FE</option>
+                          </select>
                             </div>
 
                             <!-- Search Filter -->
@@ -84,7 +84,7 @@
                               <button 
                                 class="btn btn-secondary btn-sm me-2" 
                                 @click="clearFilters"
-                              >
+                          >
                                 <i class="fas fa-times me-1"></i>Clear Filters
                               </button>
                               <span class="text-muted ms-2">

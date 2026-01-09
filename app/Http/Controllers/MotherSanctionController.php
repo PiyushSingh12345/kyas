@@ -609,6 +609,16 @@ public function updateStatus(Request $request)
                         // Add back the available amount to BE budget phase
                         $budgetPhase->budget_amount = floatval($budgetPhase->budget_amount) + $availableFundToReturn;
                         $budgetPhase->save();
+                    } else {
+                        // Create BE budget phase if it doesn't exist
+                        $budgetPhase = BudgetPhase::create([
+                            'budget_head_id' => $budgetHead->id,
+                            'budget_phase' => 'BE',
+                            'financial_year' => $financialYear ?: $record->financial_year,
+                            'budget_amount' => $availableFundToReturn,
+                            'status' => 1,
+                            'draft_flag' => 0
+                        ]);
                     }
                 }
 

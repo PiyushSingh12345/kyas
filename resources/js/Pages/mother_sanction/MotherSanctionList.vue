@@ -518,6 +518,21 @@ const confirmClose = async () => {
     return;
   }
 
+  // Prepare budget heads data with old values for backend processing
+  const budgetHeadsData = closeItem.value.budget_heads.map(budget => {
+    const oldExpenditure = parseFloat(budget.expenditure) || 0
+    const oldAvailableFund = calculateAvailableFund(budget) // MS Amount - Expenditure
+    const oldMsAmount = parseFloat(budget.mother_sanction_amount) || 0
+    
+    return {
+      budget_head: budget.budget_head,
+      category: budget.category,
+      old_expenditure: oldExpenditure,
+      old_available_fund: oldAvailableFund,
+      old_ms_amount: oldMsAmount
+    }
+  })
+
   try {
     const response = await fetch('/api/mother-sanction/update-status', {
       method: 'POST',
@@ -528,7 +543,8 @@ const confirmClose = async () => {
       body: JSON.stringify({
         ky_ms_no: kyMsNosToClose,
         action: 'close',
-        financial_year: closeItem.value.financial_year
+        financial_year: closeItem.value.financial_year,
+        budget_heads: budgetHeadsData // Send budget heads data with old values
       })
     });
 
@@ -537,7 +553,7 @@ const confirmClose = async () => {
       await fetchMotherSanctions();
       showFlashMessage(
         'success',
-        'Record closed successfully. Available amount has been added back to BE budget phase, MS Amount is now equal to Expenditure, Available Fund is zero, and status is set to close.',
+        'Record closed successfully. MS Amount is now equal to Expenditure, Available Fund has been added back to BE budget phase and set to zero, and status is set to close.',
         'fas fa-check-circle'
       );
     } else {

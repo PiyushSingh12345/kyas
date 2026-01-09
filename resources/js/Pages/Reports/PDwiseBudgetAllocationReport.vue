@@ -240,7 +240,7 @@
 									  <thead class="table-dark">
 										  <tr>
 											<!-- <th rowspan="2" class="align-middle"></th> -->
-											  <th class="align-middle"></th>
+											<th class="align-middle"></th>
 											  <th v-for="pd in filteredProgramDivisions" :key="pd.division_id" colspan="1">
 												  {{ pd.division_name }}<br/>(Proposed by KY)<br/>by as per BE
 											  </th>
@@ -569,8 +569,8 @@
 			const allocation = bhAllocations[pdId]
 			console.log(`Processing PD ${pdId} for budget head ${bhId}:`, allocation)
 			
-			// Use exact amount as stored
-			const amount = parseFloat(allocation.amount)
+			  // Use exact amount as stored
+			  const amount = parseFloat(allocation.amount)
 			allocationData.value[bhId][pdId] = isNaN(amount) ? '' : amount.toFixed(5)
 			console.log(`Set amount for budget head ${bhId}, PD ${pdId}: ${allocationData.value[bhId][pdId]}`)
 		  })
@@ -581,7 +581,7 @@
 		  console.log('Processing remarks:', result.remarks)
 		  Object.keys(result.remarks).forEach(bhId => {
 			remarksData.value[bhId] = result.remarks[bhId] || ''
-			console.log(`Set remark for budget head ${bhId}: ${result.remarks[bhId]}`)
+			  console.log(`Set remark for budget head ${bhId}: ${result.remarks[bhId]}`)
 		  })
 		}
 	  } else {
