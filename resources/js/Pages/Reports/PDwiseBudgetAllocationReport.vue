@@ -88,66 +88,176 @@
 
 												  <!-- Program Division Filter -->
 												  <div class="col-md-3">
-													  <label class="form-label fw-bold">Program Division</label>
-													  <div class="filter-multiselect-container">
-														  <div class="selected-tags mb-2" v-if="selectedProgramDivisions.length > 0">
-															  <span 
-																  v-for="pdId in selectedProgramDivisions" 
-																  :key="pdId"
-																  class="badge bg-primary me-1 mb-1 filter-tag"
-															  >
-																  {{ getProgramDivisionName(pdId) }}
-																  <button 
-																	  type="button" 
-																	  class="btn-close btn-close-white ms-1" 
-																	  @click="removeProgramDivision(pdId)"
-																	  aria-label="Remove"
-																  ></button>
-															  </span>
-														  </div>
-														  <select 
-															  class="form-select" 
-															  v-model="tempProgramDivision"
-															  @change="addProgramDivision"
-															  :disabled="availableProgramDivisions.length === 0"
+													  <label class="form-label fw-bold">Program Division <span class="text-danger">*</span></label>
+													  <div class="custom-multiselect-container" @click.stop>
+														  <div 
+															  class="custom-multiselect-input form-control" 
+															  :class="{ 'is-open': showPdDropdown }"
+															  @click="togglePdDropdown"
 														  >
-															  <option value="">{{ availableProgramDivisions.length === 0 ? 'All Program Divisions Selected' : 'Select Program Division' }}</option>
-															  <option 
-																  v-for="pd in availableProgramDivisions" 
-																  :key="pd.division_id" 
-																  :value="pd.division_id"
+															  <div class="selected-tags-wrapper">
+																  <span 
+																	  v-for="pdId in selectedProgramDivisions" 
+																	  :key="pdId"
+																	  class="custom-tag"
+																  >
+																	  {{ getProgramDivisionName(pdId) }}
+																	  <span 
+																		  class="tag-remove" 
+																		  @click.stop="removeProgramDivision(pdId)"
+																	  >×</span>
+																  </span>
+																  <input
+																	  type="text"
+																	  class="tag-input"
+																	  v-model="pdSearchTerm"
+																	  :placeholder="selectedProgramDivisions.length === 0 ? 'Select program divisions...' : ''"
+																	  @input="filterProgramDivisions"
+																	  @focus="showPdDropdown = true"
+																	  @click.stop="showPdDropdown = true"
+																  />
+															  </div>
+															  <div class="dropdown-arrows">
+																  <i class="fas fa-chevron-up" v-if="showPdDropdown"></i>
+																  <i class="fas fa-chevron-down" v-else></i>
+															  </div>
+														  </div>
+														  <div 
+															  class="custom-dropdown-menu" 
+															  v-show="showPdDropdown"
+															  @click.stop
+														  >
+															  <div 
+																  v-for="pd in filteredAvailableProgramDivisions" 
+																  :key="pd.division_id"
+																  class="dropdown-item"
+																  :class="{ 'highlighted': highlightedPdIndex === filteredAvailableProgramDivisions.indexOf(pd) }"
+																  @click="selectProgramDivision(pd.division_id)"
+																  @mouseenter="highlightedPdIndex = filteredAvailableProgramDivisions.indexOf(pd)"
 															  >
 																  {{ pd.division_name }}
-															  </option>
-														  </select>
+															  </div>
+															  <div v-if="filteredAvailableProgramDivisions.length === 0" class="dropdown-item text-muted">
+																  No program divisions available
+															  </div>
+														  </div>
 													  </div>
 												  </div>
 
 												  <!-- Major Head Filter -->
 												  <div class="col-md-3">
-													  <label for="majorHead" class="form-label fw-bold">Major Head</label>
-													  <select 
-														  id="majorHead" 
-														  class="form-select" 
-														  v-model="selectedMajorHead"
-													  >
-														  <option value="">All Major Heads</option>
-														  <option v-for="majorHead in availableMajorHeads" :key="majorHead.code" :value="majorHead.code">
-															  {{ majorHead.label }}
-														  </option>
-													  </select>
+													  <label class="form-label fw-bold">Major Head <span class="text-danger">*</span></label>
+													  <div class="custom-multiselect-container" @click.stop>
+														  <div 
+															  class="custom-multiselect-input form-control" 
+															  :class="{ 'is-open': showMajorHeadDropdown }"
+															  @click="toggleMajorHeadDropdown"
+														  >
+															  <div class="selected-tags-wrapper">
+																  <span 
+																	  v-for="majorHeadCode in selectedMajorHeads" 
+																	  :key="majorHeadCode"
+																	  class="custom-tag"
+																  >
+																	  {{ getMajorHeadLabel(majorHeadCode) }}
+																	  <span 
+																		  class="tag-remove" 
+																		  @click.stop="removeMajorHead(majorHeadCode)"
+																	  >×</span>
+																  </span>
+																  <input
+																	  type="text"
+																	  class="tag-input"
+																	  v-model="majorHeadSearchTerm"
+																	  :placeholder="selectedMajorHeads.length === 0 ? 'Select major heads...' : ''"
+																	  @input="filterMajorHeads"
+																	  @focus="showMajorHeadDropdown = true"
+																	  @click.stop="showMajorHeadDropdown = true"
+																  />
+															  </div>
+															  <div class="dropdown-arrows">
+																  <i class="fas fa-chevron-up" v-if="showMajorHeadDropdown"></i>
+																  <i class="fas fa-chevron-down" v-else></i>
+															  </div>
+														  </div>
+														  <div 
+															  class="custom-dropdown-menu" 
+															  v-show="showMajorHeadDropdown"
+															  @click.stop
+														  >
+															  <div 
+																  v-for="majorHead in filteredAvailableMajorHeads" 
+																  :key="majorHead.code"
+																  class="dropdown-item"
+																  :class="{ 'highlighted': highlightedMajorHeadIndex === filteredAvailableMajorHeads.indexOf(majorHead) }"
+																  @click="selectMajorHead(majorHead.code)"
+																  @mouseenter="highlightedMajorHeadIndex = filteredAvailableMajorHeads.indexOf(majorHead)"
+															  >
+																  {{ majorHead.label }}
+															  </div>
+															  <div v-if="filteredAvailableMajorHeads.length === 0" class="dropdown-item text-muted">
+																  No major heads available
+															  </div>
+														  </div>
+													  </div>
 												  </div>
 
-												  <!-- Search Filter -->
+												  <!-- Budget Head Filter -->
 												  <div class="col-md-3">
-													  <label for="searchTerm" class="form-label fw-bold">Search Budget Head</label>
-													  <input 
-														  type="text" 
-														  id="searchTerm" 
-														  class="form-control" 
-														  v-model="searchTerm"
-														  placeholder="Search by code or name..."
-													  >
+													  <label class="form-label fw-bold">Budget Head <span class="text-danger">*</span></label>
+													  <div class="custom-multiselect-container" @click.stop>
+														  <div 
+															  class="custom-multiselect-input form-control" 
+															  :class="{ 'is-open': showBudgetHeadDropdown }"
+															  @click="toggleBudgetHeadDropdown"
+														  >
+															  <div class="selected-tags-wrapper">
+																  <span 
+																	  v-for="bhId in selectedBudgetHeads" 
+																	  :key="bhId"
+																	  class="custom-tag"
+																  >
+																	  {{ getBudgetHeadDisplay(bhId) }}
+																	  <span 
+																		  class="tag-remove" 
+																		  @click.stop="removeBudgetHead(bhId)"
+																	  >×</span>
+																  </span>
+																  <input
+																	  type="text"
+																	  class="tag-input"
+																	  v-model="budgetHeadSearchTerm"
+																	  :placeholder="selectedBudgetHeads.length === 0 ? 'Select budget heads...' : ''"
+																	  @input="filterBudgetHeads"
+																	  @focus="showBudgetHeadDropdown = true"
+																	  @click.stop="showBudgetHeadDropdown = true"
+																  />
+															  </div>
+															  <div class="dropdown-arrows">
+																  <i class="fas fa-chevron-up" v-if="showBudgetHeadDropdown"></i>
+																  <i class="fas fa-chevron-down" v-else></i>
+															  </div>
+														  </div>
+														  <div 
+															  class="custom-dropdown-menu" 
+															  v-show="showBudgetHeadDropdown"
+															  @click.stop
+														  >
+															  <div 
+																  v-for="bh in filteredAvailableBudgetHeads" 
+																  :key="bh.bh_id"
+																  class="dropdown-item"
+																  :class="{ 'highlighted': highlightedBudgetHeadIndex === filteredAvailableBudgetHeads.indexOf(bh) }"
+																  @click="selectBudgetHead(bh.bh_id)"
+																  @mouseenter="highlightedBudgetHeadIndex = filteredAvailableBudgetHeads.indexOf(bh)"
+															  >
+																  {{ bh.budget_code }} - {{ bh.budget_name }}
+															  </div>
+															  <div v-if="filteredAvailableBudgetHeads.length === 0" class="dropdown-item text-muted">
+																  No budget heads available
+															  </div>
+														  </div>
+													  </div>
 												  </div>
 											  </div>
 
@@ -296,17 +406,8 @@
 											  <td class="text-start" :style="{ paddingLeft: '60px' }">
 												{{ bh.budget_code }} - {{ bh.budget_name }}
 											  </td>
-											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												<input 
-													type="number" 
-													class="form-control tableform-control-withoutbg" 
-													v-model="allocationData[bh.bh_id][pd.division_id]"
-													placeholder="0.00000"
-													step="0.00001"
-													min="0"
-													readonly
-													disabled
-												>
+											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id" class="text-center">
+												{{ allocationData[bh.bh_id]?.[pd.division_id] || '0.00000' }}
 											  </td>
 											  <td class="text-center fw-bold bg-success-subtle">
 												{{ calculateRowTotal(bh.bh_id) }}
@@ -354,7 +455,7 @@
   </template>
   
   <script setup>
-  import { ref, onMounted, computed, watch } from 'vue'
+  import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
   import { Link } from '@inertiajs/vue3'
   import axios from 'axios';
   import Header from '../Common/Header.vue'
@@ -376,8 +477,17 @@
   const selectedFinancialYear = ref('2025-26')
   const selectedProgramDivisions = ref([]) // Changed to array for multiple selections
   const tempProgramDivision = ref('') // Temporary value for dropdown
-  const selectedMajorHead = ref('')
-  const searchTerm = ref('')
+  const selectedMajorHeads = ref([]) // Changed to array for multiple selections
+  const selectedBudgetHeads = ref([]) // Array for multiple budget head selections
+  const pdSearchTerm = ref('')
+  const majorHeadSearchTerm = ref('')
+  const budgetHeadSearchTerm = ref('')
+  const showPdDropdown = ref(false)
+  const showMajorHeadDropdown = ref(false)
+  const showBudgetHeadDropdown = ref(false)
+  const highlightedPdIndex = ref(-1)
+  const highlightedMajorHeadIndex = ref(-1)
+  const highlightedBudgetHeadIndex = ref(-1)
 
   // Function to categorize budget heads based on the logic provided
   const categorizeBudgetHeads = (budgetHeadsList) => {
@@ -1053,9 +1163,49 @@
 	return majorHeads.sort((a, b) => a.code.localeCompare(b.code))
   })
 
+  // Computed property for available major heads (excluding already selected ones)
+  const filteredAvailableMajorHeads = computed(() => {
+	const available = availableMajorHeads.value.filter(mh => !selectedMajorHeads.value.includes(mh.code))
+	if (!majorHeadSearchTerm.value) {
+	  return available
+	}
+	const search = majorHeadSearchTerm.value.toLowerCase()
+	return available.filter(mh => 
+	  mh.label.toLowerCase().includes(search) || mh.code.toLowerCase().includes(search)
+	)
+  })
+
+  // Computed property for available budget heads (excluding already selected ones)
+  const availableBudgetHeads = computed(() => {
+	return budgetHeads.value.filter(bh => !selectedBudgetHeads.value.includes(bh.bh_id))
+  })
+
+  // Computed property for filtered available budget heads based on search
+  const filteredAvailableBudgetHeads = computed(() => {
+	if (!budgetHeadSearchTerm.value) {
+	  return availableBudgetHeads.value
+	}
+	const search = budgetHeadSearchTerm.value.toLowerCase()
+	return availableBudgetHeads.value.filter(bh => 
+	  bh.budget_code?.toLowerCase().includes(search) || 
+	  bh.budget_name?.toLowerCase().includes(search)
+	)
+  })
+
   // Computed property for available program divisions (excluding already selected ones)
   const availableProgramDivisions = computed(() => {
 	return programDivisions.value.filter(pd => !selectedProgramDivisions.value.includes(pd.division_id))
+  })
+
+  // Computed property for filtered available program divisions based on search
+  const filteredAvailableProgramDivisions = computed(() => {
+	if (!pdSearchTerm.value) {
+	  return availableProgramDivisions.value
+	}
+	const search = pdSearchTerm.value.toLowerCase()
+	return availableProgramDivisions.value.filter(pd => 
+	  pd.division_name.toLowerCase().includes(search)
+	)
   })
 
   // Computed property for filtered program divisions
@@ -1072,12 +1222,21 @@
 	return pd ? pd.division_name : ''
   }
 
-  // Function to add program division to selection
-  const addProgramDivision = () => {
-	if (tempProgramDivision.value && !selectedProgramDivisions.value.includes(tempProgramDivision.value)) {
-	  selectedProgramDivisions.value.push(tempProgramDivision.value)
-	  tempProgramDivision.value = '' // Reset dropdown
+  // Function to toggle program division dropdown
+  const togglePdDropdown = () => {
+	showPdDropdown.value = !showPdDropdown.value
+	if (showPdDropdown.value) {
+	  highlightedPdIndex.value = -1
 	}
+  }
+
+  // Function to select program division
+  const selectProgramDivision = (pdId) => {
+	if (!selectedProgramDivisions.value.includes(pdId)) {
+	  selectedProgramDivisions.value.push(pdId)
+	  pdSearchTerm.value = ''
+	}
+	showPdDropdown.value = false
   }
 
   // Function to remove program division from selection
@@ -1088,45 +1247,110 @@
 	}
   }
 
+  // Function to filter program divisions (handled by computed property)
+  const filterProgramDivisions = () => {
+	// This is handled by computed property filteredAvailableProgramDivisions
+  }
+
+  // Function to toggle major head dropdown
+  const toggleMajorHeadDropdown = () => {
+	showMajorHeadDropdown.value = !showMajorHeadDropdown.value
+	if (showMajorHeadDropdown.value) {
+	  highlightedMajorHeadIndex.value = -1
+	}
+  }
+
+  // Function to select major head
+  const selectMajorHead = (majorHeadCode) => {
+	if (!selectedMajorHeads.value.includes(majorHeadCode)) {
+	  selectedMajorHeads.value.push(majorHeadCode)
+	  majorHeadSearchTerm.value = ''
+	}
+	showMajorHeadDropdown.value = false
+  }
+
+  // Function to remove major head from selection
+  const removeMajorHead = (majorHeadCode) => {
+	const index = selectedMajorHeads.value.indexOf(majorHeadCode)
+	if (index > -1) {
+	  selectedMajorHeads.value.splice(index, 1)
+	}
+  }
+
+  // Function to get major head label by code
+  const getMajorHeadLabel = (majorHeadCode) => {
+	const majorHead = availableMajorHeads.value.find(mh => mh.code === majorHeadCode)
+	return majorHead ? majorHead.label : `Major Head-${majorHeadCode}`
+  }
+
+  // Function to filter major heads (handled by computed property)
+  const filterMajorHeads = () => {
+	// This is handled by computed property filteredAvailableMajorHeads
+  }
+
+  // Function to toggle budget head dropdown
+  const toggleBudgetHeadDropdown = () => {
+	showBudgetHeadDropdown.value = !showBudgetHeadDropdown.value
+	if (showBudgetHeadDropdown.value) {
+	  highlightedBudgetHeadIndex.value = -1
+	}
+  }
+
+  // Function to select budget head
+  const selectBudgetHead = (bhId) => {
+	if (!selectedBudgetHeads.value.includes(bhId)) {
+	  selectedBudgetHeads.value.push(bhId)
+	  budgetHeadSearchTerm.value = ''
+	}
+	showBudgetHeadDropdown.value = false
+  }
+
+  // Function to remove budget head from selection
+  const removeBudgetHead = (bhId) => {
+	const index = selectedBudgetHeads.value.indexOf(bhId)
+	if (index > -1) {
+	  selectedBudgetHeads.value.splice(index, 1)
+	}
+  }
+
+  // Function to get budget head display text
+  const getBudgetHeadDisplay = (bhId) => {
+	const bh = budgetHeads.value.find(b => b.bh_id === bhId)
+	return bh ? `${bh.budget_code} - ${bh.budget_name}` : ''
+  }
+
+  // Function to filter budget heads (handled by computed property)
+  const filterBudgetHeads = () => {
+	// This is handled by computed property filteredAvailableBudgetHeads
+  }
+
   // Computed property for filtered categorized budget heads
   const filteredCategorizedBudgetHeads = computed(() => {
 	let filtered = categorizedBudgetHeads.value
 
-	// Filter by major head
-	if (selectedMajorHead.value) {
+	// Filter by major heads (multiple selection)
+	if (selectedMajorHeads.value.length > 0) {
 	  filtered = filtered.filter(category => {
 		if (category.type === 'major_head') {
 		  const majorHeadCode = category.label.replace('Major Head-', '')
-		  return majorHeadCode === selectedMajorHead.value
+		  return selectedMajorHeads.value.includes(majorHeadCode)
 		} else if (category.type === 'subcategory') {
-		  return category.parentMajorHead === selectedMajorHead.value
+		  return selectedMajorHeads.value.includes(category.parentMajorHead)
 		}
 		return false
 	  })
 	}
 
-	// Filter by search term
-	if (searchTerm.value && searchTerm.value.trim() !== '') {
-	  const searchLower = searchTerm.value.toLowerCase().trim()
+	// Filter by selected budget heads (multiple selection)
+	if (selectedBudgetHeads.value.length > 0) {
 	  filtered = filtered.map(category => {
-		if (category.type === 'major_head') {
-		  // Check if major head label matches
-		  if (category.label.toLowerCase().includes(searchLower)) {
-			return category
-		  }
-		  return null
-		} else if (category.type === 'subcategory') {
-		  // Check if subcategory label matches
-		  const labelMatches = category.label.toLowerCase().includes(searchLower)
+		if (category.type === 'subcategory') {
+		  // Filter budget heads within subcategory to only show selected ones
+		  const filteredBudgetHeads = category.budgetHeads.filter(bh => 
+			selectedBudgetHeads.value.includes(bh.bh_id)
+		  )
 		  
-		  // Filter budget heads within subcategory
-		  const filteredBudgetHeads = category.budgetHeads.filter(bh => {
-			const codeMatches = bh.budget_code?.toLowerCase().includes(searchLower)
-			const nameMatches = bh.budget_name?.toLowerCase().includes(searchLower)
-			return codeMatches || nameMatches
-		  })
-
-		  if (labelMatches || filteredBudgetHeads.length > 0) {
+		  if (filteredBudgetHeads.length > 0) {
 			return {
 			  ...category,
 			  budgetHeads: filteredBudgetHeads
@@ -1151,11 +1375,11 @@
 	filtered.forEach(category => {
 	  if (category.type === 'major_head') {
 		const majorHeadCode = category.label.replace('Major Head-', '')
-		if (visibleMajorHeads.has(majorHeadCode) || !selectedMajorHead.value) {
+		if (visibleMajorHeads.has(majorHeadCode) || selectedMajorHeads.value.length === 0) {
 		  result.push(category)
 		}
 	  } else if (category.type === 'subcategory') {
-		// Only show subcategory if it has budget heads or matches search
+		// Only show subcategory if it has budget heads
 		if (category.budgetHeads && category.budgetHeads.length > 0) {
 		  result.push(category)
 		}
@@ -1169,8 +1393,17 @@
   const clearFilters = () => {
 	selectedProgramDivisions.value = []
 	tempProgramDivision.value = ''
-	selectedMajorHead.value = ''
-	searchTerm.value = ''
+	selectedMajorHeads.value = []
+	selectedBudgetHeads.value = []
+	pdSearchTerm.value = ''
+	majorHeadSearchTerm.value = ''
+	budgetHeadSearchTerm.value = ''
+	showPdDropdown.value = false
+	showMajorHeadDropdown.value = false
+	showBudgetHeadDropdown.value = false
+	highlightedPdIndex.value = -1
+	highlightedMajorHeadIndex.value = -1
+	highlightedBudgetHeadIndex.value = -1
   }
 
   // Function to prepare table data for export
@@ -1326,8 +1559,11 @@
 	const programDivisionsP = selectedProgramDivisions.value.length > 0 
 	  ? '<p><strong>Program Divisions:</strong> ' + selectedProgramDivisions.value.map(id => getProgramDivisionName(id)).join(', ') + '</p>' 
 	  : ''
-	const majorHeadP = selectedMajorHead.value 
-	  ? '<p><strong>Major Head:</strong> Major Head-' + selectedMajorHead.value + '</p>' 
+	const majorHeadP = selectedMajorHeads.value.length > 0 
+	  ? '<p><strong>Major Heads:</strong> ' + selectedMajorHeads.value.map(code => getMajorHeadLabel(code)).join(', ') + '</p>' 
+	  : ''
+	const budgetHeadP = selectedBudgetHeads.value.length > 0 
+	  ? '<p><strong>Budget Heads:</strong> ' + selectedBudgetHeads.value.map(id => getBudgetHeadDisplay(id)).join(', ') + '</p>' 
 	  : ''
 	const metaInfoEnd = '</div>'
 	const scriptStart = '<' + 'script' + '>'
@@ -1339,7 +1575,7 @@
 	
 	const htmlContent = '<!DOCTYPE html><html>' +
 	  headStart + titleTag + styleStart + styles + styleEnd + headEnd +
-	  bodyStart + h2Tag + metaInfoStart + financialYearP + generatedP + programDivisionsP + majorHeadP + metaInfoEnd +
+	  bodyStart + h2Tag + metaInfoStart + financialYearP + generatedP + programDivisionsP + majorHeadP + budgetHeadP + metaInfoEnd +
 	  tableHTML + scriptTag + bodyEnd + htmlEnd
 	
 	printWindow.document.write(htmlContent)
@@ -1562,9 +1798,21 @@
   }
   
   // Load data on component mount
+  // Close dropdowns when clicking outside
+  const handleClickOutside = (event) => {
+	if (!event.target.closest('.custom-multiselect-container')) {
+	  showPdDropdown.value = false
+	  showMajorHeadDropdown.value = false
+	  showBudgetHeadDropdown.value = false
+	}
+  }
+
   onMounted(async () => {
 	try {
 	  console.log('Component mounted, starting to load data...')
+	  
+	  // Add click outside listener
+	  document.addEventListener('click', handleClickOutside)
 	  
 	  console.log('Fetching budget heads and program divisions...')
 	  await Promise.all([fetchBudgetHeads(), fetchProgramDivisions()])
@@ -1586,6 +1834,11 @@
 	  loading.value = false
 	  console.log('Component loading completed')
 	}
+  })
+
+  // Cleanup on unmount
+  onBeforeUnmount(() => {
+	document.removeEventListener('click', handleClickOutside)
   })
   </script>
   
@@ -1841,5 +2094,147 @@
 	  padding: 8px 16px;
 	  font-size: 14px;
 	}
+  }
+
+  /* Custom Multiselect Styles */
+  .custom-multiselect-container {
+	position: relative;
+  }
+
+  .custom-multiselect-input {
+	min-height: 38px;
+	padding: 4px 8px;
+	display: flex;
+	align-items: center;
+	cursor: text;
+	position: relative;
+  }
+
+  .custom-multiselect-input.is-open {
+	border-color: #80bdff;
+	box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  }
+
+  .selected-tags-wrapper {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+  }
+
+  .custom-tag {
+	display: inline-flex;
+	align-items: center;
+	background-color: #b3d9ff;
+	color: #0056b3;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-size: 0.875rem;
+	white-space: nowrap;
+	margin: 2px 0;
+  }
+
+  .tag-remove {
+	margin-left: 6px;
+	cursor: pointer;
+	font-weight: bold;
+	font-size: 1rem;
+	line-height: 1;
+	color: #0056b3;
+	padding: 0 2px;
+  }
+
+  .tag-remove:hover {
+	color: #003d82;
+  }
+
+  .tag-input {
+	border: none;
+	outline: none;
+	background: transparent;
+	flex: 1;
+	min-width: 100px;
+	padding: 2px 4px;
+	font-size: 0.875rem;
+  }
+
+  .tag-input::placeholder {
+	color: #6c757d;
+	opacity: 1;
+  }
+
+  .dropdown-arrows {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 0 8px;
+	color: #6c757d;
+	font-size: 0.75rem;
+	cursor: pointer;
+  }
+
+  .custom-dropdown-menu {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	background: white;
+	border: 1px solid #ced4da;
+	border-top: none;
+	border-radius: 0 0 0.25rem 0.25rem;
+	max-height: 200px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	z-index: 1000;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	margin-top: -1px;
+  }
+
+  /* Custom Scrollbar Styling */
+  .custom-dropdown-menu::-webkit-scrollbar {
+	width: 8px;
+  }
+
+  .custom-dropdown-menu::-webkit-scrollbar-track {
+	background: #f1f1f1;
+	border-radius: 4px;
+  }
+
+  .custom-dropdown-menu::-webkit-scrollbar-thumb {
+	background: #888;
+	border-radius: 4px;
+  }
+
+  .custom-dropdown-menu::-webkit-scrollbar-thumb:hover {
+	background: #555;
+  }
+
+  /* Firefox Scrollbar */
+  .custom-dropdown-menu {
+	scrollbar-width: thin;
+	scrollbar-color: #888 #f1f1f1;
+  }
+
+  .dropdown-item {
+	padding: 8px 12px;
+	cursor: pointer;
+	font-size: 0.875rem;
+	border-bottom: 1px solid #f0f0f0;
+  }
+
+  .dropdown-item:last-child {
+	border-bottom: none;
+  }
+
+  .dropdown-item:hover,
+  .dropdown-item.highlighted {
+	background-color: #f8f9fa;
+  }
+
+  .dropdown-item:active {
+	background-color: #e9ecef;
   }
   </style>

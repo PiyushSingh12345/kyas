@@ -197,6 +197,82 @@ public function store(Request $request)
         ]);
     }
 
+    /**
+     * Get sum of daily sanction amounts by budget head
+     * This returns the total of all center_share_amount for each budget_head
+     */
+    public function getDailySanctionAmountsByBudgetHead(Request $request)
+    {
+        try {
+            $budgetHeads = $request->query('budget_heads');
+            $stateId = $request->query('state_id');
+            $financialYear = $request->query('financial_year');
+
+            if (!$budgetHeads) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Budget heads are required',
+                    'data' => []
+                ], 400);
+            }
+
+            // Parse budget heads if it's a JSON string or array
+            if (is_string($budgetHeads)) {
+                $budgetHeads = json_decode($budgetHeads, true) ?: explode(',', $budgetHeads);
+            }
+
+            if (!is_array($budgetHeads)) {
+                $budgetHeads = [$budgetHeads];
+            }
+
+            // Build query
+            $query = DB::table('daily_sanction')
+                ->where('status', 1)
+                ->whereIn(DB::raw('TRIM(budget_head)'), array_map('trim', $budgetHeads));
+
+            // Add optional filters
+            if ($stateId) {
+                $query->where('state_id', $stateId);
+            }
+
+            if ($financialYear) {
+                $query->where('financial_year', $financialYear);
+            }
+
+            // Get sum of center_share_amount grouped by budget_head
+            $results = $query
+                ->select(
+                    DB::raw('TRIM(budget_head) as budget_head'),
+                    DB::raw('SUM(center_share_amount) as total_amount')
+                )
+                ->groupBy(DB::raw('TRIM(budget_head)'))
+                ->get()
+                ->mapWithKeys(function ($item) {
+                    return [trim($item->budget_head) => floatval($item->total_amount ?? 0)];
+                });
+
+            // Ensure all requested budget heads are in the result (with 0 if not found)
+            $data = [];
+            foreach ($budgetHeads as $bh) {
+                $bh = trim($bh);
+                $data[$bh] = $results->get($bh, 0);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching daily sanction amounts by budget head: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch daily sanction amounts',
+                'data' => [],
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function timeSeriesReport(Request $request)
     {
         $query = DailySanction::with(['state', 'slsComponent'])

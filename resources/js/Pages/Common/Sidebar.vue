@@ -101,11 +101,11 @@
                         <span class="sub-item">PD wise Budget Allocation</span>
                       </Link>
                     </li>
-                    <li>
+                    <!-- <li>
                       <Link :href="route('pd-wise-budget-allocation-release')" class="nav-link">
                         <span class="sub-item">PD wise Budget Allocation Release</span>
                       </Link>
-                    </li>
+                    </li> -->
                     <!-- <li>
                       <Link :href="route('fund-allocation')" class="nav-link">
                         <span class="sub-item">Fund Allocation</span>
@@ -213,6 +213,8 @@
                    <ul class="nav nav-collapse">
                     <li><Link :href="route('budget-phase-report-a')" class="nav-link"><span class="sub-item">Budget phases Report</span></Link></li>
                     <li><Link :href="route('pd-wise-budget-allocation-report')" class="nav-link"><span class="sub-item">PD wise Budget Allocation Report</span></Link></li>
+                    <li><Link :href="route('pd-wise-budget-allocation-release')" class="nav-link"><span class="sub-item">PD wise Budget Allocation Release Report</span></Link></li>
+                    <li><Link :href="route('statewise-aap-allocation-report')" class="nav-link"><span class="sub-item">Statewise AAP Allocation Report</span></Link></li>
                     <li><Link :href="route('daily-sanction-reports')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li>
                     <li><Link :href="route('mother-sanction-reports')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li>
                     <!-- <li><Link :href="route('daily-sanction-report')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li> -->
@@ -372,10 +374,12 @@ const menuMap = {
   '/re-appropriation-mis-report': 'reports',
   '/daily-sanction-time-series-report': 'reports',
   '/mother-sanction-time-series-report': 'reports',
+  '/statewise-aap-allocation-report': 'reports',
   '/re-appropriation-of-funds': 're-appropriation-of-funds',
   '/statewise-aap-allocation': 'annual-action-plan',
   '/state-release-data': 'annual-action-plan',
   '/pd-wise-budget-allocation': 'budget',
+  '/pd-wise-budget-allocation-release': 'reports',
   '/agency-release-tsa': 'agency-release',
   '/agency-release-tsa-list': 'agency-release',
   '/agency-release-loa': 'agency-release',

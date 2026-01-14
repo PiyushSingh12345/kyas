@@ -170,7 +170,7 @@
                         <tr>
                           <th>Budget Head</th>
                           <th>Mother Sanctioned Amount</th>
-                          <th>Available MS Amount</th>
+                          <th>Balanced Fund Available</th>
                           <!-- <th>Center Share Amount</th> -->
                           <th>Daily Sanction Amount(CS)</th>
                         </tr>
@@ -187,10 +187,24 @@
 						      <input type="text" class="form-control" :value="row.mother_sanction_amount" disabled>
 						    </td>
 						    <td>
-						      <input type="text" class="form-control" :value="row.available_fund" disabled>
+						      <input type="text" class="form-control" :value="getBalancedFundAvailable(row.budget_head)" disabled>
 						    </td>
 						    <td>
-						      <input type="text" class="form-control" v-model="row.center_share_amount">
+						      <input 
+						        type="number" 
+						        class="form-control" 
+						        :class="{ 'is-invalid': isAmountExceeded(row) }"
+						        v-model="row.center_share_amount"
+						        :max="getBalancedFundAvailableNumeric(row.budget_head)"
+						        step="0.00001"
+						        min="0"
+						        @input="validateAmount(row)"
+						        @blur="validateAmount(row)"
+						        placeholder="0.00000"
+						      >
+						      <div v-if="isAmountExceeded(row)" class="invalid-feedback">
+						        Amount cannot exceed Balanced Fund Available ({{ getBalancedFundAvailable(row.budget_head) }})
+						      </div>
 						    </td>
 						  </tr>
 						</tbody>
@@ -242,6 +256,7 @@ const slsName = ref('')
 const slsID = ref('')
 const remark = ref('')
 const sanctionDetails = ref([])
+const balancedFundData = ref({}) // Store balanced fund amounts by budget head
 
 // PDF Upload state
 const selectedFile = ref(null)
@@ -280,6 +295,7 @@ const clearDetails = () => {
   slsID.value = ''
   remark.value = ''
   sanctionDetails.value = []
+  balancedFundData.value = {}
 }
 
 const resetForm = () => {
@@ -369,7 +385,7 @@ const processPdf = async () => {
   }
 }
 
-const populateFormFromPdf = (data) => {
+const populateFormFromPdf = async (data) => {
   // Populate basic form fields
   if (data.financial_year) {
     financialYear.value = data.financial_year
@@ -413,6 +429,9 @@ const populateFormFromPdf = (data) => {
       available_fund: detail.available_fund || 0,
       center_share_amount: detail.center_share_amount || 0
     }))
+    
+    // Fetch balanced fund available for all budget heads
+    await fetchBalancedFundAvailable(data.sanction_details.map(d => d.budget_head).filter(Boolean))
   }
 }
 
@@ -448,14 +467,100 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
       slsName.value = data.meta.sls_name
       slsID.value = data.meta.sls_code
       sanctionDetails.value = data.entries
+      
+      // Fetch balanced fund available for all budget heads
+      if (data.entries && data.entries.length > 0) {
+        await fetchBalancedFundAvailable(data.entries.map(e => e.budget_head))
+      }
     } else {
       ifdNo.value = ''
       slsName.value = ''
       slsID.value = ''
       sanctionDetails.value = []
+      balancedFundData.value = {}
     }
   } catch (error) {
     console.error('Error fetching mother sanction details:', error)
+  }
+}
+
+// Fetch balanced fund available (sum of daily sanction amounts) for budget heads
+const fetchBalancedFundAvailable = async (budgetHeads) => {
+  if (!budgetHeads || budgetHeads.length === 0) {
+    balancedFundData.value = {}
+    return
+  }
+
+  try {
+    const params = new URLSearchParams({
+      budget_heads: JSON.stringify(budgetHeads)
+    })
+    
+    if (selectedState.value) {
+      params.append('state_id', selectedState.value)
+    }
+    
+    if (financialYear.value) {
+      params.append('financial_year', financialYear.value)
+    }
+
+    const res = await fetch(`/api/daily-sanction-amounts-by-budget-head?${params.toString()}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.success && data.data) {
+        balancedFundData.value = data.data
+      } else {
+        balancedFundData.value = {}
+      }
+    } else {
+      balancedFundData.value = {}
+    }
+  } catch (error) {
+    console.error('Error fetching balanced fund available:', error)
+    balancedFundData.value = {}
+  }
+}
+
+// Get balanced fund available for a specific budget head (formatted string)
+const getBalancedFundAvailable = (budgetHead) => {
+  if (!budgetHead) return '0.00000'
+  const amount = balancedFundData.value[budgetHead] || 0
+  return parseFloat(amount).toFixed(5)
+}
+
+// Get balanced fund available as numeric value for comparison
+const getBalancedFundAvailableNumeric = (budgetHead) => {
+  if (!budgetHead) return 0
+  return parseFloat(balancedFundData.value[budgetHead] || 0)
+}
+
+// Check if the entered amount exceeds balanced fund available
+const isAmountExceeded = (row) => {
+  if (!row.budget_head || !row.center_share_amount) return false
+  const enteredAmount = parseFloat(row.center_share_amount) || 0
+  const balancedFund = getBalancedFundAvailableNumeric(row.budget_head)
+  return enteredAmount > balancedFund
+}
+
+// Validate amount on input/blur and cap at maximum
+const validateAmount = (row) => {
+  if (!row.budget_head || !row.center_share_amount) return
+  
+  const enteredAmount = parseFloat(row.center_share_amount) || 0
+  const balancedFund = getBalancedFundAvailableNumeric(row.budget_head)
+  
+  if (enteredAmount > balancedFund) {
+    // Cap the value at the maximum allowed
+    row.center_share_amount = balancedFund.toFixed(5)
+    
+    showFlashMessage(
+      'warning',
+      `Daily Sanction Amount has been capped at Balanced Fund Available (${getBalancedFundAvailable(row.budget_head)}) for Budget Head: ${row.budget_head}`,
+      'fas fa-exclamation-triangle'
+    )
+  } else if (enteredAmount < 0) {
+    // Prevent negative values
+    row.center_share_amount = '0.00000'
   }
 }
 
@@ -475,6 +580,26 @@ watch(selectedMotherSanction, (newKyMsNo) => {
 })
 
 const submitForm = async () => {
+  // Validate all amounts before submission
+  const validationErrors = []
+  sanctionDetails.value.forEach((row, index) => {
+    if (row.center_share_amount && isAmountExceeded(row)) {
+      const balancedFund = getBalancedFundAvailable(row.budget_head)
+      validationErrors.push(
+        `Row ${index + 1} (${row.budget_head}): Daily Sanction Amount exceeds Balanced Fund Available (${balancedFund})`
+      )
+    }
+  })
+
+  if (validationErrors.length > 0) {
+    showFlashMessage(
+      'danger',
+      'Validation failed: ' + validationErrors.join('; '),
+      'fas fa-exclamation-triangle'
+    )
+    return
+  }
+
   const payload = {
     financial_year: financialYear.value,
     state_id: selectedState.value,

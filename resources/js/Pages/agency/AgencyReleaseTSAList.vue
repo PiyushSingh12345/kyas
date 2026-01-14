@@ -66,7 +66,7 @@
                             <th>Program Division</th>
                             <th>Amount</th>
                             <th>Central Implementing Agency</th>
-                            <th>Action</th>
+                            <!-- <th>Action</th> -->
                             <th>Status</th>
                             <th>Created At</th>
                           </tr>
@@ -80,26 +80,26 @@
                             <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
                             <td>{{ item.central_implementing_agency }}</td>
-                            <td class="text-center status-column">
-                              <div class="d-flex justify-content-center align-items-center gap-2">
-                                <button 
+                            <!-- <td class="text-center status-column">
+                              <div class="d-flex justify-content-center align-items-center gap-2"> -->
+                                <!-- <button 
                                   class="btn btn-sm btn-secondary"
                                   @click="handleClose(item, index)"
                                   title="Close"
                                   :disabled="!item.status"
                                 >
                                   Close
-                                </button>
-                                <button 
+                                </button> -->
+                                <!-- <button 
                                   class="btn btn-sm btn-primary"
                                   @click="handleRevise(item, index)"
                                   title="Revise"
                                   :disabled="!item.status"
                                 >
                                   Revise
-                                </button>
-                              </div>
-                            </td>
+                                </button> -->
+                              <!-- </div>
+                            </td> -->
                             <td class="text-center">
                               <span :class="item.status ? 'badge bg-success' : 'badge bg-secondary'">
                                 {{ item.status ? 'Active' : 'Inactive' }}

@@ -55,37 +55,23 @@
 									<thead class="table-dark">
 										<tr>
 											<th rowspan="2" class="align-middle fw-sticky">State</th>
-											<th v-for="pd in programDivisions" :key="pd.division_id" colspan="2">
+											<th v-for="pd in programDivisions" :key="pd.division_id" colspan="1">
 												{{ pd.division_name }}
 											</th>
-											<th rowspan="2" class="align-middle">Tentative Allocation <br/><small class="text-capitalize">(₹ In Lakhs)</small></th>
 											<th rowspan="2" class="align-middle">Final Allocation <br/><small class="text-capitalize">(₹ In Lakhs)</small></th>
 											<th rowspan="2" class="align-middle">Remarks</th>
 										</tr>
 										<tr>
                       <!-- add class="fw-sticky" to the first th of the second row -->
-											<template v-for="pd in programDivisions" :key="pd.division_id">
-												<th>Tentative Amount</th>
-												<th>Final Allocation</th>
-											</template>
+											<th v-for="pd in programDivisions" :key="pd.division_id" >
+												Final Allocation
+											</th>
 										</tr>
 									</thead>
 									<tbody>
 										<tr v-for="state in states" :key="state.state_id">
 											<td class="fw-bold fw-sticky">{{ state.state_name }}</td>
-											<template v-for="pd in programDivisions" :key="pd.division_id">
-												<td>
-													<input 
-														type="number" 
-														class="form-control tableform-control-withoutbg" 
-														v-model="tentativeAmountData[state.state_id][pd.division_id]"
-														@blur="formatTentativeInputValue(state.state_id, pd.division_id)"
-														placeholder="0.00000"
-														step="0.00001"
-														min="0"
-													>
-												</td>
-												<td>
+											<td v-for="pd in programDivisions" :key="pd.division_id">
 												<input 
 													type="number" 
 													class="form-control tableform-control-withoutbg" 
@@ -95,10 +81,6 @@
 													step="0.00001"
 													min="0"
 												>
-												</td>
-											</template>
-											<td class="fw-bold text-center bg-info-subtle">
-												{{ calculateTentativeRowTotal(state.state_id) }}
 											</td>
 											<!-- <td class="fw-bold text-center row-total"> -->
 											<td class="fw-bold text-center bg-success-subtle">
@@ -117,12 +99,9 @@
 										<!-- Total Row -->
 										<tr class="table-warning fw-bold">
 											<td class="fw-sticky">Total</td>
-											<template v-for="pd in programDivisions" :key="pd.division_id">
-												<td>{{ calculateTentativeColumnTotal(pd.division_id) }}</td>
-												<td>{{ calculateColumnTotal(pd.division_id) }}</td>
-											</template>
-											<td class="fw-bold text-center grand-total">
-												{{ calculateTentativeGrandTotal() }}
+											<!-- <td v-for="pd in programDivisions" :key="pd.division_id" class="total-cell"> -->
+											<td v-for="pd in programDivisions" :key="pd.division_id" >
+												{{ calculateColumnTotal(pd.division_id) }}
 											</td>
 											<td class="fw-bold text-center grand-total">
 												{{ calculateGrandTotal() }}
@@ -170,7 +149,6 @@ import Footer from '../Common/Footer.vue'
 const states = ref([])
 const programDivisions = ref([])
 const allocationData = ref({})
-const tentativeAmountData = ref({})
 const remarksData = ref({})
 const loading = ref(true)
 const error = ref(null)
@@ -232,15 +210,6 @@ const fetchExistingAllocations = async () => {
           } else {
             console.log(`Data structure not ready for state ${stateId}, PD ${pdId}`)
           }
-          
-          // Populate tentative amount if it exists
-          if (tentativeAmountData.value[stateId] && tentativeAmountData.value[stateId][pdId] !== undefined) {
-            const tentativeAmount = allocation.tentative_amount
-            if (tentativeAmount !== null && tentativeAmount !== undefined) {
-              tentativeAmountData.value[stateId][pdId] = formatToFiveDecimals(tentativeAmount)
-              console.log(`Set tentative amount for state ${stateId}, PD ${pdId}: ${formatToFiveDecimals(tentativeAmount)} (original: ${tentativeAmount})`)
-            }
-          }
         })
       })
       
@@ -271,19 +240,16 @@ const initializeAllocationData = () => {
   
   states.value.forEach(state => {
     allocationData.value[state.state_id] = {}
-    tentativeAmountData.value[state.state_id] = {}
     remarksData.value[state.state_id] = ''
     
     programDivisions.value.forEach(pd => {
       allocationData.value[state.state_id][pd.division_id] = ''
-      tentativeAmountData.value[state.state_id][pd.division_id] = ''
     })
     
     console.log(`Initialized data structure for state ${state.state_id}:`, allocationData.value[state.state_id])
   })
   
   console.log('Final allocation data structure:', allocationData.value)
-  console.log('Final tentative amount data structure:', tentativeAmountData.value)
 }
 
 // Helper function to format number to exactly 5 decimal places without rounding
@@ -329,17 +295,6 @@ const formatInputValue = (stateId, pdId) => {
   }
 }
 
-// Format tentative input value to 5 decimal places when field loses focus
-const formatTentativeInputValue = (stateId, pdId) => {
-  const currentValue = tentativeAmountData.value[stateId][pdId]
-  if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
-    const numValue = parseFloat(currentValue)
-    if (!isNaN(numValue)) {
-      tentativeAmountData.value[stateId][pdId] = formatToFiveDecimals(numValue)
-    }
-  }
-}
-
 // Helper function to add two numbers with 5 decimal precision
 const addWithPrecision = (a, b) => {
   const numA = parseFloat(a) || 0
@@ -358,31 +313,11 @@ const calculateColumnTotal = (pdId) => {
   return formatToFiveDecimals(total)
 }
 
-// Calculate tentative column total
-const calculateTentativeColumnTotal = (pdId) => {
-  let total = 0
-  states.value.forEach(state => {
-    const value = parseFloat(tentativeAmountData.value[state.state_id][pdId]) || 0
-    total = addWithPrecision(total, value)
-  })
-  return formatToFiveDecimals(total)
-}
-
 // Calculate row total for a specific state
 const calculateRowTotal = (stateId) => {
   let total = 0
   programDivisions.value.forEach(pd => {
     const value = parseFloat(allocationData.value[stateId][pd.division_id]) || 0
-    total = addWithPrecision(total, value)
-  })
-  return formatToFiveDecimals(total)
-}
-
-// Calculate tentative row total for a specific state (sum of all tentative amounts)
-const calculateTentativeRowTotal = (stateId) => {
-  let total = 0
-  programDivisions.value.forEach(pd => {
-    const value = parseFloat(tentativeAmountData.value[stateId][pd.division_id]) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
@@ -394,18 +329,6 @@ const calculateGrandTotal = () => {
   states.value.forEach(state => {
     programDivisions.value.forEach(pd => {
       const value = parseFloat(allocationData.value[state.state_id][pd.division_id]) || 0
-      total = addWithPrecision(total, value)
-    })
-  })
-  return formatToFiveDecimals(total)
-}
-
-// Calculate tentative grand total (sum of all tentative amounts)
-const calculateTentativeGrandTotal = () => {
-  let total = 0
-  states.value.forEach(state => {
-    programDivisions.value.forEach(pd => {
-      const value = parseFloat(tentativeAmountData.value[state.state_id][pd.division_id]) || 0
       total = addWithPrecision(total, value)
     })
   })
@@ -428,8 +351,6 @@ const submitAllocation = async () => {
     states.value.forEach(state => {
       programDivisions.value.forEach(pd => {
         const amount = allocationData.value[state.state_id][pd.division_id]
-        const tentativeAmount = tentativeAmountData.value[state.state_id][pd.division_id]
-        
         // Allow zero values to be saved - check if amount is not null/undefined/empty string
         // but allow 0 as a valid value
         if (amount !== null && amount !== undefined && amount !== '') {
@@ -438,17 +359,11 @@ const submitAllocation = async () => {
           // Check if it's a valid number (including 0)
           // This will save 0 when user explicitly enters 0
           if (!isNaN(exactAmount) && exactAmount >= 0) {
-            // Parse tentative amount - default to 0 if not provided (matching amount column constraint)
-            const exactTentativeAmount = (tentativeAmount !== null && tentativeAmount !== undefined && tentativeAmount !== '') 
-              ? parseFloat(tentativeAmount) 
-              : 0
-            
             submissionData.push({
               financial_year: '2025-26',
               state_id: state.state_id,
               pd_id: pd.division_id,
               amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)
-              tentative_amount: (!isNaN(exactTentativeAmount) && exactTentativeAmount >= 0) ? exactTentativeAmount : 0,
               status: 1
             })
           }

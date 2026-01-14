@@ -28,7 +28,7 @@
 				  <div class="card">
 					  <div class="card-header">
 						  <div class="card-title d-flex justify-content-between align-items-center">
-							  <span>PD wise Budget Allocation (AAP) - Budget Heads for FY 2025-26 (₹ In Lakhs)</span>
+							  <span>PD wise Budget Allocation (AAP) - Budget Heads for FY {{ selectedFinancialYear }} (₹ In Lakhs)</span>
 							  <button 
 								  class="btn btn-outline-info btn-sm d-flex align-items-center" 
 								  @click="viewHistory"
@@ -59,6 +59,54 @@
 						  </div>
   
 						  <div v-else>
+							  <!-- Filters Section -->
+							  <div class="row mb-4">
+								  <div class="col-12">
+									  <div class="card border-primary">
+										  <div class="card-header bg-primary text-white">
+											  <h6 class="mb-0">
+												  <i class="fas fa-filter me-2"></i>Filters
+											  </h6>
+										  </div>
+										  <div class="card-body">
+											  <div class="row g-3">
+												  <!-- Financial Year Filter -->
+												  <div class="col-md-4">
+													  <label for="financialYear" class="form-label fw-bold">Financial Year</label>
+													  <select 
+														  id="financialYear" 
+														  class="form-select" 
+														  v-model="selectedFinancialYear"
+														  @change="onFinancialYearChange"
+													  >
+														  <option value="2025-26">2025-26</option>
+														  <option value="2024-25">2024-25</option>
+														  <option value="2023-24">2023-24</option>
+														  <option value="2022-23">2022-23</option>
+													  </select>
+												  </div>
+
+												  <!-- Budget Phase Filter -->
+												  <div class="col-md-4">
+													  <label for="budgetPhase" class="form-label fw-bold">Budget Phase</label>
+													  <select 
+														  class="form-select" 
+														  id="budgetPhase" 
+														  v-model="selectedPhase" 
+														  @change="onBudgetPhaseChange"
+													  >
+														  <option disabled value="0">Select Budget Phase</option>
+														  <option value="BE">BE</option>
+														  <option value="RE">RE</option>
+														  <option value="FE">FE</option>
+													  </select>
+												  </div>
+											  </div>
+										  </div>
+									  </div>
+								  </div>
+							  </div>
+
 							  <!-- Summary Section -->
 							  <!-- <div class="row mb-3">
 								  <div class="col-12">
@@ -267,6 +315,10 @@
   const categorizedBudgetHeads = ref([])
   const categorizing = ref(false)
 
+  // Filter reactive data
+  const selectedFinancialYear = ref('2025-26')
+  const selectedPhase = ref('0')
+
   // Function to categorize budget heads based on the logic provided
   const categorizeBudgetHeads = (budgetHeadsList) => {
     if (!budgetHeadsList || budgetHeadsList.length === 0) {
@@ -378,7 +430,15 @@
   // Fetch budget heads from API
   const fetchBudgetHeads = async () => {
 	try {
-	  const response = await fetch('/api/aap-budget-heads')
+	  // Build API URL with optional phase parameter
+	  let apiUrl = '/api/aap-budget-heads'
+	  if (selectedPhase.value && selectedPhase.value !== '0') {
+		apiUrl += `?phase=${selectedPhase.value}&year=${selectedFinancialYear.value}`
+	  } else {
+		apiUrl += `?year=${selectedFinancialYear.value}`
+	  }
+	  
+	  const response = await fetch(apiUrl)
 	  if (!response.ok) throw new Error('Failed to fetch budget heads')
 	  const data = await response.json()
 	  budgetHeads.value = data
@@ -400,6 +460,22 @@
 	  error.value = 'Failed to load budget heads: ' + err.message
 	}
   }
+
+  // Function to handle budget phase change
+  const onBudgetPhaseChange = async () => {
+	await fetchBudgetHeads()
+	// Clear existing allocations when phase changes
+	allocationData.value = {}
+	await fetchExistingAllocations()
+  }
+
+  // Function to handle financial year change
+  const onFinancialYearChange = async () => {
+	await fetchBudgetHeads()
+	// Clear existing allocations when financial year changes
+	allocationData.value = {}
+	await fetchExistingAllocations()
+  }
   
   // Fetch program divisions from API
   const fetchProgramDivisions = async () => {
@@ -418,7 +494,7 @@
   // Fetch existing allocation data
   const fetchExistingAllocations = async () => {
 	try {
-	  const response = await fetch('/api/pdwise-aap-allocation?financial_year=2025-26')
+	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}`)
 	  if (!response.ok) throw new Error('Failed to fetch existing allocations')
 	  const result = await response.json()
 	  

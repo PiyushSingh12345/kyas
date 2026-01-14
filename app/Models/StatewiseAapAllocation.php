@@ -18,12 +18,14 @@ class StatewiseAapAllocation extends Model
         'state_id',
         'pd_id',
         'amount',
+        'tentative_amount',
         'status',
         'remark'
     ];
 
     protected $casts = [
         'amount' => 'decimal:5',
+        'tentative_amount' => 'decimal:5',
         'status' => 'integer'
     ];
 

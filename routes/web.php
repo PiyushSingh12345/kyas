@@ -152,6 +152,10 @@ Route::get('/statewise-aap-allocation', function () {
     return Inertia::render('Annual_action_plan/StatewiseAapAllocation');
 })->middleware(['auth', 'verified', 'role:2'])->name('statewise-aap-allocation');
 
+Route::get('/statewise-aap-allocation-report', function () {
+    return Inertia::render('Reports/StatewiseAapAllocationReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('statewise-aap-allocation-report');
+
 Route::get('/agency-release-tsa', function () {
     return Inertia::render('agency/AgencyReleaseTSA');
 })->middleware(['auth', 'verified', 'role:2'])->name('agency-release-tsa');
@@ -239,6 +243,7 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     // Statewise AAP Allocation API routes
     Route::post('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'storeStatewiseAllocation']);
     Route::get('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'getStatewiseAllocation']);
+    Route::get('/api/statewise-aap-allocation-report', [AnnualActionPlanController::class, 'getStatewiseAapAllocationReport']);
     Route::get('/api/aap-states', [AnnualActionPlanController::class, 'getStates']);
     Route::get('/api/aap-program-divisions', [AnnualActionPlanController::class, 'getProgramDivisions']);
     
@@ -347,6 +352,7 @@ Route::post('/debug-excel', function(Request $request) {
     Route::get('/api/fund-allocation/{slsId}/{stateId}', [MotherSanctionController::class, 'getFundAllocationData']);
 
     Route::get('/api/fund-allocation/by-budget', [MotherSanctionController::class, 'getFundAllocationByBudgetHead']);
+    Route::get('/api/mother-sanction/released-amount', [MotherSanctionController::class, 'getMotherSanctionReleasedAmount']);
 
     Route::post('/api/mother-sanction', [MotherSanctionController::class, 'addMotherSanction'])->name('addMotherSanction');
 
@@ -361,6 +367,7 @@ Route::post('/debug-excel', function(Request $request) {
 
     Route::get('/api/mother-sanctions', [DailySanctionController::class, 'getMotherSanctions']);
     Route::get('api/mother-sanction-details/{ky_ms_no}', [DailySanctionController::class, 'getMotherSanctionDetails']);
+    Route::get('/api/daily-sanction-amounts-by-budget-head', [DailySanctionController::class, 'getDailySanctionAmountsByBudgetHead']);
     Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
 
     Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');

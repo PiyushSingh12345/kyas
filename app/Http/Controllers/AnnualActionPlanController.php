@@ -29,6 +29,7 @@ class AnnualActionPlanController extends Controller
                 'allocations.*.state_id' => 'required|integer',
                 'allocations.*.pd_id' => 'required|integer',
                 'allocations.*.amount' => 'required|numeric|min:0',
+                'allocations.*.tentative_amount' => 'required|numeric|min:0',
                 'allocations.*.status' => 'required|integer|in:0,1',
                 'remarks' => 'nullable|array'
             ]);
@@ -57,6 +58,7 @@ class AnnualActionPlanController extends Controller
                         // Update existing record
                         $existingRecord->update([
                             'amount' => $allocation['amount'],
+                            'tentative_amount' => $allocation['tentative_amount'] ?? 0,
                             'status' => $allocation['status'],
                             'remark' => $request->remarks[$allocation['state_id']] ?? $existingRecord->remark
                         ]);
@@ -67,6 +69,7 @@ class AnnualActionPlanController extends Controller
                             'state_id' => $allocation['state_id'],
                             'pd_id' => $allocation['pd_id'],
                             'amount' => $allocation['amount'],
+                            'tentative_amount' => $allocation['tentative_amount'] ?? 0,
                             'status' => $allocation['status'],
                             'remark' => $request->remarks[$allocation['state_id']] ?? null
                         ]);
@@ -125,6 +128,23 @@ class AnnualActionPlanController extends Controller
                         }
                         
                         $allocation->amount = $amountStr;
+                        
+                        // Format tentative_amount to exactly 5 decimal places without rounding
+                        if ($allocation->tentative_amount !== null) {
+                            $rawTentativeAmount = $allocation->getRawOriginal('tentative_amount') ?? $allocation->tentative_amount;
+                            $tentativeAmountStr = (string)$rawTentativeAmount;
+                            if (strpos($tentativeAmountStr, '.') !== false) {
+                                $parts = explode('.', $tentativeAmountStr);
+                                $integerPart = $parts[0];
+                                $decimalPart = isset($parts[1]) ? substr($parts[1], 0, 5) : '';
+                                $decimalPart = str_pad($decimalPart, 5, '0', STR_PAD_RIGHT);
+                                $tentativeAmountStr = $integerPart . '.' . $decimalPart;
+                            } else {
+                                $tentativeAmountStr = $tentativeAmountStr . '.00000';
+                            }
+                            $allocation->tentative_amount = $tentativeAmountStr;
+                        }
+                        
                         return $allocation;
                     });
                 });
@@ -580,7 +600,7 @@ class AnnualActionPlanController extends Controller
     /**
      * Get budget heads for dropdown
      */
-    public function getBudgetHeads(): JsonResponse
+    public function getBudgetHeads(Request $request): JsonResponse
     {
         try {
             // Check if table exists first
@@ -592,12 +612,26 @@ class AnnualActionPlanController extends Controller
                 ], 404);
             }
 
+            $phase = $request->query('phase'); // BE/FE/RE
+            $year = $request->query('year');   // 2025-26
+
             // Use DB facade directly to avoid any model issues
-            $budgetHeads = DBFacade::table('budget_heads')
-                ->select('id as bh_id', 'budget as budget_code', 'description as budget_name')
-                ->where('status', 1)
-                ->orderBy('budget')
-                ->get();
+            $budgetHeadsQuery = DBFacade::table('budget_heads')
+                ->select('budget_heads.id as bh_id', 'budget_heads.budget as budget_code', 'budget_heads.description as budget_name')
+                ->where('budget_heads.status', 1);
+
+            // If phase is provided and not '0', filter by budget phase
+            if ($phase && $phase !== '0' && $year) {
+                $budgetHeadsQuery->join('budget_phase', function($join) use ($phase, $year) {
+                    $join->on('budget_heads.id', '=', 'budget_phase.budget_head_id')
+                         ->where('budget_phase.budget_phase', '=', $phase)
+                         ->where('budget_phase.financial_year', '=', $year)
+                         ->where('budget_phase.status', '=', 1);
+                })
+                ->distinct();
+            }
+
+            $budgetHeads = $budgetHeadsQuery->orderBy('budget_heads.budget')->get();
 
             return response()->json($budgetHeads);
 
@@ -764,66 +798,98 @@ class AnnualActionPlanController extends Controller
 
     /**
      * Get daily sanction expenditure data grouped by budget head and program division
+     * Sum of center_share_amount from daily_sanction where budget_head matches 
+     * AND state (mapped to pd_component from mother_sanction) matches
+     * 
+     * Strategy: Get pd_component from mother_sanction for the same state and budget_head
      */
     public function getDailySanctionExpenditureData(Request $request): JsonResponse
     {
         try {
             $financialYear = $request->get('financial_year', '2025-26');
             
-            // Aggregate daily sanction expenditure data by budget_head and pd_id (through slsComponent -> pd_component)
-            // Use inner joins to ensure we only get records where all joins match
+            // First, get distinct pd_component values from mother_sanction grouped by state_id and budget_head
+            // This gives us the mapping: state + budget_head -> pd_component
+            $stateBudgetPdMapping = DB::table('mother_sanction')
+                ->where('status', 1)
+                ->whereNotNull('budget_head')
+                ->whereNotNull('pd_component')
+                ->whereNotNull('state_id')
+                ->select(
+                    'state_id',
+                    DB::raw('TRIM(budget_head) as budget_head'),
+                    'pd_component'
+                )
+                ->distinct()
+                ->get()
+                ->groupBy(function($item) {
+                    return $item->state_id . '|' . trim($item->budget_head);
+                });
+            
+            // Get all program divisions for efficient lookup
+            $programDivisions = DB::table('md_program_divisions')
+                ->select('division_id', 'division_name')
+                ->get()
+                ->keyBy(function($item) {
+                    return trim($item->division_name);
+                });
+            
+            // Now aggregate daily sanction expenditure data
+            // Match by budget_head AND state (mapped to pd_component from mother_sanction)
             $expenditureData = DB::table('daily_sanction as ds')
-                ->join('pd_and_sls_comp as psc', function($join) {
-                    $join->on(DB::raw('TRIM(ds.sls_name)'), '=', DB::raw('TRIM(psc.name)'));
-                })
-                ->join('md_program_divisions as pd', function($join) {
-                    $join->on(DB::raw('TRIM(psc.slsPD) COLLATE utf8mb4_unicode_ci'), '=', DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci'));
-                })
                 ->join('budget_heads as bh', function($join) {
                     $join->on(DB::raw('TRIM(ds.budget_head)'), '=', DB::raw('TRIM(bh.budget)'));
                 })
                 ->where('ds.status', 1)
                 ->whereNotNull('ds.budget_head')
                 ->whereNotNull('ds.center_share_amount')
+                ->whereNotNull('ds.state_id')
                 ->where('ds.center_share_amount', '>', 0)
                 ->select(
                     'bh.id as bh_id',
-                    'pd.division_id as pd_id',
                     'ds.budget_head',
-                    'psc.slsPD',
-                    DB::raw('SUM(COALESCE(ds.center_share_amount, 0)) as total_expenditure')
+                    'ds.state_id',
+                    'ds.center_share_amount'
                 )
-                ->groupBy('bh.id', 'pd.division_id', 'ds.budget_head', 'psc.slsPD')
                 ->get();
-
-            Log::info('Daily Sanction Expenditure Data Query Result', [
-                'count' => $expenditureData->count(),
-                'sample' => $expenditureData->take(5)->toArray()
-            ]);
-
-            // Format data as {bh_id: {pd_id: amount}}
-            // Use string keys to match JavaScript object key behavior
-            $formattedData = [];
+            
+            // Process the data and map to pd_component using the mapping we created
+            $groupedData = [];
             foreach ($expenditureData as $record) {
-                // Only include records where both bh_id and pd_id are not null
-                if ($record->bh_id && $record->pd_id) {
-                    $bhId = (string)$record->bh_id;
-                    $pdId = (string)$record->pd_id;
-                    
-                    if (!isset($formattedData[$bhId])) {
-                        $formattedData[$bhId] = [];
-                    }
-                    $amount = floatval($record->total_expenditure ?? 0);
-                    if (isset($formattedData[$bhId][$pdId])) {
-                        $formattedData[$bhId][$pdId] += $amount;
-                    } else {
-                        $formattedData[$bhId][$pdId] = $amount;
+                $key = $record->state_id . '|' . trim($record->budget_head);
+                
+                if ($stateBudgetPdMapping->has($key)) {
+                    // Get all pd_components for this state+budget_head combination
+                    foreach ($stateBudgetPdMapping[$key] as $mapping) {
+                        $pdComponent = trim($mapping->pd_component);
+                        
+                        // Find the program division for this pd_component
+                        if ($programDivisions->has($pdComponent)) {
+                            $pd = $programDivisions[$pdComponent];
+                            $bhId = (string)$record->bh_id;
+                            $pdId = (string)$pd->division_id;
+                            
+                            if (!isset($groupedData[$bhId])) {
+                                $groupedData[$bhId] = [];
+                            }
+                            
+                            if (!isset($groupedData[$bhId][$pdId])) {
+                                $groupedData[$bhId][$pdId] = 0;
+                            }
+                            
+                            $groupedData[$bhId][$pdId] += floatval($record->center_share_amount ?? 0);
+                        }
                     }
                 }
             }
+            
+            // Convert to the expected format (already formatted above)
+            $formattedData = $groupedData;
 
-            Log::info('Formatted Daily Sanction Expenditure Data', [
-                'total_budget_heads' => count($formattedData),
+            Log::info('Daily Sanction Expenditure Data Query Result', [
+                'raw_count' => $expenditureData->count(),
+                'mapping_count' => count($stateBudgetPdMapping),
+                'formatted_count' => count($formattedData),
                 'sample' => array_slice($formattedData, 0, 3, true)
             ]);
 
@@ -843,6 +909,172 @@ class AnnualActionPlanController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch daily sanction expenditure data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get statewise AAP allocation report data
+     * Returns allocation, release, and expenditure data grouped by state and PD
+     */
+    public function getStatewiseAapAllocationReport(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2025-26');
+            
+            // 1. Get allocation data from statewise_aap_allocation table
+            $allocations = StatewiseAapAllocation::where('financial_year', $financialYear)
+                ->get()
+                ->groupBy('state_id')
+                ->map(function ($stateAllocations) {
+                    return $stateAllocations->keyBy('pd_id')->map(function ($allocation) {
+                        return [
+                            'tentative_amount' => floatval($allocation->tentative_amount ?? 0),
+                            'amount' => floatval($allocation->amount ?? 0),
+                            'release' => 0, // Will be populated below
+                            'expenditure' => 0 // Will be populated below
+                        ];
+                    });
+                })
+                ->toArray();
+            
+            // 2. Get release data - sum of mother_sanction_amount grouped by state_id and pd_component
+            $releaseData = DB::table('mother_sanction as ms')
+                ->join('md_program_divisions as pd', function($join) {
+                    $join->on(DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'), '=', DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci'));
+                })
+                ->where('ms.status', 1)
+                ->whereNotNull('ms.state_id')
+                ->whereNotNull('ms.pd_component')
+                ->whereNotNull('ms.mother_sanction_amount')
+                ->where('ms.mother_sanction_amount', '>', 0)
+                ->select(
+                    'ms.state_id',
+                    'pd.division_id as pd_id',
+                    DB::raw('SUM(COALESCE(ms.mother_sanction_amount, 0)) as total_release')
+                )
+                ->groupBy('ms.state_id', 'pd.division_id')
+                ->get();
+            
+            // 3. Get expenditure data - sum of center_share_amount from daily_sanction
+            // Map through mother_sanction to get pd_component for each state+budget_head combination
+            $stateBudgetPdMapping = DB::table('mother_sanction')
+                ->where('status', 1)
+                ->whereNotNull('budget_head')
+                ->whereNotNull('pd_component')
+                ->whereNotNull('state_id')
+                ->select(
+                    'state_id',
+                    DB::raw('TRIM(budget_head) as budget_head'),
+                    'pd_component'
+                )
+                ->distinct()
+                ->get()
+                ->groupBy(function($item) {
+                    return $item->state_id . '|' . trim($item->budget_head);
+                });
+            
+            $programDivisions = DB::table('md_program_divisions')
+                ->select('division_id', 'division_name')
+                ->get()
+                ->keyBy(function($item) {
+                    return trim($item->division_name);
+                });
+            
+            $expenditureData = DB::table('daily_sanction as ds')
+                ->where('ds.status', 1)
+                ->whereNotNull('ds.budget_head')
+                ->whereNotNull('ds.center_share_amount')
+                ->whereNotNull('ds.state_id')
+                ->where('ds.center_share_amount', '>', 0)
+                ->select(
+                    'ds.budget_head',
+                    'ds.state_id',
+                    'ds.center_share_amount'
+                )
+                ->get();
+            
+            // Process expenditure data and group by state and PD
+            $expenditureGrouped = [];
+            foreach ($expenditureData as $record) {
+                $key = $record->state_id . '|' . trim($record->budget_head);
+                
+                if ($stateBudgetPdMapping->has($key)) {
+                    foreach ($stateBudgetPdMapping[$key] as $mapping) {
+                        $pdComponent = trim($mapping->pd_component);
+                        
+                        if ($programDivisions->has($pdComponent)) {
+                            $pd = $programDivisions[$pdComponent];
+                            $stateId = (string)$record->state_id;
+                            $pdId = (string)$pd->division_id;
+                            
+                            if (!isset($expenditureGrouped[$stateId])) {
+                                $expenditureGrouped[$stateId] = [];
+                            }
+                            
+                            if (!isset($expenditureGrouped[$stateId][$pdId])) {
+                                $expenditureGrouped[$stateId][$pdId] = 0;
+                            }
+                            
+                            $expenditureGrouped[$stateId][$pdId] += floatval($record->center_share_amount ?? 0);
+                        }
+                    }
+                }
+            }
+            
+            // Merge release and expenditure data into allocations
+            foreach ($releaseData as $record) {
+                $stateId = (string)$record->state_id;
+                $pdId = (string)$record->pd_id;
+                
+                if (!isset($allocations[$stateId])) {
+                    $allocations[$stateId] = [];
+                }
+                
+                if (!isset($allocations[$stateId][$pdId])) {
+                    $allocations[$stateId][$pdId] = [
+                        'tentative_amount' => 0,
+                        'amount' => 0,
+                        'release' => 0,
+                        'expenditure' => 0
+                    ];
+                }
+                
+                $allocations[$stateId][$pdId]['release'] = floatval($record->total_release ?? 0);
+            }
+            
+            foreach ($expenditureGrouped as $stateId => $pdData) {
+                foreach ($pdData as $pdId => $amount) {
+                    if (!isset($allocations[$stateId])) {
+                        $allocations[$stateId] = [];
+                    }
+                    
+                    if (!isset($allocations[$stateId][$pdId])) {
+                        $allocations[$stateId][$pdId] = [
+                            'tentative_amount' => 0,
+                            'amount' => 0,
+                            'release' => 0,
+                            'expenditure' => 0
+                        ];
+                    }
+                    
+                    $allocations[$stateId][$pdId]['expenditure'] = $amount;
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $allocations
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error fetching statewise AAP allocation report: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch report data',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -156,6 +156,9 @@
                             <label class="highlight_textbox">Available Fund Amount</label>
                           </td>
                           <td>
+                            <label class="highlight_textbox">Current Available Fund Amount</label>
+                          </td>
+                          <td>
                             <label class="highlight_textbox">Mother Sanction Amount</label>
                           </td>
                           <td>
@@ -185,6 +188,14 @@
                           </td>
                           <td>
                             <input type="text" v-model="row.available_amount" class="form-control tableform-control-withoutbg" disabled>
+                          </td>
+                          <td>
+                            <input 
+                              type="text" 
+                              :value="getCurrentAvailableFundAmount(row)" 
+                              class="form-control tableform-control-withoutbg" 
+                              disabled
+                            >
                           </td>
                           <td>
                            <input 
@@ -416,6 +427,65 @@ const resetForm = () => {
 const reappropriations = ref([
   { budget_head: '', category: '', available_amount: '', sanction_amount: '', carry_forward: '0.00000' }
 ])
+
+// Store released amounts for each budget head and pd_component combination
+const releasedAmounts = ref({})
+
+// Function to fetch released amount for a budget head and pd_component
+const fetchReleasedAmount = async (budgetHead, pdComp) => {
+  if (!budgetHead || !pdComp) {
+    return 0;
+  }
+  
+  const cacheKey = `${budgetHead}|${pdComp}`;
+  
+  // Return cached value if available
+  if (releasedAmounts.value[cacheKey] !== undefined) {
+    return releasedAmounts.value[cacheKey];
+  }
+  
+  // Fetch from API
+  try {
+    const response = await fetch(
+      `/api/mother-sanction/released-amount?budget_head=${encodeURIComponent(budgetHead)}&pd_component=${encodeURIComponent(pdComp)}`
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      const released = parseFloat(data.total_released || 0);
+      
+      // Cache the released amount
+      releasedAmounts.value[cacheKey] = released;
+      return released;
+    } else {
+      // If API fails, cache 0
+      releasedAmounts.value[cacheKey] = 0;
+      return 0;
+    }
+  } catch (error) {
+    console.error('Error fetching released amount:', error);
+    // If error, cache 0
+    releasedAmounts.value[cacheKey] = 0;
+    return 0;
+  }
+}
+
+// Function to get current available fund amount
+// Formula: total allocation (available_amount) - sum of mother_sanction_amount released
+const getCurrentAvailableFundAmount = (row) => {
+  if (!row.budget_head || !pdComponent.value) {
+    return '0.00000';
+  }
+  
+  const availableAmount = parseFloat(row.available_amount) || 0;
+  const cacheKey = `${row.budget_head}|${pdComponent.value}`;
+  const releasedAmount = releasedAmounts.value[cacheKey] || 0;
+  
+  const currentAvailable = availableAmount - releasedAmount;
+  
+  // Format to 5 decimal places
+  return currentAvailable >= 0 ? currentAvailable.toFixed(5) : '0.00000';
+}
 
 const handleUcFileChange = (e) => {
   const file = e.target.files[0];
@@ -684,11 +754,18 @@ const prefillFormFromURL = async () => {
           if (isRevise && selectedSlsId.value && selectedState.value) {
             await fetchFundAllocationData();
             // Update available_amount for each row after fund allocation is fetched
-            reappropriations.value.forEach(row => {
+            for (const row of reappropriations.value) {
               if (row.budget_head) {
-                fetchBudgetDetails(row);
+                await fetchBudgetDetails(row);
               }
-            });
+            }
+          } else if (selectedSlsId.value && selectedState.value && pdComponent.value) {
+            // For edit mode, also fetch released amounts for all budget heads
+            for (const row of reappropriations.value) {
+              if (row.budget_head) {
+                await fetchReleasedAmount(row.budget_head, pdComponent.value);
+              }
+            }
           }
         }
       } catch (error) {
@@ -866,6 +943,11 @@ const fetchBudgetDetails = async (row) => {
         clearRowData(row);
         console.log('No budget details found for the selected budget head');
       }
+      
+      // After fetching budget details, fetch released amount for current available fund calculation
+      if (row.budget_head && pdComponent.value) {
+        await fetchReleasedAmount(row.budget_head, pdComponent.value);
+      }
     } else {
       clearRowData(row);
       console.error('Budget details not found');
@@ -885,6 +967,20 @@ const clearAllBudgetDetails = () => {
 // Watch for changes in SLS ID or state to clear budget details
 watch([selectedSlsId, selectedState], () => {
   clearAllBudgetDetails();
+  // Clear released amounts cache when SLS or state changes
+  releasedAmounts.value = {};
+});
+
+// Watch for changes in pd_component to refresh released amounts
+watch(pdComponent, () => {
+  // Clear released amounts cache when PD component changes
+  releasedAmounts.value = {};
+  // Re-fetch released amounts for all rows with budget heads
+  reappropriations.value.forEach(async (row) => {
+    if (row.budget_head && pdComponent.value) {
+      await fetchReleasedAmount(row.budget_head, pdComponent.value);
+    }
+  });
 });
 
 const clearRowData = (row) => {

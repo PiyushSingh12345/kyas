@@ -91,6 +91,47 @@ class MotherSanctionController extends Controller
         return response()->json($data);
     }
 
+    /**
+     * Get sum of mother_sanction_amount for a given budget_head and pd_component
+     */
+    public function getMotherSanctionReleasedAmount(Request $request)
+    {
+        try {
+            $budgetHead = $request->query('budget_head');
+            $pdComponent = $request->query('pd_component');
+
+            if (!$budgetHead || !$pdComponent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Budget head and PD component are required',
+                    'total_released' => 0
+                ], 400);
+            }
+
+            // Sum all mother_sanction_amount from mother_sanction table
+            // where budget_head and pd_component match
+            $totalReleased = DB::table('mother_sanction')
+                ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
+                ->whereRaw('TRIM(pd_component) COLLATE utf8mb4_unicode_ci = TRIM(?) COLLATE utf8mb4_unicode_ci', [$pdComponent])
+                ->where('status', 1)
+                ->whereNotNull('mother_sanction_amount')
+                ->sum('mother_sanction_amount');
+
+            return response()->json([
+                'success' => true,
+                'total_released' => floatval($totalReleased ?? 0)
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching mother sanction released amount: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch released amount',
+                'total_released' => 0,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
    
 public function list()
 {

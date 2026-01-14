@@ -66,7 +66,7 @@
                             <th>Program Division</th>
                             <th>Amount</th>
                             <th>Agency/Vendor</th>
-                            <th>Action</th>
+                            <!-- <th>Action</th> -->
                             <th>Status</th>
                             <th>Created At</th>
                           </tr>
@@ -80,7 +80,7 @@
                             <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
                             <td>{{ item.agency_vendor }}</td>
-                            <td class="text-center status-column">
+                            <!-- <td class="text-center status-column">
                               <div class="d-flex justify-content-center align-items-center gap-2">
                                 <button 
                                   class="btn btn-sm btn-secondary"
@@ -99,7 +99,7 @@
                                   Revise
                                 </button>
                               </div>
-                            </td>
+                            </td> -->
                             <td class="text-center">
                               <span :class="item.status ? 'badge bg-success' : 'badge bg-secondary'">
                                 {{ item.status ? 'Active' : 'Inactive' }}
