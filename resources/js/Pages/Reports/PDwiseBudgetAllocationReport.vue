@@ -86,6 +86,21 @@
 													  </select>
 												  </div>
 
+												  <!-- Budget Phase Filter -->
+												  <div class="col-md-3">
+													  <label for="budgetPhase" class="form-label fw-bold">Budget Phase</label>
+													  <select 
+														  id="budgetPhase" 
+														  class="form-select" 
+														  v-model="selectedBudgetPhase"
+														  @change="onBudgetPhaseChange"
+													  >
+														  <option value="BE">BE</option>
+														  <option value="RE">RE</option>
+														  <option value="FE">FE</option>
+													  </select>
+												  </div>
+
 												  <!-- Program Division Filter -->
 												  <div class="col-md-3">
 													  <label class="form-label fw-bold">Program Division <span class="text-danger">*</span></label>
@@ -475,6 +490,7 @@
 
   // Filter reactive data
   const selectedFinancialYear = ref('2025-26')
+  const selectedBudgetPhase = ref('BE')
   const selectedProgramDivisions = ref([]) // Changed to array for multiple selections
   const tempProgramDivision = ref('') // Temporary value for dropdown
   const selectedMajorHeads = ref([]) // Changed to array for multiple selections
@@ -640,7 +656,7 @@
   // Fetch existing allocation data
   const fetchExistingAllocations = async () => {
 	try {
-	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}`)
+	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}&budget_phase=${selectedBudgetPhase.value}`)
 	  if (!response.ok) throw new Error('Failed to fetch existing allocations')
 	  const result = await response.json()
 	  
@@ -1484,7 +1500,7 @@
 	const url = URL.createObjectURL(blob)
 	
 	link.setAttribute('href', url)
-	link.setAttribute('download', `PDwise_Budget_Allocation_${selectedFinancialYear.value}_${new Date().getTime()}.xlsx`)
+	link.setAttribute('download', `PDwise_Budget_Allocation_${selectedFinancialYear.value}_${selectedBudgetPhase.value}_${new Date().getTime()}.xlsx`)
 	link.style.visibility = 'hidden'
 	document.body.appendChild(link)
 	link.click()
@@ -1513,7 +1529,7 @@
 	const url = URL.createObjectURL(blob)
 	
 	link.setAttribute('href', url)
-	link.setAttribute('download', `PDwise_Budget_Allocation_${selectedFinancialYear.value}_${new Date().getTime()}.csv`)
+	link.setAttribute('download', `PDwise_Budget_Allocation_${selectedFinancialYear.value}_${selectedBudgetPhase.value}_${new Date().getTime()}.csv`)
 	link.style.visibility = 'hidden'
 	document.body.appendChild(link)
 	link.click()
@@ -1536,7 +1552,7 @@
 	
 	// Build HTML content using string concatenation to avoid Vue parsing issues
 	const headStart = '<head>'
-	const titleTag = '<title>PD wise Budget Allocation Report - ' + selectedFinancialYear.value + '</title>'
+	const titleTag = '<title>PD wise Budget Allocation Report - ' + selectedFinancialYear.value + ' (' + selectedBudgetPhase.value + ')</title>'
 	const styleStart = '<style>'
 	const styles = 'body { font-family: Arial, sans-serif; margin: 20px; }' +
 	  'h2 { text-align: center; color: #333; }' +
@@ -1555,6 +1571,7 @@
 	const h2Tag = '<h2>PD wise Budget Allocation Report</h2>'
 	const metaInfoStart = '<div class="meta-info">'
 	const financialYearP = '<p><strong>Financial Year:</strong> ' + selectedFinancialYear.value + '</p>'
+	const budgetPhaseP = '<p><strong>Budget Phase:</strong> ' + selectedBudgetPhase.value + '</p>'
 	const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'
 	const programDivisionsP = selectedProgramDivisions.value.length > 0 
 	  ? '<p><strong>Program Divisions:</strong> ' + selectedProgramDivisions.value.map(id => getProgramDivisionName(id)).join(', ') + '</p>' 
@@ -1575,11 +1592,32 @@
 	
 	const htmlContent = '<!DOCTYPE html><html>' +
 	  headStart + titleTag + styleStart + styles + styleEnd + headEnd +
-	  bodyStart + h2Tag + metaInfoStart + financialYearP + generatedP + programDivisionsP + majorHeadP + budgetHeadP + metaInfoEnd +
+	  bodyStart + h2Tag + metaInfoStart + financialYearP + budgetPhaseP + generatedP + programDivisionsP + majorHeadP + budgetHeadP + metaInfoEnd +
 	  tableHTML + scriptTag + bodyEnd + htmlEnd
 	
 	printWindow.document.write(htmlContent)
 	printWindow.document.close()
+  }
+
+  // Handler for budget phase change
+  const onBudgetPhaseChange = async () => {
+	loading.value = true
+	try {
+	  // Clear existing allocation data
+	  allocationData.value = {}
+	  remarksData.value = {}
+	  
+	  // Re-initialize allocation data structure
+	  initializeAllocationData()
+	  
+	  // Fetch allocations for the selected budget phase
+	  await fetchExistingAllocations()
+	} catch (err) {
+	  console.error('Error on budget phase change:', err)
+	  error.value = 'Failed to load allocation data'
+	} finally {
+	  loading.value = false
+	}
   }
 
   // Function to handle financial year change
@@ -1593,7 +1631,7 @@
 	  // Re-initialize allocation data structure
 	  initializeAllocationData()
 	  
-	  // Fetch allocations for the new financial year
+	  // Fetch allocations for the new financial year (will use current budget phase)
 	  await fetchExistingAllocations()
 	} catch (err) {
 	  console.error('Error fetching allocations for new financial year:', err)

@@ -95,7 +95,6 @@
 														  v-model="selectedPhase" 
 														  @change="onBudgetPhaseChange"
 													  >
-														  <option disabled value="0">Select Budget Phase</option>
 														  <option value="BE">BE</option>
 														  <option value="RE">RE</option>
 														  <option value="FE">FE</option>
@@ -317,7 +316,7 @@
 
   // Filter reactive data
   const selectedFinancialYear = ref('2025-26')
-  const selectedPhase = ref('0')
+  const selectedPhase = ref('BE')
 
   // Function to categorize budget heads based on the logic provided
   const categorizeBudgetHeads = (budgetHeadsList) => {
@@ -431,12 +430,7 @@
   const fetchBudgetHeads = async () => {
 	try {
 	  // Build API URL with optional phase parameter
-	  let apiUrl = '/api/aap-budget-heads'
-	  if (selectedPhase.value && selectedPhase.value !== '0') {
-		apiUrl += `?phase=${selectedPhase.value}&year=${selectedFinancialYear.value}`
-	  } else {
-		apiUrl += `?year=${selectedFinancialYear.value}`
-	  }
+	  let apiUrl = `/api/aap-budget-heads?phase=${selectedPhase.value}&year=${selectedFinancialYear.value}`
 	  
 	  const response = await fetch(apiUrl)
 	  if (!response.ok) throw new Error('Failed to fetch budget heads')
@@ -494,7 +488,8 @@
   // Fetch existing allocation data
   const fetchExistingAllocations = async () => {
 	try {
-	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}`)
+	  let apiUrl = `/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}&budget_phase=${selectedPhase.value}`
+	  const response = await fetch(apiUrl)
 	  if (!response.ok) throw new Error('Failed to fetch existing allocations')
 	  const result = await response.json()
 	  
@@ -1063,7 +1058,8 @@
 			// This will save 0 when user explicitly enters 0
 			if (!isNaN(exactAmount) && exactAmount >= 0) {
 			  submissionData.push({
-				financial_year: '2025-26',
+				financial_year: selectedFinancialYear.value,
+				budget_phase: selectedPhase.value,
 				bh_id: bh.bh_id,
 				pd_id: pd.division_id,
 				amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)

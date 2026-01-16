@@ -27,6 +27,7 @@ class PdWiseAapAllocationObserver
             PdWiseAapAllocationHistory::create([
                 'id'              => $allocation->id,
                 'financial_year'  => $allocation->getOriginal('financial_year'),
+                'budget_phase'    => $allocation->getOriginal('budget_phase'),
                 'bh_id'           => $allocation->getOriginal('bh_id'),
                 'pd_id'           => $allocation->getOriginal('pd_id'),
                 'amount'          => $allocation->getOriginal('amount'),
@@ -57,6 +58,7 @@ class PdWiseAapAllocationObserver
         PdWiseAapAllocationHistory::create([
             'id'              => $allocation->id,
             'financial_year'  => $allocation->financial_year,
+            'budget_phase'    => $allocation->budget_phase,
             'bh_id'           => $allocation->bh_id,
             'pd_id'           => $allocation->pd_id,
             'amount'          => $allocation->amount,

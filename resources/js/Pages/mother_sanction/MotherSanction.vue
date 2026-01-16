@@ -152,7 +152,7 @@
                           <td>
                             <label class="highlight_textbox">Category</label>
                           </td>
-                          <td>
+                          <td style="display: none;">
                             <label class="highlight_textbox">Available Fund Amount</label>
                           </td>
                           <td>
@@ -186,7 +186,7 @@
                           <td>
                             <input type="text" v-model="row.category" class="form-control tableform-control-withoutbg" disabled>
                           </td>
-                          <td>
+                          <td style="display: none;">
                             <input type="text" v-model="row.available_amount" class="form-control tableform-control-withoutbg" disabled>
                           </td>
                           <td>
@@ -431,23 +431,23 @@ const reappropriations = ref([
 // Store released amounts for each budget head and pd_component combination
 const releasedAmounts = ref({})
 
-// Function to fetch released amount for a budget head and pd_component
-const fetchReleasedAmount = async (budgetHead, pdComp) => {
-  if (!budgetHead || !pdComp) {
+// Function to fetch total M.S Release for a budget head (regardless of pd_component)
+const fetchReleasedAmount = async (budgetHead) => {
+  if (!budgetHead) {
     return 0;
   }
   
-  const cacheKey = `${budgetHead}|${pdComp}`;
+  const cacheKey = budgetHead; // Use only budget_head as key
   
   // Return cached value if available
   if (releasedAmounts.value[cacheKey] !== undefined) {
     return releasedAmounts.value[cacheKey];
   }
   
-  // Fetch from API
+  // Fetch from API - get total M.S Release for this budget head (all pd_components)
   try {
     const response = await fetch(
-      `/api/mother-sanction/released-amount?budget_head=${encodeURIComponent(budgetHead)}&pd_component=${encodeURIComponent(pdComp)}`
+      `/api/mother-sanction/released-amount?budget_head=${encodeURIComponent(budgetHead)}`
     );
     
     if (response.ok) {
@@ -471,17 +471,21 @@ const fetchReleasedAmount = async (budgetHead, pdComp) => {
 }
 
 // Function to get current available fund amount
-// Formula: total allocation (available_amount) - sum of mother_sanction_amount released
+// Formula: Current Available Fund Amount = (Total Allocation corresponding to the budget head) - (Total M.S Release)
 const getCurrentAvailableFundAmount = (row) => {
-  if (!row.budget_head || !pdComponent.value) {
+  if (!row.budget_head) {
     return '0.00000';
   }
   
-  const availableAmount = parseFloat(row.available_amount) || 0;
-  const cacheKey = `${row.budget_head}|${pdComponent.value}`;
-  const releasedAmount = releasedAmounts.value[cacheKey] || 0;
+  // Total Allocation = available_amount (sum of all allocations for this budget head corresponding to SLS and state)
+  const totalAllocation = parseFloat(row.available_amount) || 0;
   
-  const currentAvailable = availableAmount - releasedAmount;
+  // Total M.S Release = sum of all mother_sanction_amount for this budget head (regardless of pd_component)
+  const cacheKey = row.budget_head; // Use only budget_head as key for total M.S Release
+  const totalMsRelease = releasedAmounts.value[cacheKey] || 0;
+  
+  // Current Available Fund Amount = Total Allocation - Total M.S Release
+  const currentAvailable = totalAllocation - totalMsRelease;
   
   // Format to 5 decimal places
   return currentAvailable >= 0 ? currentAvailable.toFixed(5) : '0.00000';
@@ -616,29 +620,41 @@ const submitData = async (status) => {
       }
     });
 
-    if (response.ok) {
-      const result = await response.json();
-      
+    // Parse JSON response
+    let result = {};
+    try {
+      const responseText = await response.text();
+      if (responseText) {
+        result = JSON.parse(responseText);
+      }
+    } catch (jsonError) {
+      console.error('Error parsing response:', jsonError);
+      showFlashMessage('danger', 'Invalid response from server. Please try again.', 'fas fa-exclamation-triangle');
+      return;
+    }
+    
+    if (response.ok && result.message) {
+      // Success response
       if (status === 1) {
-        showFlashMessage('success', 'Data submitted successfully!', 'fas fa-check-circle');
+        showFlashMessage('success', result.message || 'Data submitted successfully!', 'fas fa-check-circle');
       } else {
-        showFlashMessage('info', 'Data saved as draft successfully!', 'fas fa-save');
+        showFlashMessage('info', result.message || 'Data saved as draft successfully!', 'fas fa-save');
       }
       
       // Reset form after successful submission
-      resetForm();
+      setTimeout(() => {
+        resetForm();
+      }, 1500); // Delay reset to allow user to see the success message
     } else {
-      // Handle HTTP error responses
-      const errorData = await response.json().catch(() => ({}));
-      
-      if (response.status === 422 && errorData.errors) {
+      // Handle error responses
+      if (response.status === 422 && result.errors) {
         // Validation errors
-        const errorMessages = Object.values(errorData.errors).flat();
+        const errorMessages = Object.values(result.errors).flat();
         const errorMessage = errorMessages.join(', ');
         showFlashMessage('danger', `Validation failed: ${errorMessage}`, 'fas fa-exclamation-triangle');
       } else {
-        // Other errors
-        const errorMessage = errorData.message || 'An error occurred while saving the data.';
+        // Other errors - check for message or error field
+        const errorMessage = result.message || result.error || 'An error occurred while saving the data.';
         showFlashMessage('danger', errorMessage, 'fas fa-exclamation-triangle');
       }
     }
@@ -759,11 +775,11 @@ const prefillFormFromURL = async () => {
                 await fetchBudgetDetails(row);
               }
             }
-          } else if (selectedSlsId.value && selectedState.value && pdComponent.value) {
+          } else if (selectedSlsId.value && selectedState.value) {
             // For edit mode, also fetch released amounts for all budget heads
             for (const row of reappropriations.value) {
               if (row.budget_head) {
-                await fetchReleasedAmount(row.budget_head, pdComponent.value);
+                await fetchReleasedAmount(row.budget_head);
               }
             }
           }
@@ -930,10 +946,15 @@ const fetchBudgetDetails = async (row) => {
       
       // Check if data is an array and has items
       if (Array.isArray(data) && data.length > 0) {
-        // Use the first item from the array
+        // Sum all amounts to get Total Allocation for this budget head
+        const totalAmount = data.reduce((sum, item) => {
+          return sum + (parseFloat(item.amount) || 0);
+        }, 0);
+        
+        // Use the first item for category (should be same for all)
         const budgetData = data[0];
         row.category = budgetData.category || '';
-        row.available_amount = budgetData.amount || '';
+        row.available_amount = totalAmount.toFixed(5); // Total Allocation
       } else if (data && typeof data === 'object') {
         // Handle single object response
         row.category = data.category || '';
@@ -944,9 +965,9 @@ const fetchBudgetDetails = async (row) => {
         console.log('No budget details found for the selected budget head');
       }
       
-      // After fetching budget details, fetch released amount for current available fund calculation
-      if (row.budget_head && pdComponent.value) {
-        await fetchReleasedAmount(row.budget_head, pdComponent.value);
+      // After fetching budget details, fetch total M.S Release for current available fund calculation
+      if (row.budget_head) {
+        await fetchReleasedAmount(row.budget_head);
       }
     } else {
       clearRowData(row);
@@ -971,17 +992,17 @@ watch([selectedSlsId, selectedState], () => {
   releasedAmounts.value = {};
 });
 
-// Watch for changes in pd_component to refresh released amounts
-watch(pdComponent, () => {
-  // Clear released amounts cache when PD component changes
+// Watch for changes in budget heads to refresh released amounts
+watch(() => reappropriations.value.map(r => r.budget_head), () => {
+  // Clear released amounts cache when budget heads change
   releasedAmounts.value = {};
   // Re-fetch released amounts for all rows with budget heads
   reappropriations.value.forEach(async (row) => {
-    if (row.budget_head && pdComponent.value) {
-      await fetchReleasedAmount(row.budget_head, pdComponent.value);
+    if (row.budget_head) {
+      await fetchReleasedAmount(row.budget_head);
     }
   });
-});
+}, { deep: true });
 
 const clearRowData = (row) => {
   row.category = '';

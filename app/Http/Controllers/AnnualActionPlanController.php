@@ -473,6 +473,7 @@ class AnnualActionPlanController extends Controller
             $validator = Validator::make($request->all(), [
                 'allocations' => 'required|array|min:1',
                 'allocations.*.financial_year' => 'required|string',
+                'allocations.*.budget_phase' => 'nullable|string|in:BE,RE,FE',
                 'allocations.*.bh_id' => 'required|integer',
                 'allocations.*.pd_id' => 'required|integer',
                 'allocations.*.amount' => 'required|numeric|min:0',
@@ -493,12 +494,21 @@ class AnnualActionPlanController extends Controller
             try {
                 // Process each allocation - update if exists, insert if new
                 foreach ($request->allocations as $allocation) {
-                    // Check if record exists for the same bh_id, financial_year, and pd_id
-                    $existingRecord = PdwiseAapAllocation::where([
+                    // Check if record exists for the same bh_id, financial_year, budget_phase, and pd_id
+                    $whereConditions = [
                         'bh_id' => $allocation['bh_id'],
                         'financial_year' => $allocation['financial_year'],
                         'pd_id' => $allocation['pd_id']
-                    ])->first();
+                    ];
+                    
+                    // Handle budget_phase (can be null)
+                    if (isset($allocation['budget_phase']) && $allocation['budget_phase'] !== null && $allocation['budget_phase'] !== '') {
+                        $whereConditions['budget_phase'] = $allocation['budget_phase'];
+                    } else {
+                        $whereConditions['budget_phase'] = null;
+                    }
+                    
+                    $existingRecord = PdwiseAapAllocation::where($whereConditions)->first();
 
                     if ($existingRecord) {
                         // Update existing record
@@ -511,6 +521,7 @@ class AnnualActionPlanController extends Controller
                         // Insert new record
                         PdwiseAapAllocation::create([
                             'financial_year' => $allocation['financial_year'],
+                            'budget_phase' => $allocation['budget_phase'],
                             'bh_id' => $allocation['bh_id'],
                             'pd_id' => $allocation['pd_id'],
                             'amount' => $allocation['amount'],
@@ -549,9 +560,16 @@ class AnnualActionPlanController extends Controller
     {
         try {
             $financialYear = $request->get('financial_year', '2025-26');
+            $budgetPhase = $request->get('budget_phase');
 
-            $allocations = PdwiseAapAllocation::where('financial_year', $financialYear)
-                ->get()
+            $query = PdwiseAapAllocation::where('financial_year', $financialYear);
+            
+            // Filter by budget phase if provided
+            if ($budgetPhase && $budgetPhase !== '0') {
+                $query->where('budget_phase', $budgetPhase);
+            }
+
+            $allocations = $query->get()
                 ->groupBy('bh_id')
                 ->map(function ($bhAllocations) {
                     return $bhAllocations->keyBy('pd_id')->map(function ($allocation) {
@@ -577,8 +595,11 @@ class AnnualActionPlanController extends Controller
                 });
 
             // Get remarks for each budget head
-            $remarks = PdwiseAapAllocation::where('financial_year', $financialYear)
-                ->whereNotNull('remark')
+            $remarksQuery = PdwiseAapAllocation::where('financial_year', $financialYear);
+            if ($budgetPhase && $budgetPhase !== '0') {
+                $remarksQuery->where('budget_phase', $budgetPhase);
+            }
+            $remarks = $remarksQuery->whereNotNull('remark')
                 ->pluck('remark', 'bh_id')
                 ->toArray();
 

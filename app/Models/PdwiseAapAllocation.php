@@ -13,6 +13,7 @@ class PdwiseAapAllocation extends Model
 
     protected $fillable = [
         'financial_year',
+        'budget_phase',
         'bh_id',
         'pd_id',
         'amount',

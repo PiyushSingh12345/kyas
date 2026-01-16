@@ -98,24 +98,29 @@ class MotherSanctionController extends Controller
     {
         try {
             $budgetHead = $request->query('budget_head');
-            $pdComponent = $request->query('pd_component');
+            $pdComponent = $request->query('pd_component'); // Optional parameter for backward compatibility
 
-            if (!$budgetHead || !$pdComponent) {
+            if (!$budgetHead) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Budget head and PD component are required',
+                    'message' => 'Budget head is required',
                     'total_released' => 0
                 ], 400);
             }
 
             // Sum all mother_sanction_amount from mother_sanction table
-            // where budget_head and pd_component match
-            $totalReleased = DB::table('mother_sanction')
+            // where budget_head matches (regardless of pd_component for Total M.S Release)
+            $query = DB::table('mother_sanction')
                 ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
-                ->whereRaw('TRIM(pd_component) COLLATE utf8mb4_unicode_ci = TRIM(?) COLLATE utf8mb4_unicode_ci', [$pdComponent])
                 ->where('status', 1)
-                ->whereNotNull('mother_sanction_amount')
-                ->sum('mother_sanction_amount');
+                ->whereNotNull('mother_sanction_amount');
+            
+            // If pd_component is provided, filter by it (for backward compatibility)
+            if ($pdComponent) {
+                $query->whereRaw('TRIM(pd_component) COLLATE utf8mb4_unicode_ci = TRIM(?) COLLATE utf8mb4_unicode_ci', [$pdComponent]);
+            }
+            
+            $totalReleased = $query->sum('mother_sanction_amount');
 
             return response()->json([
                 'success' => true,
