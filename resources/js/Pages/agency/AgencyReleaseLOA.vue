@@ -22,6 +22,13 @@
             </ul>
           </div>
 
+          <!-- Flash Message - Positioned below heading -->
+          <div v-if="flashMessage.show" :class="`alert alert-${flashMessage.type} alert-dismissible fade show mb-4`" role="alert">
+            <i :class="flashMessage.icon"></i>
+            {{ flashMessage.message }}
+            <button type="button" class="btn-close" @click="hideFlashMessage" aria-label="Close"></button>
+          </div>
+
           <div class="row">
             <div class="col-md-12">
               <div class="card">
@@ -30,13 +37,6 @@
                 </div>
 
                 <div class="card-body">
-                  <!-- Flash Message -->
-                  <div v-if="flashMessage.show" :class="`alert alert-${flashMessage.type} alert-dismissible fade show`" role="alert">
-                    <i :class="flashMessage.icon"></i>
-                    {{ flashMessage.message }}
-                    <button type="button" class="btn-close" @click="hideFlashMessage" aria-label="Close"></button>
-                  </div>
-
                   <form @submit.prevent="submitForm">
                     <div class="row">
                       <!-- Sanction Number -->
@@ -121,6 +121,22 @@
                         </div>
                       </div>
 
+                      <!-- Balanced Fund Amount -->
+                      <div class="col-md-6 col-lg-4">
+                        <div class="form-group">
+                          <label for="balancedFundAmount">Balanced Fund Amount</label>
+                          <input 
+                            type="number" 
+                            class="form-control" 
+                            id="balancedFundAmount" 
+                            v-model="balancedFundAmount"
+                            step="0.01"
+                            placeholder="Balanced Fund Amount"
+                            disabled
+                          >
+                        </div>
+                      </div>
+
                       <!-- Amount -->
                       <div class="col-md-6 col-lg-4">
                         <div class="form-group">
@@ -128,13 +144,18 @@
                           <input 
                             type="number" 
                             class="form-control" 
+                            :class="{ 'is-invalid': amountExceedsBalance }"
                             id="amount" 
                             v-model="formData.amount"
                             step="0.01"
                             min="0"
+                            :max="balancedFundAmount > 0 ? balancedFundAmount : undefined"
                             placeholder="Enter Amount"
                             required
                           >
+                          <div v-if="amountExceedsBalance" class="invalid-feedback">
+                            Amount cannot exceed Balanced Fund Amount (₹{{ balancedFundAmount.toFixed(2) }} lakhs)
+                          </div>
                         </div>
                       </div>
 
@@ -152,12 +173,9 @@
                             <option value="Ladakh">Ladakh</option>
                             <option value="Andaman and Nicobar">Andaman and Nicobar</option>
                             <option value="Lakshadweep">Lakshadweep</option>
-                            <option value="Daman and Diu">Daman and Diu</option>
-                            <option value="Dadra and Nagar Haveli">Dadra and Nagar Haveli</option>
+                            <!-- <option value="Daman and Diu">Daman and Diu</option> -->
+                            <option value="Dadra & Nagar Haveli and Daman & Diu">Dadra & Nagar Haveli and Daman & Diu</option>
                             <option value="Chandigarh">Chandigarh</option>
-                            <option value="Puducherry">Puducherry</option>
-                            <option value="Delhi">Delhi</option>
-                            <option value="Jammu and Kashmir">Jammu and Kashmir</option>
                           </select>
                         </div>
                       </div>
@@ -167,8 +185,11 @@
                     <div class="card-footer">
                       <div class="form">
                         <div class="col-12 d-flex justify-content-center">
-                          <button type="submit" class="btn btn-success me-1">Submit</button>
-                          <button type="button" class="btn btn-danger me-1" @click="resetForm">Reset</button>
+                          <button type="submit" class="btn btn-success me-1" :disabled="isSubmitting">
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            {{ isSubmitting ? 'Submitting...' : 'Submit' }}
+                          </button>
+                          <button type="button" class="btn btn-danger me-1" @click="resetForm" :disabled="isSubmitting">Reset</button>
                         </div>
                       </div>
                     </div>
@@ -185,7 +206,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
@@ -202,6 +223,14 @@ const formData = ref({
 
 const budgetHeads = ref([])
 const programDivisions = ref([])
+const balancedFundAmount = ref(0)
+const isSubmitting = ref(false)
+
+// Computed property to check if amount exceeds balanced fund amount
+const amountExceedsBalance = computed(() => {
+  const amount = parseFloat(formData.value.amount)
+  return !isNaN(amount) && amount > 0 && balancedFundAmount.value > 0 && amount > balancedFundAmount.value
+})
 
 // Flash message state
 const flashMessage = ref({
@@ -212,16 +241,28 @@ const flashMessage = ref({
 })
 
 const showFlashMessage = (type, message, icon) => {
-  flashMessage.value = {
-    show: true,
-    type,
-    message,
-    icon
-  }
+  // First hide any existing message
+  flashMessage.value.show = false
   
-  setTimeout(() => {
-    hideFlashMessage()
-  }, 5000)
+  // Use nextTick to ensure the DOM updates before showing new message
+  nextTick(() => {
+    flashMessage.value = {
+      show: true,
+      type,
+      message,
+      icon
+    }
+    
+    // Scroll to top to ensure message is visible
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 100)
+    
+    // Auto-hide after 2 seconds
+    setTimeout(() => {
+      hideFlashMessage()
+    }, 2000)
+  })
 }
 
 const hideFlashMessage = () => {
@@ -269,7 +310,41 @@ const fetchProgramDivisions = async () => {
   }
 }
 
-const resetForm = () => {
+const fetchBalancedFundAmount = async () => {
+  const budgetHead = formData.value.budgetHead
+  
+  if (!budgetHead) {
+    balancedFundAmount.value = 0
+    return
+  }
+
+  try {
+    // Fetch allocated amount (sum of all PDs) and sum of releases for the selected budget head
+    const url = `/api/balanced-fund-amount-loa?budget_head=${encodeURIComponent(budgetHead)}`
+    
+    const response = await fetch(url)
+    if (response.ok) {
+      const data = await response.json()
+      // Calculate: Sum of All PDs' Allocations - Sum of All Agency Releases
+      const allocatedAmount = parseFloat(data.allocated_amount || 0)
+      const totalReleases = parseFloat(data.total_releases || 0)
+      balancedFundAmount.value = allocatedAmount - totalReleases
+    } else {
+      console.error('Failed to fetch balanced fund amount')
+      balancedFundAmount.value = 0
+    }
+  } catch (error) {
+    console.error('Error fetching balanced fund amount:', error)
+    balancedFundAmount.value = 0
+  }
+}
+
+// Watch for changes in budget head to update balanced fund amount
+watch(() => formData.value.budgetHead, () => {
+  fetchBalancedFundAmount()
+})
+
+const resetForm = (hideMessage = true) => {
   formData.value = {
     sanctionNumber: '',
     date: '',
@@ -280,12 +355,18 @@ const resetForm = () => {
     ut: ''
   }
   
+  // Reset balanced fund amount
+  balancedFundAmount.value = 0
+  
   // Reset select2
   if (window.$ && window.$('#budgetHead').data('select2')) {
     window.$('#budgetHead').val(null).trigger('change')
   }
   
-  hideFlashMessage()
+  // Only hide message if explicitly requested (e.g., user clicks Reset button)
+  if (hideMessage) {
+    hideFlashMessage()
+  }
 }
 
 const submitForm = async () => {
@@ -296,6 +377,15 @@ const submitForm = async () => {
     showFlashMessage('danger', 'Please fill in all required fields', 'fas fa-exclamation-triangle')
     return
   }
+
+  // Check if amount exceeds balanced fund amount
+  if (amountExceedsBalance.value) {
+    showFlashMessage('danger', `Amount cannot exceed Balanced Fund Amount of ₹${balancedFundAmount.value.toFixed(2)} lakhs`, 'fas fa-exclamation-triangle')
+    return
+  }
+
+  // Set submitting state
+  isSubmitting.value = true
 
   try {
     // Prepare data with proper types
@@ -321,7 +411,7 @@ const submitForm = async () => {
     if (response.ok) {
       const result = await response.json()
       showFlashMessage('success', 'LOA data saved successfully!', 'fas fa-check-circle')
-      resetForm()
+      resetForm(false) // Don't hide the success message when resetting after successful submission
     } else {
       const errorData = await response.json().catch(() => ({}))
       const errorMessage = errorData.message || 'Failed to save data. Please try again.'
@@ -330,6 +420,9 @@ const submitForm = async () => {
   } catch (error) {
     console.error('Error submitting form:', error)
     showFlashMessage('danger', 'An error occurred while submitting the form. Please try again.', 'fas fa-exclamation-triangle')
+  } finally {
+    // Always reset submitting state
+    isSubmitting.value = false
   }
 }
 
@@ -379,26 +472,30 @@ onMounted(async () => {
 .alert {
   border-radius: 8px;
   border: none;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
   margin-bottom: 20px;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 1rem 1.5rem;
+  position: relative;
+  z-index: 100;
 }
 
 .alert-success {
   background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
   color: #155724;
-  border-left: 4px solid #28a745;
+  border-left: 5px solid #28a745;
 }
 
 .alert-danger {
   background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
   color: #721c24;
-  border-left: 4px solid #dc3545;
+  border-left: 5px solid #dc3545;
 }
 
 .alert i {
-  margin-right: 8px;
-  font-size: 1.1em;
+  margin-right: 10px;
+  font-size: 1.2em;
 }
 
 .btn-close {
@@ -412,6 +509,49 @@ onMounted(async () => {
 
 .text-danger {
   color: #dc3545;
+}
+
+.is-invalid {
+  border-color: #dc3545 !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right calc(0.375em + 0.1875rem) center;
+  background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+  padding-right: calc(1.5em + 0.75rem);
+}
+
+.invalid-feedback {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #dc3545;
+  font-weight: 500;
+}
+
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.2em;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.alert {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
 

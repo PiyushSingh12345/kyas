@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Models\AgencyReleaseTSA;
 use App\Models\AgencyReleaseLOA;
 use App\Models\AgencyReleaseAdministrativeExpenditure;
+use App\Models\BudgetPhase;
+use App\Models\BudgetHead;
 
 class AgencyReleaseController extends Controller
 {
@@ -26,6 +29,36 @@ class AgencyReleaseController extends Controller
                 'amount' => 'required|numeric|min:0',
                 'centralImplementingAgency' => 'required|string|max:255',
             ]);
+
+            // Get budget head record
+            $budgetHeadRecord = BudgetHead::where('budget', $validated['budgetHead'])->first();
+            
+            if (!$budgetHeadRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid budget head'
+                ], 422);
+            }
+
+            // Calculate balanced fund amount
+            $allocatedAmount = DB::table('pdwise_aap_allocation')
+                ->where('bh_id', $budgetHeadRecord->id)
+                ->where('status', 1)
+                ->sum('amount');
+
+            $totalReleases = AgencyReleaseTSA::where('budget_head', $validated['budgetHead'])
+                ->where('status', 1)
+                ->sum('amount');
+
+            $balancedFundAmount = $allocatedAmount - $totalReleases;
+
+            // Check if amount exceeds balanced fund amount
+            if ($validated['amount'] > $balancedFundAmount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Amount (₹{$validated['amount']} lakhs) cannot exceed Balanced Fund Amount (₹{$balancedFundAmount} lakhs)"
+                ], 422);
+            }
 
             $tsa = AgencyReleaseTSA::create([
                 'sanction_number' => $validated['sanctionNumber'],
@@ -81,6 +114,36 @@ class AgencyReleaseController extends Controller
                 'ut' => 'required|string|max:255',
             ]);
 
+            // Get budget head record
+            $budgetHeadRecord = BudgetHead::where('budget', $validated['budgetHead'])->first();
+            
+            if (!$budgetHeadRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid budget head'
+                ], 422);
+            }
+
+            // Calculate balanced fund amount
+            $allocatedAmount = DB::table('pdwise_aap_allocation')
+                ->where('bh_id', $budgetHeadRecord->id)
+                ->where('status', 1)
+                ->sum('amount');
+
+            $totalReleases = AgencyReleaseLOA::where('budget_head', $validated['budgetHead'])
+                ->where('status', 1)
+                ->sum('amount');
+
+            $balancedFundAmount = $allocatedAmount - $totalReleases;
+
+            // Check if amount exceeds balanced fund amount
+            if ($validated['amount'] > $balancedFundAmount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Amount (₹{$validated['amount']} lakhs) cannot exceed Balanced Fund Amount (₹{$balancedFundAmount} lakhs)"
+                ], 422);
+            }
+
             $loa = AgencyReleaseLOA::create([
                 'sanction_number' => $validated['sanctionNumber'],
                 'date' => $validated['date'],
@@ -134,6 +197,36 @@ class AgencyReleaseController extends Controller
                 'amount' => 'required|numeric|min:0',
                 'agencyVendor' => 'required|string|max:255',
             ]);
+
+            // Get budget head record
+            $budgetHeadRecord = BudgetHead::where('budget', $validated['budgetHead'])->first();
+            
+            if (!$budgetHeadRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid budget head'
+                ], 422);
+            }
+
+            // Calculate balanced fund amount
+            $allocatedAmount = DB::table('pdwise_aap_allocation')
+                ->where('bh_id', $budgetHeadRecord->id)
+                ->where('status', 1)
+                ->sum('amount');
+
+            $totalReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $validated['budgetHead'])
+                ->where('status', 1)
+                ->sum('amount');
+
+            $balancedFundAmount = $allocatedAmount - $totalReleases;
+
+            // Check if amount exceeds balanced fund amount
+            if ($validated['amount'] > $balancedFundAmount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Amount (₹{$validated['amount']} lakhs) cannot exceed Balanced Fund Amount (₹{$balancedFundAmount} lakhs)"
+                ], 422);
+            }
 
             $adminExp = AgencyReleaseAdministrativeExpenditure::create([
                 'sanction_number' => $validated['sanctionNumber'],
@@ -364,6 +457,174 @@ class AgencyReleaseController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update record: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get balanced fund amount for a budget head (TSA)
+     * Returns: Sum of all PDs' allocated amounts for the budget head - sum of all agency releases for the budget head
+     */
+    public function getBalancedFundAmount(Request $request): JsonResponse
+    {
+        try {
+            $budgetHead = $request->input('budget_head');
+
+            if (!$budgetHead) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Budget head is required'
+                ], 400);
+            }
+
+            // Get the budget head ID from the budget string (e.g., "2435.60.103.04.00.09")
+            $budgetHeadRecord = BudgetHead::where('budget', $budgetHead)->first();
+
+            if (!$budgetHeadRecord) {
+                Log::warning('Budget head not found', ['budget_head' => $budgetHead]);
+                return response()->json([
+                    'allocated_amount' => 0,
+                    'total_releases' => 0
+                ]);
+            }
+
+            // Get the sum of ALL Program Divisions' allocations for this budget head
+            $allocatedAmount = DB::table('pdwise_aap_allocation')
+                ->where('bh_id', $budgetHeadRecord->id)
+                ->where('status', 1)
+                ->sum('amount');
+
+            Log::info('Total PD-wise allocation fetched', [
+                'budget_head' => $budgetHead,
+                'budget_head_id' => $budgetHeadRecord->id,
+                'allocated_amount' => $allocatedAmount
+            ]);
+
+            // Get the sum of ALL agency releases for this budget head (across all PDs)
+            $totalReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
+                ->where('status', 1)
+                ->sum('amount');
+
+            Log::info('Total agency releases calculated', [
+                'budget_head' => $budgetHead,
+                'total_releases' => $totalReleases,
+                'balanced_amount' => $allocatedAmount - $totalReleases
+            ]);
+
+            return response()->json([
+                'allocated_amount' => $allocatedAmount ?? 0,
+                'total_releases' => $totalReleases ?? 0
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching balanced fund amount', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch balanced fund amount: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get balanced fund amount for a budget head (LOA)
+     */
+    public function getBalancedFundAmountLOA(Request $request): JsonResponse
+    {
+        try {
+            $budgetHead = $request->input('budget_head');
+
+            if (!$budgetHead) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Budget head is required'
+                ], 400);
+            }
+
+            $budgetHeadRecord = BudgetHead::where('budget', $budgetHead)->first();
+
+            if (!$budgetHeadRecord) {
+                return response()->json([
+                    'allocated_amount' => 0,
+                    'total_releases' => 0
+                ]);
+            }
+
+            $allocatedAmount = DB::table('pdwise_aap_allocation')
+                ->where('bh_id', $budgetHeadRecord->id)
+                ->where('status', 1)
+                ->sum('amount');
+
+            $totalReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
+                ->where('status', 1)
+                ->sum('amount');
+
+            return response()->json([
+                'allocated_amount' => $allocatedAmount ?? 0,
+                'total_releases' => $totalReleases ?? 0
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching balanced fund amount for LOA', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch balanced fund amount: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get balanced fund amount for a budget head (Administrative Expenditure)
+     */
+    public function getBalancedFundAmountAdminExp(Request $request): JsonResponse
+    {
+        try {
+            $budgetHead = $request->input('budget_head');
+
+            if (!$budgetHead) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Budget head is required'
+                ], 400);
+            }
+
+            $budgetHeadRecord = BudgetHead::where('budget', $budgetHead)->first();
+
+            if (!$budgetHeadRecord) {
+                return response()->json([
+                    'allocated_amount' => 0,
+                    'total_releases' => 0
+                ]);
+            }
+
+            $allocatedAmount = DB::table('pdwise_aap_allocation')
+                ->where('bh_id', $budgetHeadRecord->id)
+                ->where('status', 1)
+                ->sum('amount');
+
+            $totalReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
+                ->where('status', 1)
+                ->sum('amount');
+
+            return response()->json([
+                'allocated_amount' => $allocatedAmount ?? 0,
+                'total_releases' => $totalReleases ?? 0
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching balanced fund amount for Admin Exp', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch balanced fund amount: ' . $e->getMessage()
             ], 500);
         }
     }

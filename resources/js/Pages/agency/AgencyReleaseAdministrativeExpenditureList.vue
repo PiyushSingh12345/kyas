@@ -64,10 +64,10 @@
                             <th>Budget Head</th>
                             <th>Purpose of Grant</th>
                             <th>Program Division</th>
-                            <th>Amount</th>
+                            <th>Amount/Release/Expenditure</th>
                             <th>Agency/Vendor</th>
                             <!-- <th>Action</th> -->
-                            <th>Status</th>
+                            <!-- <th>Status</th> -->
                             <th>Created At</th>
                           </tr>
                         </thead>
@@ -100,16 +100,16 @@
                                 </button>
                               </div>
                             </td> -->
-                            <td class="text-center">
+                            <!-- <td class="text-center">
                               <span :class="item.status ? 'badge bg-success' : 'badge bg-secondary'">
                                 {{ item.status ? 'Active' : 'Inactive' }}
                               </span>
-                            </td>
+                            </td> -->
                             <td>{{ formatDateTime(item.created_at) }}</td>
                           </tr>
                           
                           <tr v-if="adminExpList.length === 0">
-                            <td colspan="10" class="text-center text-muted py-4">
+                            <td colspan="8" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No Administrative Expenditure data available
                             </td>

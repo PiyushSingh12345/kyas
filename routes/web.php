@@ -388,6 +388,9 @@ Route::post('/debug-excel', function(Request $request) {
     Route::post('/api/agency-release-administrative-expenditure', [AgencyReleaseController::class, 'storeAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.store');
     Route::get('/api/agency-release-administrative-expenditure-list', [AgencyReleaseController::class, 'listAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.list');
     Route::post('/api/agency-release/update-status', [AgencyReleaseController::class, 'updateStatus'])->middleware(['role:2'])->name('agency-release.updateStatus');
+    Route::get('/api/balanced-fund-amount', [AgencyReleaseController::class, 'getBalancedFundAmount'])->middleware(['role:2'])->name('balanced-fund-amount');
+    Route::get('/api/balanced-fund-amount-loa', [AgencyReleaseController::class, 'getBalancedFundAmountLOA'])->middleware(['role:2'])->name('balanced-fund-amount-loa');
+    Route::get('/api/balanced-fund-amount-admin-exp', [AgencyReleaseController::class, 'getBalancedFundAmountAdminExp'])->middleware(['role:2'])->name('balanced-fund-amount-admin-exp');
 
 
 
