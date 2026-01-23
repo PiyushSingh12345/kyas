@@ -40,16 +40,30 @@ class AgencyReleaseController extends Controller
                 ], 422);
             }
 
-            // Calculate balanced fund amount
+            // Calculate balanced fund amount for specific budget head + program division
             $allocatedAmount = DB::table('pdwise_aap_allocation')
                 ->where('bh_id', $budgetHeadRecord->id)
+                ->where('pd_id', $validated['programDivision'])
                 ->where('status', 1)
                 ->sum('amount');
 
-            $totalReleases = AgencyReleaseTSA::where('budget_head', $validated['budgetHead'])
+            // Sum releases from ALL THREE tables for this budget head + program division
+            $tsaReleases = AgencyReleaseTSA::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
                 ->where('status', 1)
                 ->sum('amount');
-
+            
+            $loaReleases = AgencyReleaseLOA::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
+                ->where('status', 1)
+                ->sum('amount');
+            
+            $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
+                ->where('status', 1)
+                ->sum('amount');
+            
+            $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
             $balancedFundAmount = $allocatedAmount - $totalReleases;
 
             // Check if amount exceeds balanced fund amount
@@ -124,16 +138,30 @@ class AgencyReleaseController extends Controller
                 ], 422);
             }
 
-            // Calculate balanced fund amount
+            // Calculate balanced fund amount for specific budget head + program division
             $allocatedAmount = DB::table('pdwise_aap_allocation')
                 ->where('bh_id', $budgetHeadRecord->id)
+                ->where('pd_id', $validated['programDivision'])
                 ->where('status', 1)
                 ->sum('amount');
 
-            $totalReleases = AgencyReleaseLOA::where('budget_head', $validated['budgetHead'])
+            // Sum releases from ALL THREE tables for this budget head + program division
+            $tsaReleases = AgencyReleaseTSA::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
                 ->where('status', 1)
                 ->sum('amount');
-
+            
+            $loaReleases = AgencyReleaseLOA::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
+                ->where('status', 1)
+                ->sum('amount');
+            
+            $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
+                ->where('status', 1)
+                ->sum('amount');
+            
+            $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
             $balancedFundAmount = $allocatedAmount - $totalReleases;
 
             // Check if amount exceeds balanced fund amount
@@ -208,16 +236,30 @@ class AgencyReleaseController extends Controller
                 ], 422);
             }
 
-            // Calculate balanced fund amount
+            // Calculate balanced fund amount for specific budget head + program division
             $allocatedAmount = DB::table('pdwise_aap_allocation')
                 ->where('bh_id', $budgetHeadRecord->id)
+                ->where('pd_id', $validated['programDivision'])
                 ->where('status', 1)
                 ->sum('amount');
 
-            $totalReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $validated['budgetHead'])
+            // Sum releases from ALL THREE tables for this budget head + program division
+            $tsaReleases = AgencyReleaseTSA::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
                 ->where('status', 1)
                 ->sum('amount');
-
+            
+            $loaReleases = AgencyReleaseLOA::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
+                ->where('status', 1)
+                ->sum('amount');
+            
+            $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $validated['budgetHead'])
+                ->where('program_division_id', $validated['programDivision'])
+                ->where('status', 1)
+                ->sum('amount');
+            
+            $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
             $balancedFundAmount = $allocatedAmount - $totalReleases;
 
             // Check if amount exceeds balanced fund amount
@@ -463,12 +505,15 @@ class AgencyReleaseController extends Controller
 
     /**
      * Get balanced fund amount for a budget head (TSA)
-     * Returns: Sum of all PDs' allocated amounts for the budget head - sum of all agency releases for the budget head
+     * When both budget_head and program_division are provided:
+     *   Returns: Amount allocated for that Budget head and Program Division - 
+     *            (sum of ALL amounts from TSA + LOA + Admin Exp for that Budget head and Program Division)
      */
     public function getBalancedFundAmount(Request $request): JsonResponse
     {
         try {
             $budgetHead = $request->input('budget_head');
+            $programDivisionId = $request->input('program_division_id');
 
             if (!$budgetHead) {
                 return response()->json([
@@ -488,28 +533,78 @@ class AgencyReleaseController extends Controller
                 ]);
             }
 
-            // Get the sum of ALL Program Divisions' allocations for this budget head
-            $allocatedAmount = DB::table('pdwise_aap_allocation')
-                ->where('bh_id', $budgetHeadRecord->id)
-                ->where('status', 1)
-                ->sum('amount');
+            // Calculate allocated amount based on whether program division is selected
+            $allocatedAmount = 0;
+            if ($programDivisionId) {
+                // Get allocation for specific budget head + program division
+                $allocatedAmount = DB::table('pdwise_aap_allocation')
+                    ->where('bh_id', $budgetHeadRecord->id)
+                    ->where('pd_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                Log::info('PD-specific allocation fetched', [
+                    'budget_head' => $budgetHead,
+                    'program_division_id' => $programDivisionId,
+                    'allocated_amount' => $allocatedAmount
+                ]);
+            } else {
+                // Get the sum of ALL Program Divisions' allocations for this budget head
+                $allocatedAmount = DB::table('pdwise_aap_allocation')
+                    ->where('bh_id', $budgetHeadRecord->id)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                Log::info('Total PD-wise allocation fetched', [
+                    'budget_head' => $budgetHead,
+                    'budget_head_id' => $budgetHeadRecord->id,
+                    'allocated_amount' => $allocatedAmount
+                ]);
+            }
 
-            Log::info('Total PD-wise allocation fetched', [
-                'budget_head' => $budgetHead,
-                'budget_head_id' => $budgetHeadRecord->id,
-                'allocated_amount' => $allocatedAmount
-            ]);
-
-            // Get the sum of ALL agency releases for this budget head (across all PDs)
-            $totalReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
-                ->where('status', 1)
-                ->sum('amount');
-
-            Log::info('Total agency releases calculated', [
-                'budget_head' => $budgetHead,
-                'total_releases' => $totalReleases,
-                'balanced_amount' => $allocatedAmount - $totalReleases
-            ]);
+            // Calculate total releases from ALL THREE tables (TSA, LOA, Admin Exp)
+            $totalReleases = 0;
+            
+            if ($programDivisionId) {
+                // Sum releases from all three tables for specific budget head + program division
+                $tsaReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $loaReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
+                
+                Log::info('PD-specific releases calculated from all tables', [
+                    'budget_head' => $budgetHead,
+                    'program_division_id' => $programDivisionId,
+                    'tsa_releases' => $tsaReleases,
+                    'loa_releases' => $loaReleases,
+                    'admin_exp_releases' => $adminExpReleases,
+                    'total_releases' => $totalReleases,
+                    'balanced_amount' => $allocatedAmount - $totalReleases
+                ]);
+            } else {
+                // Sum releases from TSA only for the budget head (backward compatibility)
+                $totalReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                Log::info('Total agency releases calculated', [
+                    'budget_head' => $budgetHead,
+                    'total_releases' => $totalReleases,
+                    'balanced_amount' => $allocatedAmount - $totalReleases
+                ]);
+            }
 
             return response()->json([
                 'allocated_amount' => $allocatedAmount ?? 0,
@@ -531,11 +626,15 @@ class AgencyReleaseController extends Controller
 
     /**
      * Get balanced fund amount for a budget head (LOA)
+     * When both budget_head and program_division are provided:
+     *   Returns: Amount allocated for that Budget head and Program Division - 
+     *            (sum of ALL amounts from TSA + LOA + Admin Exp for that Budget head and Program Division)
      */
     public function getBalancedFundAmountLOA(Request $request): JsonResponse
     {
         try {
             $budgetHead = $request->input('budget_head');
+            $programDivisionId = $request->input('program_division_id');
 
             if (!$budgetHead) {
                 return response()->json([
@@ -553,14 +652,50 @@ class AgencyReleaseController extends Controller
                 ]);
             }
 
-            $allocatedAmount = DB::table('pdwise_aap_allocation')
-                ->where('bh_id', $budgetHeadRecord->id)
-                ->where('status', 1)
-                ->sum('amount');
+            // Calculate allocated amount based on whether program division is selected
+            $allocatedAmount = 0;
+            if ($programDivisionId) {
+                // Get allocation for specific budget head + program division
+                $allocatedAmount = DB::table('pdwise_aap_allocation')
+                    ->where('bh_id', $budgetHeadRecord->id)
+                    ->where('pd_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+            } else {
+                // Get the sum of ALL Program Divisions' allocations for this budget head
+                $allocatedAmount = DB::table('pdwise_aap_allocation')
+                    ->where('bh_id', $budgetHeadRecord->id)
+                    ->where('status', 1)
+                    ->sum('amount');
+            }
 
-            $totalReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
-                ->where('status', 1)
-                ->sum('amount');
+            // Calculate total releases from ALL THREE tables (TSA, LOA, Admin Exp)
+            $totalReleases = 0;
+            
+            if ($programDivisionId) {
+                // Sum releases from all three tables for specific budget head + program division
+                $tsaReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $loaReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
+            } else {
+                // Sum releases from LOA only for the budget head (backward compatibility)
+                $totalReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
+                    ->where('status', 1)
+                    ->sum('amount');
+            }
 
             return response()->json([
                 'allocated_amount' => $allocatedAmount ?? 0,
@@ -581,11 +716,15 @@ class AgencyReleaseController extends Controller
 
     /**
      * Get balanced fund amount for a budget head (Administrative Expenditure)
+     * When both budget_head and program_division are provided:
+     *   Returns: Amount allocated for that Budget head and Program Division - 
+     *            (sum of ALL amounts from TSA + LOA + Admin Exp for that Budget head and Program Division)
      */
     public function getBalancedFundAmountAdminExp(Request $request): JsonResponse
     {
         try {
             $budgetHead = $request->input('budget_head');
+            $programDivisionId = $request->input('program_division_id');
 
             if (!$budgetHead) {
                 return response()->json([
@@ -603,14 +742,50 @@ class AgencyReleaseController extends Controller
                 ]);
             }
 
-            $allocatedAmount = DB::table('pdwise_aap_allocation')
-                ->where('bh_id', $budgetHeadRecord->id)
-                ->where('status', 1)
-                ->sum('amount');
+            // Calculate allocated amount based on whether program division is selected
+            $allocatedAmount = 0;
+            if ($programDivisionId) {
+                // Get allocation for specific budget head + program division
+                $allocatedAmount = DB::table('pdwise_aap_allocation')
+                    ->where('bh_id', $budgetHeadRecord->id)
+                    ->where('pd_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+            } else {
+                // Get the sum of ALL Program Divisions' allocations for this budget head
+                $allocatedAmount = DB::table('pdwise_aap_allocation')
+                    ->where('bh_id', $budgetHeadRecord->id)
+                    ->where('status', 1)
+                    ->sum('amount');
+            }
 
-            $totalReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
-                ->where('status', 1)
-                ->sum('amount');
+            // Calculate total releases from ALL THREE tables (TSA, LOA, Admin Exp)
+            $totalReleases = 0;
+            
+            if ($programDivisionId) {
+                // Sum releases from all three tables for specific budget head + program division
+                $tsaReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $loaReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
+                    ->where('program_division_id', $programDivisionId)
+                    ->where('status', 1)
+                    ->sum('amount');
+                
+                $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
+            } else {
+                // Sum releases from Admin Exp only for the budget head (backward compatibility)
+                $totalReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
+                    ->where('status', 1)
+                    ->sum('amount');
+            }
 
             return response()->json([
                 'allocated_amount' => $allocatedAmount ?? 0,

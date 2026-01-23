@@ -312,6 +312,7 @@ const fetchProgramDivisions = async () => {
 
 const fetchBalancedFundAmount = async () => {
   const budgetHead = formData.value.budgetHead
+  const programDivisionId = formData.value.programDivision
   
   if (!budgetHead) {
     balancedFundAmount.value = 0
@@ -319,13 +320,18 @@ const fetchBalancedFundAmount = async () => {
   }
 
   try {
-    // Fetch allocated amount (sum of all PDs) and sum of releases for the selected budget head
-    const url = `/api/balanced-fund-amount-loa?budget_head=${encodeURIComponent(budgetHead)}`
+    // Build URL with budget head and optionally program division
+    let url = `/api/balanced-fund-amount-loa?budget_head=${encodeURIComponent(budgetHead)}`
+    
+    // When both budget head and program division are selected, pass both
+    if (programDivisionId) {
+      url += `&program_division_id=${encodeURIComponent(programDivisionId)}`
+    }
     
     const response = await fetch(url)
     if (response.ok) {
       const data = await response.json()
-      // Calculate: Sum of All PDs' Allocations - Sum of All Agency Releases
+      // Calculate: Allocated Amount - Total Releases (from all 3 tables when PD is selected)
       const allocatedAmount = parseFloat(data.allocated_amount || 0)
       const totalReleases = parseFloat(data.total_releases || 0)
       balancedFundAmount.value = allocatedAmount - totalReleases
@@ -339,8 +345,8 @@ const fetchBalancedFundAmount = async () => {
   }
 }
 
-// Watch for changes in budget head to update balanced fund amount
-watch(() => formData.value.budgetHead, () => {
+// Watch for changes in budget head OR program division to update balanced fund amount
+watch(() => [formData.value.budgetHead, formData.value.programDivision], () => {
   fetchBalancedFundAmount()
 })
 

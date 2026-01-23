@@ -129,6 +129,13 @@
                       </div>
                     </div>
 
+                    <!-- Error Alert -->
+                    <div v-if="errorMessage" class="alert alert-danger alert-dismissible fade show" role="alert">
+                      <i class="fas fa-exclamation-triangle me-2"></i>
+                      {{ errorMessage }}
+                      <button type="button" class="btn-close" @click="errorMessage = ''" aria-label="Close"></button>
+                    </div>
+
                     <!-- Export Buttons -->
                     <div class="row mb-3" v-if="filteredMotherSanctions.length > 0">
                       <div class="col-12 d-flex justify-content-end align-items-center">
@@ -177,7 +184,22 @@
                         </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="(item, index) in filteredMotherSanctions" :key="item.id">
+                          <tr v-if="isLoading">
+                            <td colspan="12" class="text-center py-4">
+                              <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                              </div>
+                              <p class="mt-2 mb-0">Loading daily sanction data...</p>
+                            </td>
+                          </tr>
+                          <tr v-else-if="!isLoading && filteredMotherSanctions.length === 0">
+                            <td colspan="12" class="text-center py-4 text-muted">
+                              <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                              <p class="mb-0">No daily sanction records found.</p>
+                              <small>Try adjusting your filters or check back later.</small>
+                            </td>
+                          </tr>
+                          <tr v-else v-for="(item, index) in filteredMotherSanctions" :key="item.id">
                             <!-- <td>{{ index + 1 }}</td> -->
                             <td>{{ item.financial_year }}</td>
                             <td>{{ item.state.name }}</td>
@@ -270,12 +292,14 @@ import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 
 const motherSanctions = ref([])
+const allMotherSanctions = ref([])
 const selectedFinancialYear = ref('')
 const selectedState = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
 const searchTerm = ref('')
 const isLoading = ref(false)
+const errorMessage = ref('')
 
 // Function to format date to dd-mm-yyyy format
 const formatDate = (dateString) => {
@@ -319,6 +343,7 @@ const uniqueStates = computed(() => {
 // Function to fetch data from API
 const fetchDailySanctions = async (financialYear = '') => {
   isLoading.value = true
+  errorMessage.value = ''
   try {
     let url = '/api/daily-sanctions-list'
     if (financialYear) {
@@ -330,11 +355,15 @@ const fetchDailySanctions = async (financialYear = '') => {
       const data = await res.json()
       allMotherSanctions.value = data
       motherSanctions.value = data
+      console.log('Daily sanctions fetched:', data.length, 'records')
     } else {
-      console.error('Failed to fetch data')
+      const errorText = await res.text()
+      console.error('Failed to fetch data:', res.status, errorText)
+      errorMessage.value = `Failed to fetch data: ${res.status} ${res.statusText}`
     }
   } catch (error) {
     console.error('Error fetching data:', error)
+    errorMessage.value = `Error fetching data: ${error.message}`
   } finally {
     isLoading.value = false
   }

@@ -330,6 +330,27 @@
 												  </div>
 											  </div>
 
+											  <!-- Include 3601 Head Option -->
+											  <div class="row mt-3">
+												  <div class="col-12">
+													  <label class="form-label fw-bold mb-2">Major Head Options:</label>
+													  <div class="d-flex gap-3 flex-wrap">
+														  <div class="form-check">
+															  <input 
+																  class="form-check-input" 
+																  type="checkbox" 
+																  id="include3601In2552"
+																  v-model="include3601In2552"
+																  @change="recategorizeWithInclude3601"
+															  >
+															  <label class="form-check-label" for="include3601In2552">
+																  Include 3601 Head under 2552 Major Head
+															  </label>
+														  </div>
+													  </div>
+												  </div>
+											  </div>
+
 											  <!-- Filter Actions -->
 											  <div class="row mt-3">
 												  <div class="col-12">
@@ -716,6 +737,9 @@
   const showFeAllocation = ref(true)
   const showRelease = ref(true)
   const showExpenditure = ref(true)
+  
+  // Major head options
+  const include3601In2552 = ref(false)
 
   // Watch column visibility to ensure at least one column is always visible
   watch([showAllocation, showReAllocation, showFeAllocation, showRelease, showExpenditure], 
@@ -728,7 +752,7 @@
   })
 
   // Function to categorize budget heads based on the logic provided
-  const categorizeBudgetHeads = (budgetHeadsList) => {
+  const categorizeBudgetHeads = (budgetHeadsList, includeHeads3601In2552 = false) => {
     if (!budgetHeadsList || budgetHeadsList.length === 0) {
       console.log('No budget heads to categorize')
       return []
@@ -748,10 +772,26 @@
       
       const first4Digits = budgetCode.substring(0, 4)
       
-      if (!groupedByMajorHead[first4Digits]) {
-        groupedByMajorHead[first4Digits] = []
+      // If include3601In2552 is true and current head is 3601, add it to both 3601 and 2552
+      if (includeHeads3601In2552 && first4Digits === '3601') {
+        // Add to 3601 group
+        if (!groupedByMajorHead['3601']) {
+          groupedByMajorHead['3601'] = []
+        }
+        groupedByMajorHead['3601'].push(bh)
+        
+        // Also add to 2552 group
+        if (!groupedByMajorHead['2552']) {
+          groupedByMajorHead['2552'] = []
+        }
+        groupedByMajorHead['2552'].push(bh)
+      } else {
+        // Normal grouping
+        if (!groupedByMajorHead[first4Digits]) {
+          groupedByMajorHead[first4Digits] = []
+        }
+        groupedByMajorHead[first4Digits].push(bh)
       }
-      groupedByMajorHead[first4Digits].push(bh)
     })
     
     console.log('Grouped by major head:', groupedByMajorHead)
@@ -835,6 +875,20 @@
     return categories
   }
   
+  // Function to recategorize when include3601In2552 changes
+  const recategorizeWithInclude3601 = () => {
+    categorizing.value = true
+    try {
+      categorizedBudgetHeads.value = categorizeBudgetHeads(budgetHeads.value, include3601In2552.value)
+      console.log('Recategorized with include3601In2552:', include3601In2552.value)
+    } catch (categorizeError) {
+      console.error('Error recategorizing budget heads:', categorizeError)
+      error.value = 'Failed to recategorize budget heads: ' + categorizeError.message
+    } finally {
+      categorizing.value = false
+    }
+  }
+  
   // Fetch budget heads from API
   const fetchBudgetHeads = async () => {
 	try {
@@ -847,7 +901,7 @@
 	  // Categorize the budget heads
 	  categorizing.value = true
 	  try {
-		categorizedBudgetHeads.value = categorizeBudgetHeads(data)
+		categorizedBudgetHeads.value = categorizeBudgetHeads(data, include3601In2552.value)
 		console.log('Categorized budget heads:', categorizedBudgetHeads.value)
 	  } catch (categorizeError) {
 		console.error('Error categorizing budget heads:', categorizeError)
