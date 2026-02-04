@@ -104,6 +104,10 @@ Route::get('/daily-sanction', function () {
     return Inertia::render('Daily_sanction/DailySanction');
 })->middleware(['auth', 'verified', 'role:2'])->name('daily-sanction');
 
+Route::get('/daily-sanction-bulk-upload', function () {
+    return Inertia::render('Daily_sanction/DailySanctionBulkUpload');
+})->middleware(['auth', 'verified', 'role:2'])->name('daily-sanction-bulk-upload');
+
 Route::get('/re-appropriation-of-funds', function () {
     return Inertia::render('Reappropriation/ReAppropriationOfFunds');
 })->middleware(['auth', 'verified', 'role:2'])->name('re-appropriation-of-funds');
@@ -372,6 +376,8 @@ Route::post('/debug-excel', function(Request $request) {
 
     Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
     Route::get('/api/daily-sanction-time-series', [DailySanctionController::class, 'timeSeriesReport'])->name('dailySanction.timeSeriesReport');
+    Route::post('/api/daily-sanction-bulk-upload-preview', [DailySanctionController::class, 'uploadPreview'])->name('dailySanction.bulkUploadPreview');
+    Route::post('/api/daily-sanction-bulk-store', [DailySanctionController::class, 'bulkStore'])->name('dailySanction.bulkStore');
 
     // PDF processing routes for Daily Sanction
     Route::post('/api/daily-sanction/process-pdf', [App\Http\Controllers\DailySanctionPdfController::class, 'processPdf'])->name('dailySanction.processPdf');

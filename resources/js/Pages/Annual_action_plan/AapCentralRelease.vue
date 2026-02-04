@@ -330,23 +330,24 @@
 												  </div>
 											  </div>
 
-											  <!-- Include 3601 Head Option -->
+											  <!-- Include 2552 Head Option (for North-East States: 7 sisters + Sikkim) -->
 											  <div class="row mt-3">
 												  <div class="col-12">
 													  <label class="form-label fw-bold mb-2">Major Head Options:</label>
-													  <div class="d-flex gap-3 flex-wrap">
+													  <div class="d-flex gap-3 flex-wrap align-items-center">
 														  <div class="form-check">
 															  <input 
 																  class="form-check-input" 
 																  type="checkbox" 
-																  id="include3601In2552"
-																  v-model="include3601In2552"
-																  @change="recategorizeWithInclude3601"
+																  id="include2552In3601"
+																  v-model="include2552In3601"
+																  @change="recategorizeWithInclude2552"
 															  >
-															  <label class="form-check-label" for="include3601In2552">
-																  Include 3601 Head under 2552 Major Head
+															  <label class="form-check-label" for="include2552In3601">
+																  Include 2552 Head under 3601 Major Head
 															  </label>
 														  </div>
+														  <small class="text-muted">(For 8 North-East States: 7 sister states + Sikkim)</small>
 													  </div>
 												  </div>
 											  </div>
@@ -571,35 +572,35 @@
 											  </td>
 											  <template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												  <td v-if="showAllocation" class="text-center">
-													{{ formatToFiveDecimals(allocationData[bh.bh_id]?.[pd.division_id] || 0) }}
+													{{ formatToFiveDecimals(getDisplayAllocation(bh, pd.division_id)) }}
 												  </td>
 												  <td v-if="showReAllocation" class="text-center">
-													{{ formatToFiveDecimals(reAllocationData[bh.bh_id]?.[pd.division_id] || 0) }}
+													{{ formatToFiveDecimals(getDisplayReAllocation(bh, pd.division_id)) }}
 												  </td>
 												  <td v-if="showFeAllocation" class="text-center">
-													{{ formatToFiveDecimals(feAllocationData[bh.bh_id]?.[pd.division_id] || 0) }}
+													{{ formatToFiveDecimals(getDisplayFeAllocation(bh, pd.division_id)) }}
 												  </td>
 												  <td v-if="showRelease" class="text-center">
-													{{ getReleaseAmount(bh.bh_id, pd.division_id) }}
+													{{ getDisplayRelease(bh, pd.division_id) }}
 												  </td>
 												  <td v-if="showExpenditure" class="text-center">
-													{{ getExpenditureAmount(bh.bh_id, pd.division_id) }}
+													{{ getDisplayExpenditure(bh, pd.division_id) }}
 												  </td>
 											  </template>
 											  <td v-if="showAllocation" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotal(bh.bh_id) }}
+												{{ calculateRowTotal(bh) }}
 											  </td>
 											  <td v-if="showReAllocation" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalRe(bh.bh_id) }}
+												{{ calculateRowTotalRe(bh) }}
 											  </td>
 											  <td v-if="showFeAllocation" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalFe(bh.bh_id) }}
+												{{ calculateRowTotalFe(bh) }}
 											  </td>
 											  <td v-if="showRelease" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalRelease(bh.bh_id) }}
+												{{ calculateRowTotalRelease(bh) }}
 											  </td>
 											  <td v-if="showExpenditure" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalExpenditure(bh.bh_id) }}
+												{{ calculateRowTotalExpenditure(bh) }}
 											  </td>
 											</tr>
 										  </template>
@@ -738,8 +739,27 @@
   const showRelease = ref(true)
   const showExpenditure = ref(true)
   
-  // Major head options
-  const include3601In2552 = ref(false)
+  // Major head options: Include 2552 under 3601 (for North-East States: 7 sisters + Sikkim)
+  const include2552In3601 = ref(false)
+  
+  // Mapping: 2552 budget heads → 3601 detail heads (Re-appropriated from 2552 to 3601 for NE states)
+  const MAPPING_2552_TO_3601 = {
+    '2552.00.342.03.00.31': '3601.06.101.45.00.31',   // GIA(General)
+    '2552.00.789.51.00.31': '3601.06.789.37.00.31',   // GIA(SC)
+    '2552.00.796.59.00.31': '3601.06.796.41.00.31',   // GIA(ST)
+    '2552.00.342.03.00.35': '3601.06.101.45.00.35',   // GIA(Capital-General)
+    '2552.00.789.51.00.35': '3601.06.789.37.00.35',   // GIA(Capital-SC)
+    '2552.00.796.59.00.35': '3601.06.796.41.00.35',   // GIA(Capital-ST)
+    '2552.00.796.59.03.31': '3601.06.796.41.01.31'    // Dharti Jan Abha
+  }
+  // Reverse: 3601 → 2552 (for adding 2552 amounts into 3601 row when "Include 2552 head" is on)
+  const MAPPING_3601_FROM_2552 = {}
+  Object.keys(MAPPING_2552_TO_3601).forEach(code2552 => {
+    const code3601 = MAPPING_2552_TO_3601[code2552]
+    MAPPING_3601_FROM_2552[code3601] = code2552
+    const digits3601 = code3601.replace(/[^0-9]/g, '')
+    if (digits3601) MAPPING_3601_FROM_2552[digits3601] = code2552
+  })
 
   // Watch column visibility to ensure at least one column is always visible
   watch([showAllocation, showReAllocation, showFeAllocation, showRelease, showExpenditure], 
@@ -751,8 +771,27 @@
 	}
   })
 
-  // Function to categorize budget heads based on the logic provided
-  const categorizeBudgetHeads = (budgetHeadsList, includeHeads3601In2552 = false) => {
+  // Helper: get subcategory name for a budget code under a major head
+  const getSubcategoryForCode = (budgetCode, majorHead) => {
+    const numericCode = String(budgetCode || '').replace(/[^0-9]/g, '')
+    if (numericCode.length < 13) {
+      return `General Component (${majorHead})`
+    }
+    const first4Digits = numericCode.substring(0, 4)
+    const secondLast2Digits = numericCode.substring(11, 13)
+    const middle3Digits = numericCode.substring(6, 9)
+    const last2Digits = numericCode.substring(numericCode.length - 2)
+    if (first4Digits === '2435' && secondLast2Digits === '02') return `EAP for CPP under MIDH (${majorHead})`
+    if (first4Digits === '2435' && secondLast2Digits === '01') return `EAP (NBM) (${majorHead})`
+    if (first4Digits === '2552' && secondLast2Digits === '01') return `EAP for CPP under MIDH (${majorHead})`
+    if (middle3Digits === '796') return `ST Component(796) (${majorHead})`
+    if (middle3Digits === '789') return `SC Component(789) (${majorHead})`
+    if (last2Digits === '31' && secondLast2Digits === '01') return `DAJUGA (${majorHead})`
+    return `General Component (${majorHead})`
+  }
+
+  // Function to categorize budget heads (no separate 2552 rows under 3601; 2552 amounts merged in display)
+  const categorizeBudgetHeads = (budgetHeadsList) => {
     if (!budgetHeadsList || budgetHeadsList.length === 0) {
       console.log('No budget heads to categorize')
       return []
@@ -770,28 +809,13 @@
         return
       }
       
-      const first4Digits = budgetCode.substring(0, 4)
+      const codeDigitsOnly = String(budgetCode).trim().replace(/[^0-9]/g, '')
+      const first4Digits = codeDigitsOnly.substring(0, 4)
       
-      // If include3601In2552 is true and current head is 3601, add it to both 3601 and 2552
-      if (includeHeads3601In2552 && first4Digits === '3601') {
-        // Add to 3601 group
-        if (!groupedByMajorHead['3601']) {
-          groupedByMajorHead['3601'] = []
-        }
-        groupedByMajorHead['3601'].push(bh)
-        
-        // Also add to 2552 group
-        if (!groupedByMajorHead['2552']) {
-          groupedByMajorHead['2552'] = []
-        }
-        groupedByMajorHead['2552'].push(bh)
-      } else {
-        // Normal grouping
-        if (!groupedByMajorHead[first4Digits]) {
-          groupedByMajorHead[first4Digits] = []
-        }
-        groupedByMajorHead[first4Digits].push(bh)
+      if (!groupedByMajorHead[first4Digits]) {
+        groupedByMajorHead[first4Digits] = []
       }
+      groupedByMajorHead[first4Digits].push(bh)
     })
     
     console.log('Grouped by major head:', groupedByMajorHead)
@@ -815,42 +839,12 @@
       budgetHeadsInGroup.forEach(bh => {
         const budgetCode = bh.budget_code
         const numericCode = budgetCode.replace(/[^0-9]/g, '')
+        const subCategory = getSubcategoryForCode(budgetCode, majorHead)
         
-        if (numericCode.length >= 13) {
-          const first4Digits = numericCode.substring(0, 4)
-          const secondLast2Digits = numericCode.substring(11, 13)
-          const middle3Digits = numericCode.substring(6, 9)
-          const last2Digits = numericCode.substring(numericCode.length - 2)
-          
-          let subCategory = `General Component (${majorHead})` // Default with major head identifier
-          
-          // Apply the logic for subcategories with major head specific names
-          if (first4Digits === '2435' && secondLast2Digits === '02') {
-            subCategory = `EAP for CPP under MIDH (${majorHead})`
-          } else if (first4Digits === '2435' && secondLast2Digits === '01') {
-            subCategory = `EAP (NBM) (${majorHead})`
-          } else if (first4Digits === '2552' && secondLast2Digits === '01') {
-            subCategory = `EAP for CPP under MIDH (${majorHead})`
-          } else if (middle3Digits === '796') {
-            subCategory = `ST Component(796) (${majorHead})`
-          } else if (middle3Digits === '789') {
-            subCategory = `SC Component(789) (${majorHead})`
-          } else if (last2Digits === '31' && secondLast2Digits === '01') {
-            subCategory = `DAJUGA (${majorHead})`
-          }
-          
-          if (!subCategories[subCategory]) {
-            subCategories[subCategory] = []
-          }
-          subCategories[subCategory].push(bh)
-        } else {
-          // Fallback to General Component for codes that don't match the pattern
-          const fallbackCategory = `General Component (${majorHead})`
-          if (!subCategories[fallbackCategory]) {
-            subCategories[fallbackCategory] = []
-          }
-          subCategories[fallbackCategory].push(bh)
+        if (!subCategories[subCategory]) {
+          subCategories[subCategory] = []
         }
+        subCategories[subCategory].push(bh)
       })
       
       // Add subcategory headers and their budget heads
@@ -875,18 +869,10 @@
     return categories
   }
   
-  // Function to recategorize when include3601In2552 changes
-  const recategorizeWithInclude3601 = () => {
-    categorizing.value = true
-    try {
-      categorizedBudgetHeads.value = categorizeBudgetHeads(budgetHeads.value, include3601In2552.value)
-      console.log('Recategorized with include3601In2552:', include3601In2552.value)
-    } catch (categorizeError) {
-      console.error('Error recategorizing budget heads:', categorizeError)
-      error.value = 'Failed to recategorize budget heads: ' + categorizeError.message
-    } finally {
-      categorizing.value = false
-    }
+  // Function to recategorize when include2552In3601 changes (display amounts update reactively; no re-categorization needed)
+  const recategorizeWithInclude2552 = () => {
+    // No structural change; only display amounts change via display helpers when include2552In3601 toggles
+    console.log('Include 2552 in 3601 toggled:', include2552In3601.value)
   }
   
   // Fetch budget heads from API
@@ -901,7 +887,7 @@
 	  // Categorize the budget heads
 	  categorizing.value = true
 	  try {
-		categorizedBudgetHeads.value = categorizeBudgetHeads(data, include3601In2552.value)
+		categorizedBudgetHeads.value = categorizeBudgetHeads(data)
 		console.log('Categorized budget heads:', categorizedBudgetHeads.value)
 	  } catch (categorizeError) {
 		console.error('Error categorizing budget heads:', categorizeError)
@@ -1127,6 +1113,90 @@
 	const amount = expenditureData.value[bhIdStr][pdIdStr] || 0
 	return formatToFiveDecimals(amount)
   }
+
+  // Find budget head by budget code (with or without dots)
+  const getBhByBudgetCode = (code) => {
+	if (!code) return null
+	const list = budgetHeads.value || []
+	const c = String(code).trim()
+	const cDig = c.replace(/[^0-9]/g, '')
+	for (let i = 0; i < list.length; i++) {
+	  const bh = list[i]
+	  const bc = bh.budget_code ? String(bh.budget_code).trim() : ''
+	  if (bc === c) return bh
+	  if (bc.replace(/[^0-9]/g, '') === cDig) return bh
+	}
+	return null
+  }
+
+  // When "Include 2552 Head" is on: for 3601 rows, add amounts from mapped 2552 head. Returns raw number.
+  const getDisplayAllocation = (bh, pdId) => {
+	let v = parseFloat(allocationData.value[bh?.bh_id]?.[pdId]) || 0
+	if (!include2552In3601.value || !bh?.budget_code) return v
+	const code = String(bh.budget_code).trim()
+	const codeDig = code.replace(/[^0-9]/g, '')
+	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
+	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
+	if (!code2552) return v
+	const bh2552 = getBhByBudgetCode(code2552)
+	if (!bh2552) return v
+	v += parseFloat(allocationData.value[bh2552.bh_id]?.[pdId]) || 0
+	return v
+  }
+  const getDisplayReAllocation = (bh, pdId) => {
+	let v = parseFloat(reAllocationData.value[bh?.bh_id]?.[pdId]) || 0
+	if (!include2552In3601.value || !bh?.budget_code) return v
+	const code = String(bh.budget_code).trim()
+	const codeDig = code.replace(/[^0-9]/g, '')
+	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
+	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
+	if (!code2552) return v
+	const bh2552 = getBhByBudgetCode(code2552)
+	if (!bh2552) return v
+	v += parseFloat(reAllocationData.value[bh2552.bh_id]?.[pdId]) || 0
+	return v
+  }
+  const getDisplayFeAllocation = (bh, pdId) => {
+	let v = parseFloat(feAllocationData.value[bh?.bh_id]?.[pdId]) || 0
+	if (!include2552In3601.value || !bh?.budget_code) return v
+	const code = String(bh.budget_code).trim()
+	const codeDig = code.replace(/[^0-9]/g, '')
+	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
+	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
+	if (!code2552) return v
+	const bh2552 = getBhByBudgetCode(code2552)
+	if (!bh2552) return v
+	v += parseFloat(feAllocationData.value[bh2552.bh_id]?.[pdId]) || 0
+	return v
+  }
+  const getDisplayReleaseRaw = (bh, pdId) => {
+	let v = parseFloat(getReleaseAmount(bh?.bh_id, pdId)) || 0
+	if (!include2552In3601.value || !bh?.budget_code) return v
+	const code = String(bh.budget_code).trim()
+	const codeDig = code.replace(/[^0-9]/g, '')
+	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
+	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
+	if (!code2552) return v
+	const bh2552 = getBhByBudgetCode(code2552)
+	if (!bh2552) return v
+	v += parseFloat(getReleaseAmount(bh2552.bh_id, pdId)) || 0
+	return v
+  }
+  const getDisplayExpenditureRaw = (bh, pdId) => {
+	let v = parseFloat(getExpenditureAmount(bh?.bh_id, pdId)) || 0
+	if (!include2552In3601.value || !bh?.budget_code) return v
+	const code = String(bh.budget_code).trim()
+	const codeDig = code.replace(/[^0-9]/g, '')
+	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
+	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
+	if (!code2552) return v
+	const bh2552 = getBhByBudgetCode(code2552)
+	if (!bh2552) return v
+	v += parseFloat(getExpenditureAmount(bh2552.bh_id, pdId)) || 0
+	return v
+  }
+  const getDisplayRelease = (bh, pdId) => formatToFiveDecimals(getDisplayReleaseRaw(bh, pdId))
+  const getDisplayExpenditure = (bh, pdId) => formatToFiveDecimals(getDisplayExpenditureRaw(bh, pdId))
   
   // Get all budget heads from categorized structure
   const getAllBudgetHeads = () => {
@@ -1762,52 +1832,48 @@
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate row total for a specific budget head
-  const calculateRowTotal = (bhId) => {
+  // Calculate row total for a specific budget head (bh = budget head object; uses display amounts for 3601+2552 merge)
+  const calculateRowTotal = (bh) => {
+	if (!bh) return formatToFiveDecimals(0)
 	let total = 0
 	filteredProgramDivisions.value.forEach(pd => {
-	  const value = parseFloat(allocationData.value[bhId][pd.division_id]) || 0
-	  total = addWithPrecision(total, value)
+	  total = addWithPrecision(total, getDisplayAllocation(bh, pd.division_id))
 	})
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate row total RE allocation for a specific budget head
-  const calculateRowTotalRe = (bhId) => {
+  const calculateRowTotalRe = (bh) => {
+	if (!bh) return formatToFiveDecimals(0)
 	let total = 0
 	filteredProgramDivisions.value.forEach(pd => {
-	  const value = parseFloat(reAllocationData.value[bhId]?.[pd.division_id]) || 0
-	  total = addWithPrecision(total, value)
+	  total = addWithPrecision(total, getDisplayReAllocation(bh, pd.division_id))
 	})
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate row total FE allocation for a specific budget head
-  const calculateRowTotalFe = (bhId) => {
+  const calculateRowTotalFe = (bh) => {
+	if (!bh) return formatToFiveDecimals(0)
 	let total = 0
 	filteredProgramDivisions.value.forEach(pd => {
-	  const value = parseFloat(feAllocationData.value[bhId]?.[pd.division_id]) || 0
-	  total = addWithPrecision(total, value)
+	  total = addWithPrecision(total, getDisplayFeAllocation(bh, pd.division_id))
 	})
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate row total release for a specific budget head
-  const calculateRowTotalRelease = (bhId) => {
+  const calculateRowTotalRelease = (bh) => {
+	if (!bh) return formatToFiveDecimals(0)
 	let total = 0
 	filteredProgramDivisions.value.forEach(pd => {
-	  const value = parseFloat(getReleaseAmount(bhId, pd.division_id)) || 0
-	  total = addWithPrecision(total, value)
+	  total = addWithPrecision(total, getDisplayReleaseRaw(bh, pd.division_id))
 	})
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate row total expenditure for a specific budget head
-  const calculateRowTotalExpenditure = (bhId) => {
+  const calculateRowTotalExpenditure = (bh) => {
+	if (!bh) return formatToFiveDecimals(0)
 	let total = 0
 	filteredProgramDivisions.value.forEach(pd => {
-	  const value = parseFloat(getExpenditureAmount(bhId, pd.division_id)) || 0
-	  total = addWithPrecision(total, value)
+	  total = addWithPrecision(total, getDisplayExpenditureRaw(bh, pd.division_id))
 	})
 	return formatToFiveDecimals(total)
   }
@@ -1966,21 +2032,21 @@
 	  // If majorHeadLabel is provided, use it; otherwise use the parent major head
 	  const targetMajorHead = majorHeadLabel || parentMajorHead
 	  
-	  // Calculate total only for budget heads that belong to the target major head
+	  // Calculate total only for budget heads that belong to the target major head (use display amounts for 3601+2552 merge)
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
-		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
+		if (budgetCode && (budgetCode.substring(0, 4) === targetMajorHead || String(budgetCode).replace(/[^0-9]/g, '').substring(0, 4) === targetMajorHead)) {
 		  let value = 0
 		  if (columnType === 'allocation') {
-			value = parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+			value = getDisplayAllocation(bh, pdId)
 		  } else if (columnType === 'reAllocation') {
-			value = parseFloat(reAllocationData.value[bh.bh_id]?.[pdId]) || 0
+			value = getDisplayReAllocation(bh, pdId)
 		  } else if (columnType === 'feAllocation') {
-			value = parseFloat(feAllocationData.value[bh.bh_id]?.[pdId]) || 0
+			value = getDisplayFeAllocation(bh, pdId)
 		  } else if (columnType === 'release') {
-			value = parseFloat(releaseData.value[bh.bh_id]?.[pdId]) || 0
+			value = getDisplayReleaseRaw(bh, pdId)
 		  } else if (columnType === 'expenditure') {
-			value = parseFloat(expenditureData.value[bh.bh_id]?.[pdId]) || 0
+			value = getDisplayExpenditureRaw(bh, pdId)
 		  }
 		  total = addWithPrecision(total, value)
 		}
@@ -1992,15 +2058,15 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhTotal = 0
 		if (columnType === 'allocation') {
-		  singleBhTotal = parseFloat(allocationData.value[singleBh.bh_id]?.[pdId]) || 0
+		  singleBhTotal = getDisplayAllocation(singleBh, pdId)
 		} else if (columnType === 'reAllocation') {
-		  singleBhTotal = parseFloat(reAllocationData.value[singleBh.bh_id]?.[pdId]) || 0
+		  singleBhTotal = getDisplayReAllocation(singleBh, pdId)
 		} else if (columnType === 'feAllocation') {
-		  singleBhTotal = parseFloat(feAllocationData.value[singleBh.bh_id]?.[pdId]) || 0
+		  singleBhTotal = getDisplayFeAllocation(singleBh, pdId)
 		} else if (columnType === 'release') {
-		  singleBhTotal = parseFloat(releaseData.value[singleBh.bh_id]?.[pdId]) || 0
+		  singleBhTotal = getDisplayReleaseRaw(singleBh, pdId)
 		} else if (columnType === 'expenditure') {
-		  singleBhTotal = parseFloat(expenditureData.value[singleBh.bh_id]?.[pdId]) || 0
+		  singleBhTotal = getDisplayExpenditureRaw(singleBh, pdId)
 		}
 		return formatToFiveDecimals(singleBhTotal)
 	  }
@@ -2027,13 +2093,12 @@
 	  // If majorHeadLabel is provided, use it; otherwise use the parent major head
 	  const targetMajorHead = majorHeadLabel || parentMajorHead
 	  
-	  // Calculate total only for budget heads that belong to the target major head
+	  // Calculate total only for budget heads that belong to the target major head (use display amounts for 3601+2552 merge)
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
-		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
+		if (budgetCode && (budgetCode.substring(0, 4) === targetMajorHead || String(budgetCode).replace(/[^0-9]/g, '').substring(0, 4) === targetMajorHead)) {
 		  filteredProgramDivisions.value.forEach(pd => {
-			const value = parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
-			total = addWithPrecision(total, value)
+			total = addWithPrecision(total, getDisplayAllocation(bh, pd.division_id))
 		  })
 		}
 	  })
@@ -2044,8 +2109,7 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		filteredProgramDivisions.value.forEach(pd => {
-		  const value = parseFloat(allocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
-		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, value)
+		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, getDisplayAllocation(singleBh, pd.division_id))
 		})
 		return formatToFiveDecimals(singleBhRowTotal)
 	  }
@@ -2071,10 +2135,9 @@
 	  
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
-		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
+		if (budgetCode && (budgetCode.substring(0, 4) === targetMajorHead || String(budgetCode).replace(/[^0-9]/g, '').substring(0, 4) === targetMajorHead)) {
 		  filteredProgramDivisions.value.forEach(pd => {
-			const value = parseFloat(reAllocationData.value[bh.bh_id]?.[pd.division_id]) || 0
-			total = addWithPrecision(total, value)
+			total = addWithPrecision(total, getDisplayReAllocation(bh, pd.division_id))
 		  })
 		}
 	  })
@@ -2083,8 +2146,7 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		filteredProgramDivisions.value.forEach(pd => {
-		  const value = parseFloat(reAllocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
-		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, value)
+		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, getDisplayReAllocation(singleBh, pd.division_id))
 		})
 		return formatToFiveDecimals(singleBhRowTotal)
 	  }
@@ -2110,10 +2172,9 @@
 	  
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
-		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
+		if (budgetCode && (budgetCode.substring(0, 4) === targetMajorHead || String(budgetCode).replace(/[^0-9]/g, '').substring(0, 4) === targetMajorHead)) {
 		  filteredProgramDivisions.value.forEach(pd => {
-			const value = parseFloat(feAllocationData.value[bh.bh_id]?.[pd.division_id]) || 0
-			total = addWithPrecision(total, value)
+			total = addWithPrecision(total, getDisplayFeAllocation(bh, pd.division_id))
 		  })
 		}
 	  })
@@ -2122,8 +2183,7 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		filteredProgramDivisions.value.forEach(pd => {
-		  const value = parseFloat(feAllocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
-		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, value)
+		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, getDisplayFeAllocation(singleBh, pd.division_id))
 		})
 		return formatToFiveDecimals(singleBhRowTotal)
 	  }
@@ -2150,10 +2210,9 @@
 	  
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
-		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
+		if (budgetCode && (budgetCode.substring(0, 4) === targetMajorHead || String(budgetCode).replace(/[^0-9]/g, '').substring(0, 4) === targetMajorHead)) {
 		  filteredProgramDivisions.value.forEach(pd => {
-			const value = parseFloat(getReleaseAmount(bh.bh_id, pd.division_id)) || 0
-			total = addWithPrecision(total, value)
+			total = addWithPrecision(total, getDisplayReleaseRaw(bh, pd.division_id))
 		  })
 		}
 	  })
@@ -2162,8 +2221,7 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		filteredProgramDivisions.value.forEach(pd => {
-		  const value = parseFloat(getReleaseAmount(singleBh.bh_id, pd.division_id)) || 0
-		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, value)
+		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, getDisplayReleaseRaw(singleBh, pd.division_id))
 		})
 		return formatToFiveDecimals(singleBhRowTotal)
 	  }
@@ -2190,10 +2248,9 @@
 	  
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
-		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
+		if (budgetCode && (budgetCode.substring(0, 4) === targetMajorHead || String(budgetCode).replace(/[^0-9]/g, '').substring(0, 4) === targetMajorHead)) {
 		  filteredProgramDivisions.value.forEach(pd => {
-			const value = parseFloat(getExpenditureAmount(bh.bh_id, pd.division_id)) || 0
-			total = addWithPrecision(total, value)
+			total = addWithPrecision(total, getDisplayExpenditureRaw(bh, pd.division_id))
 		  })
 		}
 	  })
@@ -2202,8 +2259,7 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		filteredProgramDivisions.value.forEach(pd => {
-		  const value = parseFloat(getExpenditureAmount(singleBh.bh_id, pd.division_id)) || 0
-		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, value)
+		  singleBhRowTotal = addWithPrecision(singleBhRowTotal, getDisplayExpenditureRaw(singleBh, pd.division_id))
 		})
 		return formatToFiveDecimals(singleBhRowTotal)
 	  }

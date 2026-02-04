@@ -5,9 +5,11 @@ use Illuminate\Http\Request;
 use App\Models\MotherSanction;
 use App\Models\DailySanction;
 use App\Models\SlsPDComponent;
+use App\Models\State;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DailySanctionController extends Controller
 {
@@ -360,6 +362,1323 @@ public function store(Request $request)
             'years' => $financialYears,
             'data' => $grouped,
         ]);
+    }
+
+    /**
+     * Parse uploaded Excel file (SPARSH format) and return preview for daily sanction bulk upload.
+     * Ignores Excel lines 1–7 (rows 0–6). Line 8 = table headers, line 9+ = data rows.
+     * Metadata (lines 1–7) is still read for header_data (state, from_date, etc.) for display and bulk store.
+     */
+    public function uploadPreview(Request $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|file|mimes:xlsx,xls|max:10240',
+            ]);
+
+            $file = $request->file('file');
+            $sheets = Excel::toArray([], $file);
+            $sheet = $sheets[0] ?? null;
+
+            if (!$sheet || count($sheet) < 9) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Excel file has insufficient rows. Need at least row 8 (headers) and row 9+ (data).',
+                    'rows' => [],
+                    'header_data' => null,
+                ], 422);
+            }
+
+            /* Normalize sheet so every row has dense 0-based keys (0,1,2,...) - avoids blank data from sparse/associative rows */
+            $sheet = $this->normalizeSheetToDenseRows($sheet);
+
+
+            /* 1) Drill3_basic format (grouped layout -> flat preview); has header at row 9 */
+            $basicResult = $this->parseDrill3BasicFormat($sheet);
+            if ($basicResult !== null) {
+                $enriched = $this->enrichPreviewRows($basicResult['rows'], $basicResult['columns']);
+                $basicResult['rows'] = $enriched['rows'];
+                $basicResult['columns'] = $enriched['columns'];
+                return response()->json($basicResult);
+            }
+
+            // Try strict parser that reads headers at row 8 and data from row 9
+            $strictResult = $this->parseStartingAtRowNine($sheet);
+            if ($strictResult !== null) {
+                $enriched = $this->enrichPreviewRows($strictResult['rows'], $strictResult['columns']);
+                $strictResult['rows'] = $enriched['rows'];
+                $strictResult['columns'] = $enriched['columns'];
+                return response()->json($strictResult);
+            }
+
+            /* 2) Simple format: row 0 = title, rows 3–6 = metadata, row 7 = table headers, row 8+ = data (like readExcel) */
+            $simpleResult = $this->parseSimpleExcelFormat($sheet);
+            if ($simpleResult !== null) {
+                $enriched = $this->enrichPreviewRows($simpleResult['rows'], $simpleResult['columns']);
+                $simpleResult['rows'] = $enriched['rows'];
+                $simpleResult['columns'] = $enriched['columns'];
+                return response()->json($simpleResult);
+            }
+
+            /* 3) Fallback: Header/metadata from rows 0–8, detect header row */
+            $headerData = [
+                'report_title' => isset($sheet[0][0]) ? trim((string) $sheet[0][0]) : null,
+                'financial_year' => trim((string) ($sheet[1][1] ?? '')),
+                'state' => trim((string) ($sheet[2][1] ?? '')),
+                'scheme_css' => trim((string) ($sheet[3][1] ?? '')),
+                'scheme_sls' => trim((string) ($sheet[4][1] ?? '')),
+                'from_date' => trim((string) ($sheet[5][1] ?? '')),
+                'to_date' => trim((string) ($sheet[5][3] ?? '')),
+                'isdbt_payment_mode' => trim((string) ($sheet[6][1] ?? '')),
+                'figures_in' => trim((string) ($sheet[7][1] ?? '')),
+                'total_sanction' => isset($sheet[8][1]) ? trim((string) $sheet[8][1]) : null,
+            ];
+            if ($headerData['total_sanction'] === '' || !is_numeric(str_replace([',', ' '], '', $headerData['total_sanction']))) {
+                $headerData['total_sanction'] = null;
+            }
+
+            /* Find table header row: skip Grand Total/Total rows; use first row that looks like SPARSH headers */
+            $tableHeaders = [];
+            $dataStartIndex = 8;
+            $headerRowIndex = null;
+            for ($r = 7; $r < min(count($sheet), 20); $r++) {
+                $candidate = $sheet[$r] ?? [];
+                if ($this->isTotalOrGrandTotalRow($candidate)) {
+                    continue;
+                }
+                if ($this->rowLooksLikeTableHeader($candidate)) {
+                    $headerRowIndex = $r;
+                    break;
+                }
+            }
+            if ($headerRowIndex !== null) {
+                $rawHeaderRow = $sheet[$headerRowIndex] ?? [];
+                $dataStartIndex = $headerRowIndex + 1;
+            } else {
+                $rawHeaderRow = $sheet[7] ?? [];
+                $dataStartIndex = 8;
+            }
+
+            /* Find actual table start: first column with header or data so we don't misalign */
+            $endCol = 9;
+            $headerKeys = array_keys($rawHeaderRow);
+            if (!empty($headerKeys)) {
+                $endCol = max($endCol, is_numeric($headerKeys[array_key_last($headerKeys)]) ? (int) $headerKeys[array_key_last($headerKeys)] : count($rawHeaderRow) - 1);
+            }
+            for ($c = 0; $c < 30; $c++) {
+                $v = trim((string) ($rawHeaderRow[$c] ?? ''));
+                if ($v !== '') {
+                    $endCol = max($endCol, $c);
+                }
+            }
+            for ($r = $dataStartIndex; $r < min($dataStartIndex + 15, count($sheet)); $r++) {
+                $dataRow = $sheet[$r] ?? [];
+                if ($this->isTotalOrGrandTotalRow($dataRow)) {
+                    continue;
+                }
+                for ($c = 0; $c < 30; $c++) {
+                    $v = trim((string) ($dataRow[$c] ?? ''));
+                    if ($v !== '' && $c > $endCol) {
+                        $endCol = $c;
+                    }
+                }
+            }
+            $startCol = 0;
+            for ($c = 0; $c <= min($endCol, 29); $c++) {
+                $v = trim((string) ($rawHeaderRow[$c] ?? ''));
+                if ($v !== '') {
+                    $startCol = $c;
+                    break;
+                }
+            }
+            for ($r = $dataStartIndex; $r < min($dataStartIndex + 10, count($sheet)); $r++) {
+                $dataRow = $sheet[$r] ?? [];
+                for ($c = 0; $c <= min($endCol, 29); $c++) {
+                    $v = trim((string) ($dataRow[$c] ?? ''));
+                    if ($v !== '' && $c < $startCol) {
+                        $startCol = $c;
+                        break 2;
+                    }
+                }
+            }
+            $numCols = $endCol - $startCol + 1;
+            $numCols = max(10, min(30, $numCols));
+
+            /* Build header row from startCol so column indices align with data */
+            $tableHeaders = [];
+            for ($c = 0; $c < $numCols; $c++) {
+                $tableHeaders[] = $rawHeaderRow[$startCol + $c] ?? null;
+            }
+            $tableHeaders = array_values($tableHeaders);
+
+            /* Normalize headers: empty cells get default SPARSH names by index so Vue and fill-down get correct keys */
+            $tableHeaders = $this->normalizeTableHeadersWithDefaults($tableHeaders);
+            if (!empty($tableHeaders)) {
+                $used = [];
+                foreach ($tableHeaders as $idx => $h) {
+                    if (isset($used[$h])) {
+                        $tableHeaders[$idx] = $h . '_' . $idx;
+                    } else {
+                        $used[$h] = true;
+                    }
+                }
+            }
+
+            /* Extract TABLE DATA: slice each row from startCol so header and data align */
+            $tableData = [];
+            for ($i = $dataStartIndex; $i < count($sheet); $i++) {
+                $row = $sheet[$i] ?? [];
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+                if ($this->isTotalOrGrandTotalRow($row)) {
+                    continue;
+                }
+                $sliced = [];
+                for ($c = 0; $c < count($tableHeaders); $c++) {
+                    $sliced[] = $row[$startCol + $c] ?? null;
+                }
+                $padded = array_pad($sliced, count($tableHeaders), null);
+                $combined = @array_combine($tableHeaders, $padded);
+                if ($combined === false) {
+                    continue;
+                }
+                $tableData[] = $combined;
+            }
+
+            /* Fill down: SLS Scheme, S. No., Daily Sanction Number, IsDBT, Sanction Date, Sanction Status, Object Head - so empty cells get value from previous row until new data comes */
+            $tableData = $this->fillDownGroupedColumns($tableData, $tableHeaders);
+
+            $enriched = $this->enrichPreviewRows($tableData, $tableHeaders);
+            $tableData = $enriched['rows'];
+            $tableHeaders = $enriched['columns'];
+
+            return response()->json([
+                'success' => true,
+                'message' => count($tableData) . ' row(s) parsed from Excel.',
+                'header_data' => $headerData,
+                'columns' => $tableHeaders,
+                'rows' => $tableData,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Daily sanction bulk upload preview error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to parse Excel: ' . $e->getMessage(),
+                'rows' => [],
+                'header_data' => null,
+            ], 422);
+        }
+    }
+
+    /**
+     * Simple Excel read (like readExcel): row 0 = report title, rows 3–6 = metadata, row 7 = table headers, row 8+ = data.
+     * Returns response in the format: { header_data: { report_title, state, scheme_css, from_date, to_date, total_sanction }, columns, rows }.
+     * Returns null if sheet does not have at least 9 rows.
+     */
+    private function parseSimpleExcelFormat(array $sheet): ?array
+    {
+        if (count($sheet) < 9) {
+            return null;
+        }
+
+        /* 1. Extract HEADER / METADATA */
+        $headerData = [
+            'report_title'   => isset($sheet[0][0]) ? trim((string) $sheet[0][0]) : null,
+            'state'          => isset($sheet[3][1]) ? trim((string) $sheet[3][1]) : null,
+            'scheme_css'     => isset($sheet[4][1]) ? trim((string) $sheet[4][1]) : null,
+            'from_date'      => isset($sheet[5][1]) ? trim((string) $sheet[5][1]) : null,
+            'to_date'        => isset($sheet[5][3]) ? trim((string) $sheet[5][3]) : null,
+            'total_sanction' => isset($sheet[6][1]) ? trim((string) $sheet[6][1]) : null,
+        ];
+
+        /* 2. Extract TABLE HEADERS (row 8 in Excel = index 7) - preserve column indices, use default names for empty */
+        $rawHeaderRow = $sheet[7] ?? [];
+        $numCols = 10;
+        for ($c = 0; $c < 30; $c++) {
+            $v = trim((string) ($rawHeaderRow[$c] ?? ''));
+            if ($v !== '') {
+                $numCols = max($numCols, $c + 1);
+            }
+        }
+        for ($r = 8; $r < min(23, count($sheet)); $r++) {
+            $dataRow = $sheet[$r] ?? [];
+            for ($c = 0; $c < 30; $c++) {
+                $v = trim((string) ($dataRow[$c] ?? ''));
+                if ($v !== '' && $c >= $numCols) {
+                    $numCols = $c + 1;
+                }
+            }
+        }
+        $numCols = min(30, max(10, $numCols));
+        $tableHeaders = [];
+        for ($c = 0; $c < $numCols; $c++) {
+            $h = trim(str_replace(["\r", "\n"], ' ', (string) ($rawHeaderRow[$c] ?? '')));
+            $tableHeaders[] = $h !== '' ? $h : null;
+        }
+        $tableHeaders = $this->normalizeTableHeadersWithDefaults($tableHeaders);
+
+        /* 3. Extract TABLE DATA (row 9 onward = index 8+) - align by column index so all data shows */
+        $tableData = [];
+        for ($i = 8; $i < count($sheet); $i++) {
+            $row = $sheet[$i] ?? [];
+            if (empty(array_filter($row))) {
+                continue;
+            }
+            if ($this->isTotalOrGrandTotalRow($row)) {
+                continue;
+            }
+            $sliced = [];
+            for ($c = 0; $c < count($tableHeaders); $c++) {
+                $sliced[] = $row[$c] ?? null;
+            }
+            $padded = array_pad($sliced, count($tableHeaders), null);
+            $combined = @array_combine($tableHeaders, $padded);
+            if ($combined === false) {
+                continue;
+            }
+            $tableData[] = $combined;
+        }
+
+        /* Fill down grouped columns so SLS Scheme, S. No., etc. repeat until new data */
+        $tableData = $this->fillDownGroupedColumns($tableData, $tableHeaders);
+        $tableData = $this->formatPreviewRowsToMatchOutput($tableData);
+
+        return [
+            'success'     => true,
+            'message'     => count($tableData) . ' row(s) parsed.',
+            'header_data' => $headerData,
+            'columns'     => $tableHeaders,
+            'rows'        => $tableData,
+        ];
+    }
+
+    /**
+     * Parse SPARSH_03_Drill3_basic.xlsx format and return data in SPARSH_03_Drill3_basic_preview.xlsx format.
+     * Basic has grouped rows (group header + detail rows with only Function Head & Sanction Amount). Preview is flat: one row per detail with fill-down.
+     * Returns null if sheet does not match this format.
+     */
+    private function parseDrill3BasicFormat(array $sheet): ?array
+    {
+        $maxCol = 25;
+        $headerRow = null;
+        $dataStartRow = 9;
+        foreach ([8, 7] as $headerIndex) {
+            if (!isset($sheet[$headerIndex])) {
+                continue;
+            }
+            $candidate = $sheet[$headerIndex];
+            $indices = $this->detectDrill3ColumnIndices($candidate, $maxCol);
+            if (isset($indices['Function Head']) && isset($indices['Sanction Amount']) && isset($indices['SLS Scheme'])) {
+                $headerRow = $candidate;
+                $dataStartRow = $headerIndex + 1;
+                break;
+            }
+        }
+        if ($headerRow === null) {
+            $headerRow = $sheet[8] ?? [];
+            $dataStartRow = 9;
+        }
+        $row8 = $headerRow;
+        $colIndices = $this->detectDrill3ColumnIndices($headerRow, $maxCol);
+        $idxSNo = $colIndices['S.No. (SLS)'] ?? 1;
+        $idxSLSScheme = $colIndices['SLS Scheme'] ?? 2;
+        $idxFunctionHead = $colIndices['Function Head'] ?? 12;
+        $idxSanctionAmount = $colIndices['Sanction Amount'] ?? 13;
+        $h1 = trim(str_replace(["\r", "\n"], ' ', (string) ($row8[$idxSNo] ?? '')));
+        $h2 = trim(str_replace(["\r", "\n"], ' ', (string) ($row8[$idxSLSScheme] ?? '')));
+        $h12 = trim(str_replace(["\r", "\n"], ' ', (string) ($row8[$idxFunctionHead] ?? '')));
+        $h13 = trim(str_replace(["\r", "\n"], ' ', (string) ($row8[$idxSanctionAmount] ?? '')));
+        $hasSNo = stripos($h1, 'S.No') !== false || stripos($h1, 'SLS') !== false;
+        $hasSLSScheme = stripos($h2, 'SLS') !== false && stripos($h2, 'Scheme') !== false;
+        $hasFunctionHead = stripos($h12, 'Function') !== false || stripos($h12, 'Head') !== false;
+        $hasSanctionAmount = (stripos($h13, 'Sanction') !== false && stripos($h13, 'Amount') !== false) || stripos($h13, 'Amount') !== false;
+        if (!$hasSNo || !$hasSLSScheme || !$hasFunctionHead || !$hasSanctionAmount) {
+            return null;
+        }
+
+        $headerData = [
+            'report_title' => trim((string) ($sheet[0][0] ?? '')),
+            'financial_year' => trim((string) ($sheet[2][1] ?? '')),
+            'state' => trim((string) ($sheet[2][10] ?? '')),
+            'scheme_css' => trim((string) ($sheet[3][3] ?? '')),
+            'scheme_sls' => trim((string) ($sheet[3][10] ?? '')),
+            'from_date' => trim((string) ($sheet[4][3] ?? '')),
+            'to_date' => trim((string) ($sheet[4][10] ?? '')),
+            'isdbt_payment_mode' => trim((string) ($sheet[5][3] ?? '')),
+            'figures_in' => trim((string) ($sheet[5][10] ?? '')),
+            'total_sanction' => trim((string) ($sheet[6][3] ?? '')),
+        ];
+
+        $previewColumns = [
+            'S.No. (SLS)',
+            'SLS Scheme',
+            'S. No. (Sanction)',
+            'Daily Sanction Number',
+            'IsDBT',
+            'Sanction Date',
+            'Sanction Status',
+            'Object Head',
+            'Function Head',
+            'Sanction Amount',
+        ];
+
+        $colMap = [];
+        foreach ($previewColumns as $name) {
+            $idx = $colIndices[$name] ?? null;
+            if ($idx !== null) {
+                $colMap[$idx] = $name;
+            }
+        }
+        $defaultMap = [1 => 'S.No. (SLS)', 2 => 'SLS Scheme', 4 => 'S. No. (Sanction)', 5 => 'Daily Sanction Number', 6 => 'IsDBT', 8 => 'Sanction Date', 9 => 'Sanction Status', 11 => 'Object Head', 12 => 'Function Head', 13 => 'Sanction Amount'];
+        foreach ($defaultMap as $c => $name) {
+            if (!isset($colMap[$c])) {
+                $colMap[$c] = $name;
+            }
+        }
+        $groupCols = array_unique(array_keys($colMap));
+        sort($groupCols);
+        $groupCols = array_values(array_filter($groupCols, function ($c) use ($colMap) {
+            $name = $colMap[$c];
+            return $name !== 'Function Head' && $name !== 'Sanction Amount';
+        }));
+        $funcHeadCol = $idxFunctionHead;
+        $sanctionAmountCol = $idxSanctionAmount;
+
+        $context = [];
+        foreach ($previewColumns as $name) {
+            if ($name !== 'Function Head' && $name !== 'Sanction Amount') {
+                $context[$name] = '';
+            }
+        }
+        $rows = [];
+        $sno = 0;
+        $scanCols = max($maxCol, $funcHeadCol, $sanctionAmountCol) + 1;
+
+        for ($i = $dataStartRow; $i < count($sheet); $i++) {
+            $row = $sheet[$i] ?? [];
+            if (empty(array_filter($row))) {
+                continue;
+            }
+            if ($this->isTotalOrGrandTotalRow($row)) {
+                for ($c = 0; $c < $scanCols; $c++) {
+                    $v = trim((string) ($row[$c] ?? ''));
+                    if ($v !== '' && isset($colMap[$c])) {
+                        $context[$colMap[$c]] = $v;
+                    }
+                }
+                continue;
+            }
+            $m = trim((string) ($row[$funcHeadCol] ?? ''));
+            $n = trim((string) ($row[$sanctionAmountCol] ?? ''));
+            if (stripos($m, 'Total (Sanction)') !== false || stripos($m, 'Total(Sanction)') !== false) {
+                for ($c = 0; $c < $scanCols; $c++) {
+                    $v = trim((string) ($row[$c] ?? ''));
+                    if ($v !== '' && isset($colMap[$c])) {
+                        $context[$colMap[$c]] = $v;
+                    }
+                }
+                continue;
+            }
+            $funcHead = preg_replace('/[^0-9]/', '', $m);
+            $amount = preg_replace('/[^0-9.]/', '', $n);
+            if (strlen($funcHead) < 10 || !is_numeric($amount)) {
+                for ($c = 0; $c < $scanCols; $c++) {
+                    $v = trim((string) ($row[$c] ?? ''));
+                    if ($v !== '' && isset($colMap[$c])) {
+                        $context[$colMap[$c]] = $v;
+                    }
+                }
+                continue;
+            }
+            $sno++;
+            foreach ($groupCols as $c) {
+                $v = trim((string) ($row[$c] ?? ''));
+                if ($v !== '' && isset($colMap[$c])) {
+                    $context[$colMap[$c]] = $v;
+                }
+            }
+            $objectHead = $context['Object Head'] ?? '';
+            $out = [
+                'S.No. (SLS)' => (string) $sno,
+                'SLS Scheme' => $context['SLS Scheme'] ?? '',
+                'S. No. (Sanction)' => $context['S. No. (Sanction)'] ?? '',
+                'Daily Sanction Number' => $context['Daily Sanction Number'] ?? '',
+                'IsDBT' => $context['IsDBT'] ?? '',
+                'Sanction Date' => $context['Sanction Date'] ?? '',
+                'Sanction Status' => $context['Sanction Status'] ?? '',
+                'Object Head' => $objectHead,
+                'Function Head' => $this->formatBudgetHead($m, $objectHead),
+                'Sanction Amount' => number_format((float) preg_replace('/[^0-9.]/', '', $n), 2, '.', ''),
+            ];
+            $rows[] = $out;
+        }
+
+        $rows = $this->fillDownGroupedColumns($rows, $previewColumns);
+
+        return [
+            'success' => true,
+            'message' => count($rows) . ' row(s) parsed (Drill3 basic format).',
+            'header_data' => $headerData,
+            'columns' => $previewColumns,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * Detect column indices for Drill3 format by matching header text in the header row.
+     * Returns associative array: field name => column index (0-based).
+     */
+    private function detectDrill3ColumnIndices(array $headerRow, int $maxCol): array
+    {
+        $out = [];
+        $patterns = [
+            'S.No. (SLS)' => ['s.no', 'sls', 'sno'],
+            'SLS Scheme' => ['sls scheme', 'slsscheme'],
+            'S. No. (Sanction)' => ['s. no. (sanction)', 's no sanction', 'sanction)'],
+            'Daily Sanction Number' => ['daily sanction number', 'daily sanction'],
+            'IsDBT' => ['isdbt', 'is dbt'],
+            'Sanction Date' => ['sanction date', 'date'],
+            'Sanction Status' => ['sanction status', 'status'],
+            'Object Head' => ['object head', 'objecthead'],
+            'Function Head' => ['function head', 'functionhead'],
+            'Sanction Amount' => ['sanction amount', 'amount'],
+        ];
+        for ($c = 0; $c <= $maxCol; $c++) {
+            $cell = trim(str_replace(["\r", "\n"], ' ', (string) ($headerRow[$c] ?? '')));
+            if ($cell === '') {
+                continue;
+            }
+            $lower = strtolower($cell);
+            foreach ($patterns as $name => $keywords) {
+                if (isset($out[$name])) {
+                    continue;
+                }
+                foreach ($keywords as $kw) {
+                    if (strpos($lower, $kw) !== false) {
+                        $out[$name] = $c;
+                        break 2;
+                    }
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Parse sheet using explicit rule: headers at row 8 (index 7), data from row 9 (index 8).
+     * Forward-fill blank cells from previous non-empty value, remove total/grand total rows,
+     * and return typed preview rows matching requested shape.
+     */
+    private function parseStartingAtRowNine(array $sheet): ?array
+    {
+        if (count($sheet) < 9) {
+            return null;
+        }
+
+        $headerRow = $sheet[7] ?? [];
+
+        $endCol = 9;
+        for ($c = 0; $c < 30; $c++) {
+            $v = trim((string) ($headerRow[$c] ?? ''));
+            if ($v !== '') {
+                $endCol = max($endCol, $c);
+            }
+        }
+        for ($r = 8; $r < min(23, count($sheet)); $r++) {
+            $dataRow = $sheet[$r] ?? [];
+            for ($c = 0; $c < 30; $c++) {
+                $v = trim((string) ($dataRow[$c] ?? ''));
+                if ($v !== '' && $c > $endCol) {
+                    $endCol = $c;
+                }
+            }
+        }
+        $startCol = 0;
+        for ($c = 0; $c <= min($endCol, 29); $c++) {
+            $v = trim((string) ($headerRow[$c] ?? ''));
+            if ($v !== '') {
+                $startCol = $c;
+                break;
+            }
+        }
+        for ($r = 8; $r < min(18, count($sheet)); $r++) {
+            $dataRow = $sheet[$r] ?? [];
+            for ($c = 0; $c <= min($endCol, 29); $c++) {
+                $v = trim((string) ($dataRow[$c] ?? ''));
+                if ($v !== '' && $c < $startCol) {
+                    $startCol = $c;
+                    break 2;
+                }
+            }
+        }
+        $numCols = $endCol - $startCol + 1;
+        $numCols = min(50, max(10, $numCols));
+
+        $tableHeaders = [];
+        for ($c = 0; $c < $numCols; $c++) {
+            $h = trim(str_replace(["\r", "\n"], ' ', (string) ($headerRow[$startCol + $c] ?? '')));
+            $tableHeaders[] = $h !== '' ? $h : null;
+        }
+        $tableHeaders = $this->normalizeTableHeadersWithDefaults($tableHeaders);
+
+        // blank markers
+        $blankMarkers = ['', '—', '-', 'na', 'n/a', 'nil', 'none', '--'];
+
+        $rows = [];
+        $lastValues = array_fill(0, count($tableHeaders), null);
+
+        for ($i = 8; $i < count($sheet); $i++) {
+            $row = $sheet[$i] ?? [];
+            if (empty(array_filter($row))) {
+                continue;
+            }
+            if ($this->isTotalOrGrandTotalRow($row)) {
+                continue;
+            }
+            $sliced = [];
+            for ($c = 0; $c < count($tableHeaders); $c++) {
+                $cell = $row[$startCol + $c] ?? null;
+                $trim = trim((string) $cell);
+                $isBlank = $cell === null || $trim === '' || in_array(strtolower($trim), $blankMarkers, true);
+                if ($isBlank) {
+                    $cell = $lastValues[$c] ?? null;
+                } else {
+                    $lastValues[$c] = $cell;
+                }
+                $sliced[$tableHeaders[$c]] = $cell;
+            }
+            $rows[] = $sliced;
+        }
+
+        if (empty($rows)) {
+            return null;
+        }
+
+        // Map header keys to desired output keys
+        $mapKeys = [];
+        foreach ($tableHeaders as $h) {
+            $lower = strtolower(trim((string) $h));
+            if (strpos($lower, 's.no') !== false && strpos($lower, 'sls') !== false) {
+                $mapKeys[$h] = "S.No.\n(SLS)";
+            } elseif (strpos($lower, 'sls') !== false && strpos($lower, 'scheme') !== false) {
+                $mapKeys[$h] = 'SLS Scheme';
+            } elseif ((strpos($lower, 's. no') !== false || strpos($lower, 's.no') !== false) && strpos($lower, 'sanction') !== false) {
+                $mapKeys[$h] = "S. No.\n(Sanction)";
+            } elseif (strpos($lower, 'daily') !== false && strpos($lower, 'sanction') !== false) {
+                $mapKeys[$h] = 'Daily Sanction Number';
+            } elseif (strpos($lower, 'isdbt') !== false || strpos($lower, 'dbt') !== false) {
+                $mapKeys[$h] = 'IsDBT';
+            } elseif (strpos($lower, 'sanction date') !== false || strpos($lower, 'date') !== false) {
+                $mapKeys[$h] = 'Sanction Date';
+            } elseif (strpos($lower, 'sanction status') !== false || strpos($lower, 'status') !== false) {
+                $mapKeys[$h] = 'Sanction Status';
+            } elseif (strpos($lower, 'object') !== false && strpos($lower, 'head') !== false) {
+                $mapKeys[$h] = 'Object Head';
+            } elseif (strpos($lower, 'function') !== false && strpos($lower, 'head') !== false) {
+                $mapKeys[$h] = 'Function Head';
+            } elseif (strpos($lower, 'sanction') !== false && strpos($lower, 'amount') !== false) {
+                $mapKeys[$h] = 'Sanction Amount';
+            } else {
+                $mapKeys[$h] = $h;
+            }
+        }
+
+        $outRows = [];
+        foreach ($rows as $r) {
+            $o = [];
+            // helper to get value by header original
+            $get = function ($orig) use ($r) {
+                return $r[$orig] ?? null;
+            };
+
+            // S.No. (SLS)
+            $snoVal = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === "S.No.\n(SLS)") {
+                    $v = $get($orig);
+                    $vnum = preg_replace('/[^0-9]/', '', (string) $v);
+                    $snoVal = $vnum === '' ? null : (int) $vnum;
+                    break;
+                }
+            }
+            $o["S.No.\n(SLS)"] = $snoVal;
+
+            // SLS Scheme
+            $slsScheme = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'SLS Scheme') {
+                    $slsScheme = trim((string) ($get($orig) ?? ''));
+                    break;
+                }
+            }
+            $o['SLS Scheme'] = $slsScheme;
+
+            // S. No. (Sanction)
+            $sanNo = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === "S. No.\n(Sanction)") {
+                    $v = $get($orig);
+                    $vnum = preg_replace('/[^0-9]/', '', (string) $v);
+                    $sanNo = $vnum === '' ? null : (int) $vnum;
+                    break;
+                }
+            }
+            $o["S. No.\n(Sanction)"] = $sanNo;
+
+            // Daily Sanction Number
+            $dsNum = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'Daily Sanction Number') {
+                    $dsNum = trim((string) ($get($orig) ?? ''));
+                    break;
+                }
+            }
+            $o['Daily Sanction Number'] = $dsNum;
+
+            // IsDBT
+            $isdbt = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'IsDBT') {
+                    $isdbt = trim((string) ($get($orig) ?? ''));
+                    break;
+                }
+            }
+            $o['IsDBT'] = $isdbt;
+
+            // Sanction Date
+            $sdate = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'Sanction Date') {
+                    $sdate = trim((string) ($get($orig) ?? ''));
+                    break;
+                }
+            }
+            $o['Sanction Date'] = $sdate;
+
+            // Sanction Status
+            $sstatus = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'Sanction Status') {
+                    $sstatus = trim((string) ($get($orig) ?? ''));
+                    break;
+                }
+            }
+            $o['Sanction Status'] = $sstatus;
+
+            // Object Head
+            $objHead = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'Object Head') {
+                    $v = $get($orig);
+                    $vnum = preg_replace('/[^0-9]/', '', (string) $v);
+                    $objHead = $vnum === '' ? null : (int) $vnum;
+                    break;
+                }
+            }
+            $o['Object Head'] = $objHead;
+
+            // Function Head: concatenate digits from function head + object head
+            $funcHead = null;
+            $funcRaw = '';
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'Function Head') {
+                    $funcRaw = (string) ($get($orig) ?? '');
+                    break;
+                }
+            }
+            $funcDigits = preg_replace('/[^0-9]/', '', $funcRaw . ($objHead !== null ? (string) $objHead : ''));
+            $funcHead = $funcDigits === '' ? null : (int) $funcDigits;
+            $o['Function Head'] = $funcHead;
+
+            // Sanction Amount
+            $sAmount = null;
+            foreach ($mapKeys as $orig => $target) {
+                if ($target === 'Sanction Amount') {
+                    $v = $get($orig);
+                    $num = preg_replace('/[^0-9.]/', '', (string) $v);
+                    if ($num === '') {
+                        $sAmount = null;
+                    } else {
+                        // remove decimals for preview integer
+                        $sAmount = (int) floor((float) $num);
+                    }
+                    break;
+                }
+            }
+            $o['Sanction Amount'] = $sAmount;
+
+            $outRows[] = $o;
+        }
+
+        return [
+            'success' => true,
+            'message' => count($outRows) . ' row(s) parsed (row-9 strict parser).',
+            'header_data' => null,
+            'columns' => array_values(array_unique(array_values($mapKeys))),
+            'rows' => $outRows,
+        ];
+    }
+
+    /**
+     * Normalize sheet so every row has dense 0-based integer keys (0, 1, 2, ...) up to max column.
+     * Ensures $row[$c] is reliable and avoids blank data when Excel returns sparse or associative rows.
+     */
+    private function normalizeSheetToDenseRows(array $sheet): array
+    {
+        $maxCol = 0;
+        foreach ($sheet as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $keys = array_keys($row);
+            foreach ($keys as $k) {
+                if (is_numeric($k)) {
+                    $maxCol = max($maxCol, (int) $k);
+                }
+            }
+        }
+        $maxCol = min(50, max($maxCol + 1, 14));
+        $out = [];
+        foreach ($sheet as $i => $row) {
+            if (!is_array($row)) {
+                $out[$i] = $row;
+                continue;
+            }
+            $dense = [];
+            for ($c = 0; $c <= $maxCol; $c++) {
+                $dense[$c] = array_key_exists($c, $row) ? $row[$c] : null;
+            }
+            $out[$i] = $dense;
+        }
+        return $out;
+    }
+
+    /**
+     * Replace empty/null headers with default SPARSH column names by index so row keys match what the frontend expects.
+     * Deduplicate so each header is unique.
+     */
+    private function normalizeTableHeadersWithDefaults(array $tableHeaders): array
+    {
+        $defaults = [
+            0 => 'S.No. (SLS)',
+            1 => 'SLS Scheme',
+            2 => 'S. No. (Sanction)',
+            3 => 'Daily Sanction Number',
+            4 => 'IsDBT',
+            5 => 'Sanction Date',
+            6 => 'Sanction Status',
+            7 => 'Object Head',
+            8 => 'Function Head',
+            9 => 'Sanction Amount',
+        ];
+        $normalized = [];
+        foreach ($tableHeaders as $idx => $h) {
+            $s = trim((string) $h);
+            $normalized[] = $s !== '' ? $s : ($defaults[$idx] ?? 'Column_' . $idx);
+        }
+        $used = [];
+        foreach ($normalized as $idx => $h) {
+            if (isset($used[$h])) {
+                $normalized[$idx] = $h . '_' . $idx;
+            } else {
+                $used[$h] = true;
+            }
+        }
+        return $normalized;
+    }
+
+    /**
+     * Fill down grouped columns: SLS Scheme, S. No., Daily Sanction Number, IsDBT, Sanction Date, Sanction Status, Object Head.
+     * When a cell is blank, use the value from the previous row in that column until a new non-blank value is found.
+     * SLS Scheme is explicitly included: if SLS Scheme is blank, take from the previous cell of that column.
+     */
+    private function fillDownGroupedColumns(array $tableData, array $tableHeaders): array
+    {
+        $fillDownNames = [
+            's.no. (sls)',
+            'sls scheme',
+            'slsscheme',
+            's. no. (sanction)',
+            'daily sanction number',
+            'isdbt',
+            'sanction date',
+            'sanction status',
+            'object head',
+        ];
+
+        // Columns we definitely should not auto-fill (amounts/totals)
+        $excludeMarkers = ['amount', 'total', 'available', 'figure', 'center_share', 'mother_sanction'];
+
+        $keysToFillDown = [];
+        foreach ($tableHeaders as $headerKey) {
+            $lower = strtolower(trim((string) $headerKey));
+            $lower = preg_replace('/\s+/', ' ', $lower);
+            $lower = preg_replace('/_\d+$/', '', $lower);
+
+            foreach ($fillDownNames as $name) {
+                if ($lower === $name || strpos($lower, $name) !== false || strpos($name, $lower) !== false) {
+                    $keysToFillDown[$headerKey] = true;
+                    break;
+                }
+            }
+
+            // Also include any SLS/Scheme header variants
+            if (!isset($keysToFillDown[$headerKey]) && strpos($lower, 'sls') !== false && strpos($lower, 'scheme') !== false) {
+                $keysToFillDown[$headerKey] = true;
+            }
+
+            // If still not decided, include the header unless it looks like an amount/total column
+            if (!isset($keysToFillDown[$headerKey])) {
+                $isExclude = false;
+                foreach ($excludeMarkers as $m) {
+                    if (strpos($lower, $m) !== false) {
+                        $isExclude = true;
+                        break;
+                    }
+                }
+                if (!$isExclude) {
+                    $keysToFillDown[$headerKey] = true;
+                }
+            }
+        }
+
+        // Common blank markers we should consider empty
+        $blankMarkers = ['', '—', '-', 'na', 'n/a', 'nil', 'none', '--'];
+
+        // Forward-fill: for each row, if a target column is blank, take the last non-blank value above it
+        for ($i = 1; $i < count($tableData); $i++) {
+            foreach (array_keys($keysToFillDown) as $key) {
+                $val = $tableData[$i][$key] ?? null;
+                $trimmed = trim((string) $val);
+                $isBlank = $val === null || $trimmed === '' || in_array(strtolower($trimmed), $blankMarkers, true);
+                if ($isBlank) {
+                    for ($p = $i - 1; $p >= 0; $p--) {
+                        $prev = $tableData[$p][$key] ?? null;
+                        $prevTrim = trim((string) $prev);
+                        if ($prev !== null && $prevTrim !== '' && !in_array(strtolower($prevTrim), $blankMarkers, true)) {
+                            $tableData[$i][$key] = $prev;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Back-fill: for each fill-down column, if the first row(s) are blank, fill them from the first non-blank value in that column
+        foreach (array_keys($keysToFillDown) as $key) {
+            $firstNonBlank = null;
+            $firstNonBlankIndex = null;
+            for ($j = 0; $j < count($tableData); $j++) {
+                $v = $tableData[$j][$key] ?? null;
+                $t = trim((string) $v);
+                if ($v !== null && $t !== '' && !in_array(strtolower($t), $blankMarkers, true)) {
+                    $firstNonBlank = $v;
+                    $firstNonBlankIndex = $j;
+                    break;
+                }
+            }
+            if ($firstNonBlank !== null && $firstNonBlankIndex > 0) {
+                for ($i = 0; $i < $firstNonBlankIndex; $i++) {
+                    $tableData[$i][$key] = $firstNonBlank;
+                }
+            }
+        }
+
+        return $tableData;
+    }
+
+    /**
+     * Return true if the row looks like the SPARSH data table header (S.No, SLS Scheme, Sanction Date, etc.).
+     */
+    private function rowLooksLikeTableHeader(array $row): bool
+    {
+        $nonEmpty = array_filter($row, function ($v) {
+            return trim((string) $v) !== '';
+        });
+        if (count($nonEmpty) < 4) {
+            return false;
+        }
+        $concat = ' ' . strtolower(implode(' ', array_map('strval', $row)));
+        $markers = ['s.no', 'sls scheme', 'sanction date', 'sanction amount', 'function head', 'object head'];
+        $found = 0;
+        foreach ($markers as $m) {
+            if (strpos($concat, $m) !== false) {
+                $found++;
+            }
+        }
+        return $found >= 2;
+    }
+
+    /**
+     * Return true if the row is a Grand Total, Total ( ... ), or Total (Sanction) row (to be excluded from data).
+     */
+    private function isTotalOrGrandTotalRow(array $row): bool
+    {
+        foreach ($row as $cell) {
+            $s = trim((string) $cell);
+            if ($s === '') {
+                continue;
+            }
+            $lower = strtolower($s);
+            if (strpos($lower, 'grand total') !== false) {
+                return true;
+            }
+            if ($lower === 'total (sanction)') {
+                return true;
+            }
+            if (preg_match('/^total\s*\(\s*[^)]+\s*\)\s*:?\s*$/i', $s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Normalize sanction date from Excel (e.g. 17-Jul-2025) to Y-m-d.
+     */
+    private function normalizeSanctionDate($value): string
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return '';
+        }
+        $value = trim((string) $value);
+        $d = \DateTime::createFromFormat('d-M-Y', $value)
+            ?: \DateTime::createFromFormat('d-m-Y', $value)
+            ?: \DateTime::createFromFormat('Y-m-d', $value)
+            ?: \DateTime::createFromFormat('d/m/Y', $value);
+        return $d ? $d->format('Y-m-d') : $value;
+    }
+
+    /**
+     * Normalize amount (handle numeric or string; if large assume rupees and convert to lakhs).
+     */
+    private function normalizeAmount($value): float
+    {
+        $num = is_numeric($value) ? (float) $value : (float) preg_replace('/[^0-9.-]/', '', (string) $value);
+        if ($num >= 100000) {
+            $num = round($num / 100000, 2);
+        }
+        return round($num, 2);
+    }
+
+    /**
+     * Format Function Head + Object Head to budget head code (e.g. 3601.06.101.45.00.31).
+     */
+    private function formatBudgetHead(string $functionHead, string $objectHead): string
+    {
+        $digits = preg_replace('/[^0-9]/', '', $functionHead);
+        if (strlen($digits) < 10) {
+            return $functionHead . ($objectHead !== '' ? '.' . $objectHead : '');
+        }
+        $parts = [
+            substr($digits, 0, 4),
+            substr($digits, 4, 2),
+            substr($digits, 6, 3),
+            substr($digits, 9, 2),
+            substr($digits, 11, 2),
+        ];
+        $code = implode('.', $parts);
+        return $objectHead !== '' ? $code . '.' . $objectHead : $code;
+    }
+
+    /**
+     * Format preview rows to match output: Function Head as dotted (e.g. 3601.06.101.45.00.31), Sanction Amount as string with 2 decimals (e.g. 390346.00).
+     */
+    private function formatPreviewRowsToMatchOutput(array $rows): array
+    {
+        if (empty($rows)) {
+            return $rows;
+        }
+        $first = $rows[0];
+        $funcHeadKey = null;
+        $objectHeadKey = null;
+        $sanctionAmountKey = null;
+        foreach (array_keys($first) as $k) {
+            $lower = strtolower(trim((string) $k));
+            $lower = preg_replace('/_\d+$/', '', $lower);
+            if ($funcHeadKey === null && strpos($lower, 'function') !== false && strpos($lower, 'head') !== false) {
+                $funcHeadKey = $k;
+            }
+            if ($objectHeadKey === null && strpos($lower, 'object') !== false && strpos($lower, 'head') !== false) {
+                $objectHeadKey = $k;
+            }
+            if ($sanctionAmountKey === null && (strpos($lower, 'sanction') !== false && strpos($lower, 'amount') !== false || strpos($lower, 'amount') !== false)) {
+                $sanctionAmountKey = $k;
+            }
+        }
+        foreach ($rows as $i => $row) {
+            if ($funcHeadKey !== null && $objectHeadKey !== null && isset($row[$funcHeadKey])) {
+                $fh = trim((string) $row[$funcHeadKey]);
+                $oh = trim((string) ($row[$objectHeadKey] ?? ''));
+                if ($fh !== '' && preg_match('/[0-9]/', $fh)) {
+                    $rows[$i][$funcHeadKey] = $this->formatBudgetHead($fh, $oh);
+                }
+            }
+            if ($sanctionAmountKey !== null && isset($row[$sanctionAmountKey])) {
+                $amt = (float) preg_replace('/[^0-9.]/', '', (string) $row[$sanctionAmountKey]);
+                $rows[$i][$sanctionAmountKey] = number_format($amt, 2, '.', '');
+            }
+        }
+        return $rows;
+    }
+
+    /**
+     * Get value from a preview row by trying multiple possible key names (different parsers use different keys).
+     */
+    private function getPreviewRowValue(array $row, array $possibleKeys): string
+    {
+        foreach ($possibleKeys as $k) {
+            $v = $row[$k] ?? null;
+            if ($v !== null && trim((string) $v) !== '') {
+                return trim((string) $v);
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Enrich preview rows with: Financial Year, State Id, Mother Sanction No., IFd No, Mother Sanction Amount, Available Amount.
+     */
+    private function enrichPreviewRows(array $rows, array $columns): array
+    {
+        $newColumns = [
+            'Financial Year',
+            'State Id',
+            'Mother Sanction No.',
+            'IFd No',
+            'Mother Sanction Amount',
+            'Available Amount',
+        ];
+        $allColumns = array_merge($columns, $newColumns);
+        $slsSchemeCache = [];
+        $motherSanctionCache = [];
+
+        foreach ($rows as $i => $row) {
+            $slsScheme = $this->getPreviewRowValue($row, ['SLS Scheme', 'SLS scheme']);
+            $sanctionDate = $this->getPreviewRowValue($row, ['Sanction Date', 'Sanction date']);
+            $dailySanctionNo = $this->getPreviewRowValue($row, ['Daily Sanction Number', 'Daily sanction number']);
+            $sNoSanction = $this->getPreviewRowValue($row, ['S. No. (Sanction)', 'S. No. (Sanction)', "S. No.\n(Sanction)"]);
+
+            $financialYear = '';
+            if ($sanctionDate !== '') {
+                $parsed = \DateTime::createFromFormat('d-M-Y', $sanctionDate)
+                    ?: \DateTime::createFromFormat('d-m-Y', $sanctionDate)
+                    ?: \DateTime::createFromFormat('Y-m-d', $sanctionDate)
+                    ?: \DateTime::createFromFormat('d/m/Y', $sanctionDate);
+                if ($parsed) {
+                    $y = (int) $parsed->format('Y');
+                    $m = (int) $parsed->format('m');
+                    $financialYear = $m >= 4 ? $y . '-' . ($y + 1) : ($y - 1) . '-' . $y;
+                }
+            }
+
+            $stateId = null;
+            if ($slsScheme !== '') {
+                $cacheKey = $slsScheme;
+                if (!isset($slsSchemeCache[$cacheKey])) {
+                    $comp = SlsPDComponent::where('full_sls_name', $slsScheme)->first();
+                    $slsSchemeCache[$cacheKey] = $comp ? (int) $comp->state_id : null;
+                }
+                $stateId = $slsSchemeCache[$cacheKey];
+            }
+
+            $motherSanctionNo = '';
+            if ($dailySanctionNo !== '' && $sNoSanction !== '') {
+                $pos = strpos($dailySanctionNo, '-');
+                $prefix = $pos !== false ? substr($dailySanctionNo, 0, $pos + 1) : $dailySanctionNo;
+                $motherSanctionNo = $prefix . $sNoSanction;
+            }
+
+            $ifdNo = '';
+            if ($dailySanctionNo !== '') {
+                $pos = strpos($dailySanctionNo, '-');
+                $ifdNo = $pos !== false ? substr($dailySanctionNo, 0, $pos) : $dailySanctionNo;
+            }
+
+            $motherSanctionAmount = '';
+            $availableAmount = '';
+            if ($slsScheme !== '') {
+                $cacheKey = $slsScheme;
+                if (!isset($motherSanctionCache[$cacheKey])) {
+                    $pdc = SlsPDComponent::where('full_sls_name', $slsScheme)->first();
+                    if ($pdc) {
+                        $ms = MotherSanction::where('state_id', $pdc->state_id)
+                            ->where('sls_name', $pdc->name)
+                            ->where('pd_component', $pdc->slsPD)
+                            ->where('status', '1')
+                            ->orderByDesc('id')
+                            ->first();
+                        $motherSanctionCache[$cacheKey] = $ms ? [
+                            'mother_sanction_amount' => $ms->mother_sanction_amount !== null ? number_format((float) $ms->mother_sanction_amount, 2, '.', '') : '',
+                            'available_fund' => $ms->available_fund !== null ? number_format((float) $ms->available_fund, 2, '.', '') : '',
+                        ] : ['mother_sanction_amount' => '', 'available_fund' => ''];
+                    } else {
+                        $motherSanctionCache[$cacheKey] = ['mother_sanction_amount' => '', 'available_fund' => ''];
+                    }
+                }
+                $motherSanctionAmount = $motherSanctionCache[$cacheKey]['mother_sanction_amount'];
+                $availableAmount = $motherSanctionCache[$cacheKey]['available_fund'];
+            }
+
+            $rows[$i]['Financial Year'] = $financialYear;
+            $rows[$i]['State Id'] = $stateId !== null ? (string) $stateId : '';
+            $rows[$i]['Mother Sanction No.'] = $motherSanctionNo;
+            $rows[$i]['IFd No'] = $ifdNo;
+            $rows[$i]['Mother Sanction Amount'] = $motherSanctionAmount;
+            $rows[$i]['Available Amount'] = $availableAmount;
+        }
+
+        return ['rows' => $rows, 'columns' => $allColumns];
+    }
+
+    /**
+     * Map raw Excel rows + header_data to daily_sanction create payloads.
+     */
+    private function mapRawRowsToDailySanction(array $headerData, array $rawRows): array
+    {
+        $stateName = trim((string) ($headerData['state'] ?? ''));
+        $stateId = null;
+        if ($stateName !== '') {
+            $state = State::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($stateName)])->first();
+            $stateId = $state ? (int) $state->id : null;
+        }
+        if ($stateId === null) {
+            return [];
+        }
+
+        $financialYear = trim((string) ($headerData['financial_year'] ?? ''));
+        if ($financialYear === '') {
+            $fromDateStr = trim((string) ($headerData['from_date'] ?? ''));
+            if ($fromDateStr !== '') {
+                $parsed = \DateTime::createFromFormat('d-m-Y', $fromDateStr)
+                    ?: \DateTime::createFromFormat('d/m/Y', $fromDateStr)
+                    ?: \DateTime::createFromFormat('Y-m-d', $fromDateStr);
+                if ($parsed) {
+                    $y = (int) $parsed->format('Y');
+                    $m = (int) $parsed->format('m');
+                    $financialYear = $m >= 4 ? $y . '-' . ($y + 1) % 100 : ($y - 1) . '-' . $y % 100;
+                }
+            }
+        }
+        if ($financialYear === '') {
+            $y = (int) date('Y');
+            $financialYear = $y . '-' . sprintf('%02d', ($y + 1) % 100);
+        }
+
+        $mapped = [];
+        foreach ($rawRows as $raw) {
+            if ($this->isTotalOrGrandTotalRow(is_array($raw) ? $raw : [])) {
+                continue;
+            }
+            $sanctionDate = $this->normalizeSanctionDate($raw['Sanction Date'] ?? $raw['Sanction date'] ?? '');
+            $sanctionNo = trim((string) ($raw['S. No. (Sanction)'] ?? ''));
+            $slsScheme = trim((string) ($raw['SLS Scheme'] ?? $raw['SLS scheme'] ?? ''));
+            $functionHead = trim((string) ($raw['Function Head'] ?? $raw['Function head'] ?? ''));
+            $objectHead = trim((string) ($raw['Object Head'] ?? $raw['Object head'] ?? ''));
+            $sanctionAmount = $this->normalizeAmount($raw['Sanction Amount'] ?? $raw['Sanction amount'] ?? 0);
+
+            $budgetHead = $functionHead;
+            if ($budgetHead !== '' && $objectHead !== '') {
+                $budgetHead = $this->formatBudgetHead($functionHead, $objectHead);
+            }
+
+            $mapped[] = [
+                'financial_year' => $financialYear,
+                'state_id' => $stateId,
+                'ds_date' => $sanctionDate,
+                'mother_sanction' => $sanctionNo,
+                'daily_sanction_no' => $sanctionNo,
+                'ifd_no' => $sanctionNo,
+                'sls_name' => $slsScheme,
+                'budget_head' => $budgetHead,
+                'mother_sanction_amount' => $sanctionAmount,
+                'available_amount' => $sanctionAmount,
+                'center_share_amount' => $sanctionAmount,
+                'remark' => trim((string) ($raw['Sanction Status'] ?? $raw['Sanction status'] ?? '')),
+            ];
+        }
+        return $mapped;
+    }
+
+    /**
+     * Store bulk daily sanction rows (from preview confirm). Accepts header_data + raw Excel rows.
+     */
+    public function bulkStore(Request $request)
+    {
+        try {
+            $request->validate([
+                'header_data' => 'required|array',
+                'header_data.report_title' => 'nullable|string',
+                'header_data.financial_year' => 'nullable|string|max:40',
+                'header_data.state' => 'required|string',
+                'header_data.scheme_css' => 'nullable|string',
+                'header_data.scheme_sls' => 'nullable|string',
+                'header_data.from_date' => 'nullable|string',
+                'header_data.to_date' => 'nullable|string',
+                'header_data.isdbt_payment_mode' => 'nullable|string',
+                'header_data.figures_in' => 'nullable|string',
+                'header_data.total_sanction' => 'nullable|string',
+                'rows' => 'required|array|min:1',
+            ]);
+
+            $mapped = $this->mapRawRowsToDailySanction($request->header_data, $request->rows);
+            if (empty($mapped)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Could not resolve state from header. Ensure state name in Excel matches master.',
+                ], 422);
+            }
+
+            $inserted = 0;
+            foreach ($mapped as $row) {
+                if (empty($row['ds_date']) || empty($row['mother_sanction']) || empty($row['budget_head'])) {
+                    continue;
+                }
+                DailySanction::create([
+                    'financial_year' => $row['financial_year'],
+                    'state_id' => $row['state_id'],
+                    'ds_date' => $row['ds_date'],
+                    'daily_sanction_no' => $row['daily_sanction_no'] ?? '',
+                    'mother_sanction' => $row['mother_sanction'],
+                    'ifd_no' => $row['ifd_no'],
+                    'sls_name' => $row['sls_name'],
+                    'budget_head' => $row['budget_head'],
+                    'mother_sanction_amount' => $row['mother_sanction_amount'],
+                    'available_amount' => $row['available_amount'],
+                    'center_share_amount' => $row['center_share_amount'],
+                    'remark' => $row['remark'] ?? null,
+                    'status' => 1,
+                ]);
+                $inserted++;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $inserted . ' daily sanction record(s) saved successfully.',
+                'inserted' => $inserted,
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('Daily sanction bulk store error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
 }

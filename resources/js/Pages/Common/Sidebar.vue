@@ -173,6 +173,11 @@
                         <span class="sub-item">Daily Sanction List</span>
                       </Link>
                     </li>
+                    <li>
+                      <Link :href="route('daily-sanction-bulk-upload')" class="nav-link">
+                        <span class="sub-item">Daily Sanction Bulk Upload</span>
+                      </Link>
+                    </li>
                   </ul>
                 </div>
               </li>
@@ -363,6 +368,7 @@ const menuMap = {
   '/state-uts-pd': 'bhead',
   '/daily-sanction': 'moduledailysanction',
   '/daily-sanction-list': 'moduledailysanction',
+  '/daily-sanction-bulk-upload': 'moduledailysanction',
   '/mother-sanction': 'module-mother-sanction',
   '/mother-sanction-list': 'module-mother-sanction',
   '/mother-sanction-list-module': 'module-mother-sanction',
