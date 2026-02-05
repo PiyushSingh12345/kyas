@@ -19,8 +19,8 @@
                   <div class="card-title">Daily Sanction Module</div>
                 </div>
                 <div class="card-body">
-                  <!-- PDF Upload Section -->
-                  <div class="row mb-4">
+                  <!-- PDF Upload Section (hidden) -->
+                  <div v-if="false" class="row mb-4">
                     <div class="col-md-12">
                       <div class="card bg-light">
                         <div class="card-header">
@@ -187,7 +187,7 @@
 						      <input type="text" class="form-control" :value="row.mother_sanction_amount" disabled>
 						    </td>
 						    <td>
-						      <input type="text" class="form-control" :value="getBalancedFundAvailable(row.budget_head)" disabled>
+						      <input type="text" class="form-control" :value="getBalancedFundAvailable(row)" disabled>
 						    </td>
 						    <td>
 						      <input 
@@ -195,7 +195,7 @@
 						        class="form-control" 
 						        :class="{ 'is-invalid': isAmountExceeded(row) }"
 						        v-model="row.center_share_amount"
-						        :max="getBalancedFundAvailableNumeric(row.budget_head)"
+						        :max="getBalancedFundAvailableNumeric(row)"
 						        step="0.00001"
 						        min="0"
 						        @input="validateAmount(row)"
@@ -203,7 +203,7 @@
 						        placeholder="0.00000"
 						      >
 						      <div v-if="isAmountExceeded(row)" class="invalid-feedback">
-						        Amount cannot exceed Balanced Fund Available ({{ getBalancedFundAvailable(row.budget_head) }})
+						        Amount cannot exceed Balanced Fund Available ({{ getBalancedFundAvailable(row) }})
 						      </div>
 						    </td>
 						  </tr>
@@ -521,24 +521,28 @@ const fetchBalancedFundAvailable = async (budgetHeads) => {
   }
 }
 
-// Get balanced fund available for a specific budget head (formatted string)
-const getBalancedFundAvailable = (budgetHead) => {
-  if (!budgetHead) return '0.00000'
-  const amount = balancedFundData.value[budgetHead] || 0
-  return parseFloat(amount).toFixed(5)
+// Get balanced fund available for a row: Mother Sanctioned Amount - total already daily sanctioned
+const getBalancedFundAvailable = (row) => {
+  if (!row || !row.budget_head) return '0.00000'
+  const motherSanctioned = parseFloat(row.mother_sanction_amount || 0)
+  const alreadySanctioned = parseFloat(balancedFundData.value[row.budget_head] || 0)
+  const amount = Math.max(0, motherSanctioned - alreadySanctioned)
+  return amount.toFixed(5)
 }
 
 // Get balanced fund available as numeric value for comparison
-const getBalancedFundAvailableNumeric = (budgetHead) => {
-  if (!budgetHead) return 0
-  return parseFloat(balancedFundData.value[budgetHead] || 0)
+const getBalancedFundAvailableNumeric = (row) => {
+  if (!row || !row.budget_head) return 0
+  const motherSanctioned = parseFloat(row.mother_sanction_amount || 0)
+  const alreadySanctioned = parseFloat(balancedFundData.value[row.budget_head] || 0)
+  return Math.max(0, motherSanctioned - alreadySanctioned)
 }
 
 // Check if the entered amount exceeds balanced fund available
 const isAmountExceeded = (row) => {
   if (!row.budget_head || !row.center_share_amount) return false
   const enteredAmount = parseFloat(row.center_share_amount) || 0
-  const balancedFund = getBalancedFundAvailableNumeric(row.budget_head)
+  const balancedFund = getBalancedFundAvailableNumeric(row)
   return enteredAmount > balancedFund
 }
 
@@ -547,7 +551,7 @@ const validateAmount = (row) => {
   if (!row.budget_head || !row.center_share_amount) return
   
   const enteredAmount = parseFloat(row.center_share_amount) || 0
-  const balancedFund = getBalancedFundAvailableNumeric(row.budget_head)
+  const balancedFund = getBalancedFundAvailableNumeric(row)
   
   if (enteredAmount > balancedFund) {
     // Cap the value at the maximum allowed
@@ -555,7 +559,7 @@ const validateAmount = (row) => {
     
     showFlashMessage(
       'warning',
-      `Daily Sanction Amount has been capped at Balanced Fund Available (${getBalancedFundAvailable(row.budget_head)}) for Budget Head: ${row.budget_head}`,
+      `Daily Sanction Amount has been capped at Balanced Fund Available (${getBalancedFundAvailable(row)}) for Budget Head: ${row.budget_head}`,
       'fas fa-exclamation-triangle'
     )
   } else if (enteredAmount < 0) {
@@ -584,7 +588,7 @@ const submitForm = async () => {
   const validationErrors = []
   sanctionDetails.value.forEach((row, index) => {
     if (row.center_share_amount && isAmountExceeded(row)) {
-      const balancedFund = getBalancedFundAvailable(row.budget_head)
+      const balancedFund = getBalancedFundAvailable(row)
       validationErrors.push(
         `Row ${index + 1} (${row.budget_head}): Daily Sanction Amount exceeds Balanced Fund Available (${balancedFund})`
       )

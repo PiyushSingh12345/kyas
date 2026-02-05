@@ -285,9 +285,9 @@ const PREFERRED_COLUMN_ORDER = [
   'State Id',
   'Mother Sanction No.',
   'IFd No',
-  'Mother Sanction Amount',
-  'Available Amount'
+  'Mother Sanction Amount'
 ]
+const HIDDEN_PREVIEW_COLUMNS = ['Available Amount']
 
 const isGenericOrTotalHeader = (col) => {
   if (!col || typeof col !== 'string') return true
@@ -300,13 +300,14 @@ const normalizeCol = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ')
 const orderedPreviewColumns = () => {
   const cols = previewColumns.value || []
   if (cols.length === 0) return cols
+  const hidden = HIDDEN_PREVIEW_COLUMNS.map((c) => normalizeCol(c))
   const ordered = []
   for (const preferred of PREFERRED_COLUMN_ORDER) {
     const match = cols.find((c) => normalizeCol(c) === normalizeCol(preferred))
     if (match) ordered.push(match)
   }
   for (const col of cols) {
-    if (!ordered.includes(col)) ordered.push(col)
+    if (!ordered.includes(col) && !hidden.includes(normalizeCol(col))) ordered.push(col)
   }
   return ordered.length ? ordered : cols
 }

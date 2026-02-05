@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class DailySanctionController extends Controller
 {
@@ -365,6 +366,54 @@ public function store(Request $request)
     }
 
     /**
+     * Read an uploaded Excel file into an array of sheets (same shape as Maatwebsite Excel::toArray).
+     * Uses PhpSpreadsheet when [excel] is not bound (e.g. server package not discovered); otherwise Maatwebsite Excel.
+     *
+     * @param  \Illuminate\Http\UploadedFile  $file
+     * @return array<int, array<int, array<int, mixed>>>
+     */
+    private function readExcelToSheets($file): array
+    {
+        // When [excel] is not bound (e.g. maatwebsite/excel not discovered on server), use PhpSpreadsheet directly
+        // so we never trigger "Target class [excel] does not exist."
+        if (! app()->bound('excel')) {
+            return $this->readExcelWithPhpSpreadsheet($file);
+        }
+
+        try {
+            return Excel::toArray([], $file);
+        } catch (\Throwable $e) {
+            Log::warning('Excel facade failed, falling back to PhpSpreadsheet: ' . $e->getMessage());
+            return $this->readExcelWithPhpSpreadsheet($file);
+        }
+    }
+
+    /**
+     * Read uploaded Excel using PhpSpreadsheet (no dependency on Maatwebsite Excel binding).
+     *
+     * @param  \Illuminate\Http\UploadedFile  $file
+     * @return array<int, array<int, array<int, mixed>>>
+     */
+    private function readExcelWithPhpSpreadsheet($file): array
+    {
+        $path = $file->getRealPath();
+        $spreadsheet = IOFactory::load($path);
+        $sheets = [];
+        foreach ($spreadsheet->getAllSheets() as $sheet) {
+            $sheets[] = $sheet->toArray(null, true, true, false);
+        }
+        // Normalize to 0-based row/column keys to match Excel::toArray
+        foreach ($sheets as $si => $rows) {
+            $normalized = [];
+            foreach ($rows as $row) {
+                $normalized[] = array_values($row);
+            }
+            $sheets[$si] = $normalized;
+        }
+        return $sheets;
+    }
+
+    /**
      * Parse uploaded Excel file (SPARSH format) and return preview for daily sanction bulk upload.
      * Ignores Excel lines 1–7 (rows 0–6). Line 8 = table headers, line 9+ = data rows.
      * Metadata (lines 1–7) is still read for header_data (state, from_date, etc.) for display and bulk store.
@@ -377,7 +426,7 @@ public function store(Request $request)
             ]);
 
             $file = $request->file('file');
-            $sheets = Excel::toArray([], $file);
+            $sheets = $this->readExcelToSheets($file);
             $sheet = $sheets[0] ?? null;
 
             if (!$sheet || count($sheet) < 9) {
@@ -1458,6 +1507,7 @@ public function store(Request $request)
         $allColumns = array_merge($columns, $newColumns);
         $slsSchemeCache = [];
         $motherSanctionCache = [];
+        $motherSanctionShownForScheme = [];
 
         foreach ($rows as $i => $row) {
             $slsScheme = $this->getPreviewRowValue($row, ['SLS Scheme', 'SLS scheme']);
@@ -1503,17 +1553,60 @@ public function store(Request $request)
 
             $motherSanctionAmount = '';
             $availableAmount = '';
+            // dd($slsScheme);
             if ($slsScheme !== '') {
                 $cacheKey = $slsScheme;
                 if (!isset($motherSanctionCache[$cacheKey])) {
                     $pdc = SlsPDComponent::where('full_sls_name', $slsScheme)->first();
+                    // if($pdc){
+                    //     dd($pdc);
+
+                    // }
+                    if (!$pdc && trim($slsScheme) !== '') {
+                        $pdc = SlsPDComponent::whereRaw('TRIM(COALESCE(full_sls_name,\'\')) = ?', [trim($slsScheme)])->first();
+                    }
                     if ($pdc) {
-                        $ms = MotherSanction::where('state_id', $pdc->state_id)
-                            ->where('sls_name', $pdc->name)
-                            ->where('pd_component', $pdc->slsPD)
-                            ->where('status', '1')
-                            ->orderByDesc('id')
+                        $pdcId = (int) $pdc->id;
+                        $stateIdVal = (int) $pdc->state_id;
+                        $nameVal = trim((string) $pdc->name);
+                        $slsPDVal = trim((string) $pdc->slsPD);
+                        $fullSlsVal = trim((string) ($pdc->full_sls_name ?? ''));
+                        // dd($pdcId,$stateIdVal, $nameVal, $slsPDVal, $fullSlsVal);
+                        $ms = MotherSanction::where('mother_sanction.state_id', $stateIdVal)
+                            ->where(function ($q) use ($nameVal, $fullSlsVal) {
+                                $q->whereRaw('TRIM(COALESCE(mother_sanction.sls_name,\'\')) = ?', [$nameVal]);
+                                if ($fullSlsVal !== '' && $fullSlsVal !== $nameVal) {
+                                    $q->orWhereRaw('TRIM(COALESCE(mother_sanction.sls_name,\'\')) = ?', [$fullSlsVal]);
+                                }
+                            })
+                            ->whereRaw('TRIM(COALESCE(mother_sanction.pd_component,\'\')) = ?', [$slsPDVal])
+                            ->where(function ($q) {
+                                $q->where('mother_sanction.status', 1)->orWhere('mother_sanction.status', '1');
+                            })
+                            ->orderByDesc('mother_sanction.id')
                             ->first();
+                        // dd($ms);
+                        if (!$ms && $pdcId > 0) {
+                            $msRow = DB::table('mother_sanction as ms')
+                                ->join('pd_and_sls_comp as pdc', function ($j) {
+                                    $j->on('ms.state_id', '=', 'pdc.state_id')
+                                      ->on('ms.pd_component', '=', 'pdc.slsPD')
+                                      ->whereRaw('(ms.sls_name = pdc.name OR (pdc.full_sls_name IS NOT NULL AND pdc.full_sls_name != \'\' AND ms.sls_name = pdc.full_sls_name))');
+                                })
+                                ->where('pdc.id', $pdcId)
+                                ->where(function ($q) {
+                                    $q->where('ms.status', 1)->orWhere('ms.status', '1');
+                                })
+                                ->orderByDesc('ms.id')
+                                ->select('ms.mother_sanction_amount', 'ms.available_fund')
+                                ->first();
+                            if ($msRow) {
+                                $ms = (object) [
+                                    'mother_sanction_amount' => $msRow->mother_sanction_amount,
+                                    'available_fund' => $msRow->available_fund,
+                                ];
+                            }
+                        }
                         $motherSanctionCache[$cacheKey] = $ms ? [
                             'mother_sanction_amount' => $ms->mother_sanction_amount !== null ? number_format((float) $ms->mother_sanction_amount, 2, '.', '') : '',
                             'available_fund' => $ms->available_fund !== null ? number_format((float) $ms->available_fund, 2, '.', '') : '',
@@ -1522,8 +1615,11 @@ public function store(Request $request)
                         $motherSanctionCache[$cacheKey] = ['mother_sanction_amount' => '', 'available_fund' => ''];
                     }
                 }
-                $motherSanctionAmount = $motherSanctionCache[$cacheKey]['mother_sanction_amount'];
-                $availableAmount = $motherSanctionCache[$cacheKey]['available_fund'];
+                if (!isset($motherSanctionShownForScheme[$cacheKey])) {
+                    $motherSanctionAmount = $motherSanctionCache[$cacheKey]['mother_sanction_amount'];
+                    $availableAmount = $motherSanctionCache[$cacheKey]['available_fund'];
+                    $motherSanctionShownForScheme[$cacheKey] = true;
+                }
             }
 
             $rows[$i]['Financial Year'] = $financialYear;
@@ -1538,22 +1634,24 @@ public function store(Request $request)
     }
 
     /**
-     * Map raw Excel rows + header_data to daily_sanction create payloads.
+     * Map preview rows to daily_sanction table columns using the defined key mapping.
+     * Mapping: Available Amount→available_amount, Daily Sanction Number→daily_sanction_no,
+     * Financial Year→financial_year, Function Head→budget_head, IFd No→ifd_no,
+     * Mother Sanction Amount→mother_sanction_amount, Mother Sanction No.→mother_sanction,
+     * SLS Scheme→sls_name, Sanction Amount→center_share_amount, Sanction Date→ds_date,
+     * Sanction Status→status (closed=0 else 1), State Id→state_id.
      */
     private function mapRawRowsToDailySanction(array $headerData, array $rawRows): array
     {
         $stateName = trim((string) ($headerData['state'] ?? ''));
-        $stateId = null;
+        $headerStateId = null;
         if ($stateName !== '') {
             $state = State::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($stateName)])->first();
-            $stateId = $state ? (int) $state->id : null;
-        }
-        if ($stateId === null) {
-            return [];
+            $headerStateId = $state ? (int) $state->id : null;
         }
 
-        $financialYear = trim((string) ($headerData['financial_year'] ?? ''));
-        if ($financialYear === '') {
+        $headerFinancialYear = trim((string) ($headerData['financial_year'] ?? ''));
+        if ($headerFinancialYear === '') {
             $fromDateStr = trim((string) ($headerData['from_date'] ?? ''));
             if ($fromDateStr !== '') {
                 $parsed = \DateTime::createFromFormat('d-m-Y', $fromDateStr)
@@ -1562,48 +1660,94 @@ public function store(Request $request)
                 if ($parsed) {
                     $y = (int) $parsed->format('Y');
                     $m = (int) $parsed->format('m');
-                    $financialYear = $m >= 4 ? $y . '-' . ($y + 1) % 100 : ($y - 1) . '-' . $y % 100;
+                    $headerFinancialYear = $m >= 4 ? $y . '-' . ($y + 1) : ($y - 1) . '-' . $y;
                 }
             }
         }
-        if ($financialYear === '') {
+        if ($headerFinancialYear === '') {
             $y = (int) date('Y');
-            $financialYear = $y . '-' . sprintf('%02d', ($y + 1) % 100);
+            $headerFinancialYear = $y . '-' . ($y + 1);
         }
 
         $mapped = [];
         foreach ($rawRows as $raw) {
-            if ($this->isTotalOrGrandTotalRow(is_array($raw) ? $raw : [])) {
+            $raw = is_array($raw) ? $raw : [];
+            if ($this->isTotalOrGrandTotalRow($raw)) {
                 continue;
             }
-            $sanctionDate = $this->normalizeSanctionDate($raw['Sanction Date'] ?? $raw['Sanction date'] ?? '');
-            $sanctionNo = trim((string) ($raw['S. No. (Sanction)'] ?? ''));
-            $slsScheme = trim((string) ($raw['SLS Scheme'] ?? $raw['SLS scheme'] ?? ''));
-            $functionHead = trim((string) ($raw['Function Head'] ?? $raw['Function head'] ?? ''));
-            $objectHead = trim((string) ($raw['Object Head'] ?? $raw['Object head'] ?? ''));
-            $sanctionAmount = $this->normalizeAmount($raw['Sanction Amount'] ?? $raw['Sanction amount'] ?? 0);
+
+            $stateId = $this->getPreviewRowValue($raw, ['State Id', 'State id']);
+            if ($stateId !== '' && is_numeric($stateId)) {
+                $stateId = (int) $stateId;
+            } else {
+                $stateId = $headerStateId;
+            }
+            if ($stateId === null || $stateId === '') {
+                continue;
+            }
+
+            $financialYear = $this->getPreviewRowValue($raw, ['Financial Year', 'Financial year']);
+            if ($financialYear === '') {
+                $financialYear = $headerFinancialYear;
+            }
+
+            $dsDate = $this->normalizeSanctionDate($this->getPreviewRowValue($raw, ['Sanction Date', 'Sanction date']));
+            $dailySanctionNo = $this->getPreviewRowValue($raw, ['Daily Sanction Number', 'Daily sanction number']);
+            $motherSanction = $this->getPreviewRowValue($raw, ['Mother Sanction No.', 'Mother Sanction No']);
+            $ifdNo = $this->getPreviewRowValue($raw, ['IFd No', 'IFd no']);
+            $slsName = $this->getPreviewRowValue($raw, ['SLS Scheme', 'SLS scheme']);
+            $functionHead = $this->getPreviewRowValue($raw, ['Function Head', 'Function head']);
+            $objectHead = $this->getPreviewRowValue($raw, ['Object Head', 'Object head']);
+            $sanctionStatus = $this->getPreviewRowValue($raw, ['Sanction Status', 'Sanction status']);
 
             $budgetHead = $functionHead;
             if ($budgetHead !== '' && $objectHead !== '') {
                 $budgetHead = $this->formatBudgetHead($functionHead, $objectHead);
             }
 
+            $sanctionAmount = $this->getPreviewRowValue($raw, ['Sanction Amount', 'Sanction amount']);
+            $centerShareAmount = $this->parseAmount($sanctionAmount);
+
+            $motherSanctionAmountStr = $this->getPreviewRowValue($raw, ['Mother Sanction Amount', 'Mother Sanction amount']);
+            $motherSanctionAmount = $this->parseAmount($motherSanctionAmountStr);
+
+            $availableAmountStr = $this->getPreviewRowValue($raw, ['Available Amount', 'Available amount']);
+            $availableAmount = $this->parseAmount($availableAmountStr);
+
+            $status = 1;
+            if (stripos($sanctionStatus, 'closed') !== false) {
+                $status = 0;
+            }
+
             $mapped[] = [
                 'financial_year' => $financialYear,
                 'state_id' => $stateId,
-                'ds_date' => $sanctionDate,
-                'mother_sanction' => $sanctionNo,
-                'daily_sanction_no' => $sanctionNo,
-                'ifd_no' => $sanctionNo,
-                'sls_name' => $slsScheme,
+                'ds_date' => $dsDate,
+                'daily_sanction_no' => $dailySanctionNo,
+                'mother_sanction' => $motherSanction,
+                'ifd_no' => $ifdNo,
+                'sls_name' => $slsName,
                 'budget_head' => $budgetHead,
-                'mother_sanction_amount' => $sanctionAmount,
-                'available_amount' => $sanctionAmount,
-                'center_share_amount' => $sanctionAmount,
-                'remark' => trim((string) ($raw['Sanction Status'] ?? $raw['Sanction status'] ?? '')),
+                'mother_sanction_amount' => $motherSanctionAmount,
+                'available_amount' => $availableAmount,
+                'center_share_amount' => $centerShareAmount,
+                'remark' => $sanctionStatus !== '' ? $sanctionStatus : null,
+                'status' => $status,
             ];
         }
         return $mapped;
+    }
+
+    /**
+     * Parse amount from preview value (string with commas or number).
+     */
+    private function parseAmount($value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+        $num = is_numeric($value) ? (float) $value : (float) preg_replace('/[^0-9.-]/', '', (string) $value);
+        return round($num, 2);
     }
 
     /**
@@ -1637,23 +1781,23 @@ public function store(Request $request)
 
             $inserted = 0;
             foreach ($mapped as $row) {
-                if (empty($row['ds_date']) || empty($row['mother_sanction']) || empty($row['budget_head'])) {
+                if (empty($row['ds_date']) || empty($row['state_id'])) {
                     continue;
                 }
                 DailySanction::create([
-                    'financial_year' => $row['financial_year'],
+                    'financial_year' => $row['financial_year'] ?? null,
                     'state_id' => $row['state_id'],
                     'ds_date' => $row['ds_date'],
                     'daily_sanction_no' => $row['daily_sanction_no'] ?? '',
-                    'mother_sanction' => $row['mother_sanction'],
-                    'ifd_no' => $row['ifd_no'],
-                    'sls_name' => $row['sls_name'],
-                    'budget_head' => $row['budget_head'],
-                    'mother_sanction_amount' => $row['mother_sanction_amount'],
-                    'available_amount' => $row['available_amount'],
-                    'center_share_amount' => $row['center_share_amount'],
+                    'mother_sanction' => $row['mother_sanction'] ?? '',
+                    'ifd_no' => $row['ifd_no'] ?? '',
+                    'sls_name' => $row['sls_name'] ?? '',
+                    'budget_head' => $row['budget_head'] ?? '',
+                    'mother_sanction_amount' => $row['mother_sanction_amount'] ?? 0,
+                    'available_amount' => $row['available_amount'] ?? 0,
+                    'center_share_amount' => $row['center_share_amount'] ?? 0,
                     'remark' => $row['remark'] ?? null,
-                    'status' => 1,
+                    'status' => isset($row['status']) ? (int) $row['status'] : 1,
                 ]);
                 $inserted++;
             }
