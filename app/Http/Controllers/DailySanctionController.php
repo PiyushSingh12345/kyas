@@ -1497,6 +1497,7 @@ public function store(Request $request)
     private function enrichPreviewRows(array $rows, array $columns): array
     {
         $newColumns = [
+            'SLS Name',
             'Financial Year',
             'State Id',
             'Mother Sanction No.',
@@ -1511,6 +1512,11 @@ public function store(Request $request)
 
         foreach ($rows as $i => $row) {
             $slsScheme = $this->getPreviewRowValue($row, ['SLS Scheme', 'SLS scheme']);
+            $slsName = '';
+            if ($slsScheme !== '') {
+                $pos = strpos($slsScheme, '-');
+                $slsName = $pos !== false ? trim(substr($slsScheme, $pos + 1)) : $slsScheme;
+            }
             $sanctionDate = $this->getPreviewRowValue($row, ['Sanction Date', 'Sanction date']);
             $dailySanctionNo = $this->getPreviewRowValue($row, ['Daily Sanction Number', 'Daily sanction number']);
             $sNoSanction = $this->getPreviewRowValue($row, ['S. No. (Sanction)', 'S. No. (Sanction)', "S. No.\n(Sanction)"]);
@@ -1622,6 +1628,7 @@ public function store(Request $request)
                 }
             }
 
+            $rows[$i]['SLS Name'] = $slsName;
             $rows[$i]['Financial Year'] = $financialYear;
             $rows[$i]['State Id'] = $stateId !== null ? (string) $stateId : '';
             $rows[$i]['Mother Sanction No.'] = $motherSanctionNo;
@@ -1695,7 +1702,10 @@ public function store(Request $request)
             $dailySanctionNo = $this->getPreviewRowValue($raw, ['Daily Sanction Number', 'Daily sanction number']);
             $motherSanction = $this->getPreviewRowValue($raw, ['Mother Sanction No.', 'Mother Sanction No']);
             $ifdNo = $this->getPreviewRowValue($raw, ['IFd No', 'IFd no']);
-            $slsName = $this->getPreviewRowValue($raw, ['SLS Scheme', 'SLS scheme']);
+            $slsName = $this->getPreviewRowValue($raw, ['SLS Name', 'SLS name']);
+            if ($slsName === '') {
+                $slsName = $this->getPreviewRowValue($raw, ['SLS Scheme', 'SLS scheme']);
+            }
             $functionHead = $this->getPreviewRowValue($raw, ['Function Head', 'Function head']);
             $objectHead = $this->getPreviewRowValue($raw, ['Object Head', 'Object head']);
             $sanctionStatus = $this->getPreviewRowValue($raw, ['Sanction Status', 'Sanction status']);

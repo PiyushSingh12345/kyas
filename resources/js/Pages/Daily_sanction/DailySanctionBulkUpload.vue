@@ -273,6 +273,7 @@ const clearPreview = () => {
 const PREFERRED_COLUMN_ORDER = [
   'S.No. (SLS)',
   'SLS Scheme',
+  'SLS Name',
   'S. No. (Sanction)',
   'Daily Sanction Number',
   'IsDBT',
@@ -329,6 +330,11 @@ const isSlsSchemeColumn = (col) => {
   return c.includes('sls scheme')
 }
 
+const isSlsNameColumn = (col) => {
+  const c = (col || '').toLowerCase()
+  return c.includes('sls name') && !c.includes('sls scheme')
+}
+
 const headerClass = (col) => {
   if (isAmountColumn(col)) return 'text-end align-middle'
   if (isCenterColumn(col)) return 'text-center align-middle'
@@ -337,7 +343,7 @@ const headerClass = (col) => {
 
 const cellClass = (col) => {
   if (isAmountColumn(col)) return 'text-end'
-  if (isSlsSchemeColumn(col)) return 'sls-scheme-cell'
+  if (isSlsSchemeColumn(col) || isSlsNameColumn(col)) return 'sls-scheme-cell'
   if (isCenterColumn(col)) return 'text-center'
   return ''
 }
