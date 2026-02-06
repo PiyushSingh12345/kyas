@@ -420,6 +420,12 @@ public function store(Request $request)
      */
     public function uploadPreview(Request $request)
     {
+        // Allow larger memory and time for big Excel files so response is always valid JSON
+        $previousMemory = ini_get('memory_limit');
+        $previousTime = ini_get('max_execution_time');
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(120);
+
         try {
             $request->validate([
                 'file' => 'required|file|mimes:xlsx,xls|max:10240',
@@ -610,8 +616,12 @@ public function store(Request $request)
                 'rows' => $tableData,
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
+            @ini_set('memory_limit', $previousMemory);
+            @set_time_limit($previousTime);
             throw $e;
         } catch (\Throwable $e) {
+            @ini_set('memory_limit', $previousMemory);
+            @set_time_limit($previousTime);
             Log::error('Daily sanction bulk upload preview error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),

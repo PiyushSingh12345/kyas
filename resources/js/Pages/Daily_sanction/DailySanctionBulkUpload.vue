@@ -216,7 +216,14 @@ const uploadAndPreview = async () => {
       },
       body: formData
     })
-    const data = await res.json()
+    const text = await res.text()
+    let data = {}
+    try {
+      data = text ? JSON.parse(text) : {}
+    } catch (_) {
+      showFlash('danger', 'Server returned an invalid response. Try a smaller file or try again. If it persists, check the server error log.', 'fas fa-exclamation-triangle')
+      return
+    }
     if (data.success && Array.isArray(data.rows)) {
       headerData.value = data.header_data || null
       previewColumns.value = Array.isArray(data.columns) ? data.columns : []
@@ -245,7 +252,14 @@ const confirmAndStore = async () => {
       },
       body: JSON.stringify({ header_data: headerData.value, rows: previewRows.value })
     })
-    const data = await res.json()
+    const textStore = await res.text()
+    let data = {}
+    try {
+      data = textStore ? JSON.parse(textStore) : {}
+    } catch (_) {
+      showFlash('danger', 'Server returned an invalid response. Please try again.', 'fas fa-exclamation-triangle')
+      return
+    }
     if (data.success) {
       showFlash('success', data.message || 'Data saved successfully.', 'fas fa-check-circle')
       previewRows.value = []
