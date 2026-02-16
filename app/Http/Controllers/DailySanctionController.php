@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\MotherSanction;
 use App\Models\DailySanction;
+use App\Models\DailySanctionHistory;
 use App\Models\SlsPDComponent;
 use App\Models\State;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -117,7 +119,7 @@ public function store(Request $request)
         Log::info('Daily Sanction Validation Passed', ['validated_data' => $validated]);
 
         foreach ($validated['entries'] as $entry) {
-            DailySanction::create([
+            $record = DailySanction::create([
                 'financial_year' => $validated['financial_year'],
                 'state_id' => $validated['state_id'],
                 'ds_date' => $validated['ds_date'],
@@ -132,6 +134,7 @@ public function store(Request $request)
                 'remark' => $request->remark,
                 'status' => 1
             ]);
+            $this->saveDailySanctionHistory($record, 'CREATE', 'New daily sanction entry created');
         }
 
         Log::info('Daily Sanction Entries Created Successfully');
@@ -1804,7 +1807,7 @@ public function store(Request $request)
                 if (empty($row['ds_date']) || empty($row['state_id'])) {
                     continue;
                 }
-                DailySanction::create([
+                $record = DailySanction::create([
                     'financial_year' => $row['financial_year'] ?? null,
                     'state_id' => $row['state_id'],
                     'ds_date' => $row['ds_date'],
@@ -1819,6 +1822,7 @@ public function store(Request $request)
                     'remark' => $row['remark'] ?? null,
                     'status' => isset($row['status']) ? (int) $row['status'] : 1,
                 ]);
+                $this->saveDailySanctionHistory($record, 'CREATE', 'Daily sanction entry created via bulk upload');
                 $inserted++;
             }
 
@@ -1845,4 +1849,110 @@ public function store(Request $request)
         }
     }
 
+    /**
+     * Save history record for daily sanction changes
+     */
+    private function saveDailySanctionHistory($record, $actionType, $description = null, $oldCenterShare = null, $newCenterShare = null)
+    {
+        $changedBy = Auth::check() ? Auth::user()->name : 'System';
+        DailySanctionHistory::create([
+            'daily_sanction_id' => $record->id,
+            'financial_year' => $record->financial_year,
+            'state_id' => $record->state_id,
+            'ds_date' => $record->ds_date,
+            'daily_sanction_no' => $record->daily_sanction_no,
+            'mother_sanction' => $record->mother_sanction,
+            'ifd_no' => $record->ifd_no,
+            'sls_name' => $record->sls_name,
+            'budget_head' => $record->budget_head,
+            'mother_sanction_amount' => $record->mother_sanction_amount,
+            'available_amount' => $record->available_amount,
+            'center_share_amount' => $record->center_share_amount,
+            'remark' => $record->remark,
+            'status' => $record->status,
+            'action_type' => $actionType,
+            'changed_by' => $changedBy,
+            'change_description' => $description,
+            'old_center_share_amount' => $oldCenterShare ?? $record->center_share_amount,
+            'new_center_share_amount' => $newCenterShare ?? $record->center_share_amount,
+        ]);
+    }
+
+    /**
+     * Get daily sanction history list
+     */
+    public function historyList()
+    {
+        try {
+            $history = DailySanctionHistory::with(['state', 'dailySanction'])
+                ->orderBy('history_timestamp', 'desc')
+                ->get();
+
+            // Group by daily_sanction_no and state_id (one row per sanction no in UI)
+            $groupedData = $history->groupBy(function ($item) {
+                return ($item->state_id ?? '') . '|' . ($item->daily_sanction_no ?? '');
+            });
+
+            $transformedData = $groupedData->map(function ($group) {
+                $firstItem = $group->first();
+
+                $budgetHeadMap = [];
+                foreach ($group as $item) {
+                    if (empty($item->budget_head)) {
+                        continue;
+                    }
+                    $budgetKey = $item->budget_head;
+                    if (! isset($budgetHeadMap[$budgetKey])) {
+                        $budgetHeadMap[$budgetKey] = [
+                            'budget_head' => $item->budget_head,
+                            'old_center_share_amount' => 0,
+                            'new_center_share_amount' => 0,
+                            'center_share_amount' => 0,
+                            'action_type' => $item->action_type,
+                            'change_description' => $item->change_description,
+                            'changed_by' => $item->changed_by,
+                            'history_timestamp' => $item->history_timestamp,
+                        ];
+                    }
+                    $budgetHeadMap[$budgetKey]['center_share_amount'] += floatval($item->center_share_amount ?? 0);
+                    $budgetHeadMap[$budgetKey]['old_center_share_amount'] += floatval($item->old_center_share_amount ?? 0);
+                    $budgetHeadMap[$budgetKey]['new_center_share_amount'] += floatval($item->new_center_share_amount ?? 0);
+                }
+
+                $budgetHeads = collect($budgetHeadMap)->values();
+
+                return [
+                    'id' => $firstItem->history_id,
+                    'financial_year' => $firstItem->financial_year,
+                    'state_id' => $firstItem->state_id,
+                    'daily_sanction_no' => $firstItem->daily_sanction_no,
+                    'ds_date' => $firstItem->ds_date,
+                    'mother_sanction' => $firstItem->mother_sanction,
+                    'sls_name' => $firstItem->sls_name,
+                    'ifd_no' => $firstItem->ifd_no,
+                    'budget_heads' => $budgetHeads,
+                    'action_type' => $firstItem->action_type,
+                    'changed_by' => $firstItem->changed_by,
+                    'history_timestamp' => $firstItem->history_timestamp,
+                    'change_description' => $firstItem->change_description,
+                    'state' => [
+                        'id' => $firstItem->state_id,
+                        'name' => $firstItem->state->name ?? '',
+                    ],
+                ];
+            })->values();
+
+            return response()->json($transformedData);
+        } catch (\Exception $e) {
+            Log::error('Error fetching daily sanction history:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'An error occurred while fetching history',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

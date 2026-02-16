@@ -108,6 +108,10 @@ Route::get('/daily-sanction-bulk-upload', function () {
     return Inertia::render('Daily_sanction/DailySanctionBulkUpload');
 })->middleware(['auth', 'verified', 'role:2'])->name('daily-sanction-bulk-upload');
 
+Route::get('/daily-sanction-history', function () {
+    return Inertia::render('Daily_sanction/DailySanctionHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('daily-sanction-history');
+
 Route::get('/re-appropriation-of-funds', function () {
     return Inertia::render('Reappropriation/ReAppropriationOfFunds');
 })->middleware(['auth', 'verified', 'role:2'])->name('re-appropriation-of-funds');
@@ -375,6 +379,7 @@ Route::post('/debug-excel', function(Request $request) {
     Route::post('api/daily-sanctions', [DailySanctionController::class, 'store'])->name('addDailySanction');
 
     Route::get('/api/daily-sanctions-list', [DailySanctionController::class, 'list'])->name('dailySanctions.list');
+    Route::get('/api/daily-sanction-history', [DailySanctionController::class, 'historyList'])->name('dailySanction.historyList');
     Route::get('/api/daily-sanction-time-series', [DailySanctionController::class, 'timeSeriesReport'])->name('dailySanction.timeSeriesReport');
     Route::post('/api/daily-sanction-bulk-upload-preview', [DailySanctionController::class, 'uploadPreview'])->name('dailySanction.bulkUploadPreview');
     Route::post('/api/daily-sanction-bulk-store', [DailySanctionController::class, 'bulkStore'])->name('dailySanction.bulkStore');

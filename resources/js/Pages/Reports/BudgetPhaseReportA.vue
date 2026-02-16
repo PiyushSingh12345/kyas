@@ -248,6 +248,7 @@ import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 import { ref, reactive, computed } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
+import * as XLSX from 'xlsx'
 
 export default {
   name: 'BudgetPhase',
@@ -554,33 +555,13 @@ export default {
       return data
     }
 
-    // Function to export to Excel
+    // Function to export to Excel (.xlsx)
     const exportToExcel = () => {
       const data = prepareTableData()
-      let csvContent = ''
-      
-      data.forEach(row => {
-        const csvRow = row.map(cell => {
-          const cellValue = String(cell || '')
-          if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
-            return `"${cellValue.replace(/"/g, '""')}"`
-          }
-          return cellValue
-        })
-        csvContent += csvRow.join(',') + '\n'
-      })
-      
-      const BOM = '\uFEFF'
-      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-      const link = document.createElement('a')
-      const url = URL.createObjectURL(blob)
-      
-      link.setAttribute('href', url)
-      link.setAttribute('download', `Budget_Phase_Report_${financialYear.value}_${selectedPhase.value}_${new Date().getTime()}.xlsx`)
-      link.style.visibility = 'hidden'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.aoa_to_sheet(data)
+      XLSX.utils.book_append_sheet(wb, ws, 'Budget Phase Report')
+      XLSX.writeFile(wb, `Budget_Phase_Report_${financialYear.value}_${selectedPhase.value}_${new Date().getTime()}.xlsx`)
     }
 
     // Function to export to CSV

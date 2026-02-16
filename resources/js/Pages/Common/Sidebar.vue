@@ -178,6 +178,11 @@
                         <span class="sub-item">Daily Sanction Bulk Upload</span>
                       </Link>
                     </li>
+                    <li>
+                      <Link :href="route('daily-sanction-history')" class="nav-link">
+                        <span class="sub-item">Daily Sanction History</span>
+                      </Link>
+                    </li>
                   </ul>
                 </div>
               </li>

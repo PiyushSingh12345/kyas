@@ -436,6 +436,7 @@
 								  </div>
 							  </div>
 
+							  <div ref="reportTableScrollWrapper" class="report-table-scroll-wrapper" @scroll="onTableWrapperScroll">
 							  <div class="table-responsive" id="reportTable">
 								  <table class="table table-bordered table-hover align-middle text-center">
 									  <thead class="table-dark">
@@ -609,28 +610,41 @@
 										  <tr class="table-warning fw-bold">
 											  <td class="fw-sticky">Total</td>
 											  <template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												  <td v-if="showAllocation">
+												  <td v-if="showAllocation" class="text-center">
 													  {{ calculateColumnTotal(pd.division_id, 'allocation') }}
 												  </td>
-												  <td v-if="showRelease">
+												  <td v-if="showReAllocation" class="text-center">
+													  {{ calculateColumnTotal(pd.division_id, 'reAllocation') }}
+												  </td>
+												  <td v-if="showFeAllocation" class="text-center">
+													  {{ calculateColumnTotal(pd.division_id, 'feAllocation') }}
+												  </td>
+												  <td v-if="showRelease" class="text-center">
 													  {{ calculateColumnTotal(pd.division_id, 'release') }}
 												  </td>
-												  <td v-if="showExpenditure">
+												  <td v-if="showExpenditure" class="text-center">
 													  {{ calculateColumnTotal(pd.division_id, 'expenditure') }}
 												  </td>
 											  </template>
-											  <td class="text-center grand-total">
+											  <td v-if="showAllocation" class="text-center grand-total">
 												  {{ calculateGrandTotal() }}
 											  </td>
-											  <td class="text-center fw-bold bg-success-subtle">
+											  <td v-if="showReAllocation" class="text-center grand-total">
+												  {{ calculateGrandTotalRe() }}
+											  </td>
+											  <td v-if="showFeAllocation" class="text-center grand-total">
+												  {{ calculateGrandTotalFe() }}
+											  </td>
+											  <td v-if="showRelease" class="text-center fw-bold bg-success-subtle">
 												  {{ calculateGrandTotalRelease() }}
 											  </td>
-											  <td class="text-center fw-bold bg-success-subtle">
+											  <td v-if="showExpenditure" class="text-center fw-bold bg-success-subtle">
 												  {{ calculateGrandTotalExpenditure() }}
 											  </td>
 										  </tr>
-										</tbody>
+									  </tbody>
 								  </table>
+							  </div>
 							  </div>
   
 							  <!-- Submit Button -->
@@ -689,15 +703,25 @@
 			  </div>
 			</div>
 		  </div>
+		  <!-- Fixed horizontal scrollbar at bottom of viewport -->
+		  <div
+		    v-show="showFixedScrollBar"
+		    ref="fixedScrollBar"
+		    class="fixed-horizontal-scrollbar"
+		    @scroll="onFixedScrollBarScroll"
+		  >
+		    <div ref="fixedScrollBarInner" class="fixed-horizontal-scrollbar-inner"></div>
+		  </div>
 		  <Footer />
 	  </div>
 	</div>
   </template>
   
   <script setup>
-  import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+  import { ref, onMounted, onBeforeUnmount, onUpdated, computed, watch, nextTick } from 'vue'
   import { Link } from '@inertiajs/vue3'
-  import axios from 'axios';
+  import axios from 'axios'
+  import * as XLSX from 'xlsx'
   import Header from '../Common/Header.vue'
   import Sidebar from '../Common/Sidebar.vue'
   import Footer from '../Common/Footer.vue'
@@ -738,6 +762,13 @@
   const showFeAllocation = ref(true)
   const showRelease = ref(true)
   const showExpenditure = ref(true)
+
+  // Fixed horizontal scrollbar at bottom of viewport
+  const reportTableScrollWrapper = ref(null)
+  const fixedScrollBar = ref(null)
+  const fixedScrollBarInner = ref(null)
+  const showFixedScrollBar = ref(false)
+  let scrollSyncLock = false
   
   // Major head options: Include 2552 under 3601 (for North-East States: 7 sisters + Sikkim)
   const include2552In3601 = ref(false)
@@ -1448,6 +1479,58 @@
 	return count || 1 // At least 1 column should be visible
   }
 
+  function updateFixedScrollBarWidth() {
+	nextTick(() => {
+	  const wrapper = reportTableScrollWrapper.value
+	  const inner = fixedScrollBarInner.value
+	  const bar = fixedScrollBar.value
+	  if (!wrapper || !inner || !bar) return
+	  const tableEl = wrapper.querySelector('#reportTable table') || wrapper.querySelector('table')
+	  let contentWidth = tableEl && tableEl.scrollWidth > 0 ? tableEl.scrollWidth : wrapper.scrollWidth
+	  if (contentWidth <= 0) contentWidth = wrapper.scrollWidth
+	  const cw = wrapper.clientWidth
+	  inner.style.width = contentWidth + 'px'
+	  showFixedScrollBar.value = contentWidth > cw
+	  if (showFixedScrollBar.value) {
+		const wrapperMax = wrapper.scrollWidth - wrapper.clientWidth
+		const barMax = bar.scrollWidth - bar.clientWidth
+		scrollSyncLock = true
+		if (barMax > 0 && wrapperMax > 0) {
+		  bar.scrollLeft = (wrapper.scrollLeft / wrapperMax) * barMax
+		} else {
+		  bar.scrollLeft = wrapper.scrollLeft
+		}
+		scrollSyncLock = false
+	  }
+	})
+  }
+
+  function onTableWrapperScroll() {
+	if (scrollSyncLock) return
+	const wrapper = reportTableScrollWrapper.value
+	const bar = fixedScrollBar.value
+	if (!wrapper || !bar) return
+	const wrapperMax = wrapper.scrollWidth - wrapper.clientWidth
+	const barMax = bar.scrollWidth - bar.clientWidth
+	if (wrapperMax <= 0 || barMax <= 0) return
+	scrollSyncLock = true
+	bar.scrollLeft = (wrapper.scrollLeft / wrapperMax) * barMax
+	scrollSyncLock = false
+  }
+
+  function onFixedScrollBarScroll() {
+	if (scrollSyncLock) return
+	const wrapper = reportTableScrollWrapper.value
+	const bar = fixedScrollBar.value
+	if (!wrapper || !bar) return
+	const wrapperMax = wrapper.scrollWidth - wrapper.clientWidth
+	const barMax = bar.scrollWidth - bar.clientWidth
+	if (wrapperMax <= 0 || barMax <= 0) return
+	scrollSyncLock = true
+	wrapper.scrollLeft = (bar.scrollLeft / barMax) * wrapperMax
+	scrollSyncLock = false
+  }
+
   const clearFilters = () => {
 	selectedProgramDivisions.value = []
 	selectedMajorHeads.value = []
@@ -1884,7 +1967,33 @@
 	const allBudgetHeads = getAllBudgetHeads()
 	allBudgetHeads.forEach(bh => {
 	  filteredProgramDivisions.value.forEach(pd => {
-		const value = parseFloat(allocationData.value[bh.bh_id][pd.division_id]) || 0
+		const value = parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+		total = addWithPrecision(total, value)
+	  })
+	})
+	return formatToFiveDecimals(total)
+  }
+
+  // Calculate grand total RE allocation
+  const calculateGrandTotalRe = () => {
+	let total = 0
+	const allBudgetHeads = getAllBudgetHeads()
+	allBudgetHeads.forEach(bh => {
+	  filteredProgramDivisions.value.forEach(pd => {
+		const value = parseFloat(reAllocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+		total = addWithPrecision(total, value)
+	  })
+	})
+	return formatToFiveDecimals(total)
+  }
+
+  // Calculate grand total FE allocation
+  const calculateGrandTotalFe = () => {
+	let total = 0
+	const allBudgetHeads = getAllBudgetHeads()
+	allBudgetHeads.forEach(bh => {
+	  filteredProgramDivisions.value.forEach(pd => {
+		const value = parseFloat(feAllocationData.value[bh.bh_id]?.[pd.division_id]) || 0
 		total = addWithPrecision(total, value)
 	  })
 	})
@@ -2496,20 +2605,14 @@
     window.open('/pdwise-budget-allocation-aap-central-history', '_blank')
   }
 
-  // Function to prepare table data for export
+  // Function to prepare table data for export (matches frontend table structure)
   const prepareTableData = () => {
 	const data = []
-	
-	// First header row - Program Division names
+	// First header row - PD names per column (as on frontend)
 	const headerRow1 = ['Unified HoA-KY']
 	filteredProgramDivisions.value.forEach(pd => {
-	  const pdColumns = []
-	  if (showAllocation.value) pdColumns.push('BE Allocation')
-	  if (showReAllocation.value) pdColumns.push('RE Allocation')
-	  if (showFeAllocation.value) pdColumns.push('FE Allocation')
-	  if (showRelease.value) pdColumns.push('Release')
-	  if (showExpenditure.value) pdColumns.push('Expenditure')
-	  headerRow1.push(...pdColumns)
+	  const n = (showAllocation.value ? 1 : 0) + (showReAllocation.value ? 1 : 0) + (showFeAllocation.value ? 1 : 0) + (showRelease.value ? 1 : 0) + (showExpenditure.value ? 1 : 0)
+	  for (let i = 0; i < n; i++) headerRow1.push(pd.division_name)
 	})
 	if (showAllocation.value) headerRow1.push('Final BE Allocation')
 	if (showReAllocation.value) headerRow1.push('Final RE Allocation')
@@ -2517,22 +2620,36 @@
 	if (showRelease.value) headerRow1.push('Total Release')
 	if (showExpenditure.value) headerRow1.push('Total Expenditure')
 	data.push(headerRow1)
-	
-	// Second header row - Column types
+	// Second header row - column labels (BE/RE/FE/Release/Expenditure per PD)
 	const headerRow2 = ['']
 	filteredProgramDivisions.value.forEach(() => {
-	  if (showAllocation.value) headerRow2.push('₹ In Lakhs')
-	  if (showReAllocation.value) headerRow2.push('₹ In Lakhs')
-	  if (showFeAllocation.value) headerRow2.push('₹ In Lakhs')
-	  if (showRelease.value) headerRow2.push('₹ In Lakhs')
-	  if (showExpenditure.value) headerRow2.push('₹ In Lakhs')
+	  if (showAllocation.value) headerRow2.push('BE Allocation')
+	  if (showReAllocation.value) headerRow2.push('RE Allocation')
+	  if (showFeAllocation.value) headerRow2.push('FE Allocation')
+	  if (showRelease.value) headerRow2.push('Release')
+	  if (showExpenditure.value) headerRow2.push('Expenditure')
 	})
-	if (showAllocation.value) headerRow2.push('₹ In Lakhs')
-	if (showReAllocation.value) headerRow2.push('₹ In Lakhs')
-	if (showFeAllocation.value) headerRow2.push('₹ In Lakhs')
-	if (showRelease.value) headerRow2.push('₹ In Lakhs')
-	if (showExpenditure.value) headerRow2.push('₹ In Lakhs')
+	if (showAllocation.value) headerRow2.push('Final BE Allocation')
+	if (showReAllocation.value) headerRow2.push('Final RE Allocation')
+	if (showFeAllocation.value) headerRow2.push('Final FE Allocation')
+	if (showRelease.value) headerRow2.push('Total Release')
+	if (showExpenditure.value) headerRow2.push('Total Expenditure')
 	data.push(headerRow2)
+	// Third header row - ₹ In Lakhs
+	const headerRow3 = ['']
+	filteredProgramDivisions.value.forEach(() => {
+	  if (showAllocation.value) headerRow3.push('₹ In Lakhs')
+	  if (showReAllocation.value) headerRow3.push('₹ In Lakhs')
+	  if (showFeAllocation.value) headerRow3.push('₹ In Lakhs')
+	  if (showRelease.value) headerRow3.push('₹ In Lakhs')
+	  if (showExpenditure.value) headerRow3.push('₹ In Lakhs')
+	})
+	if (showAllocation.value) headerRow3.push('₹ In Lakhs')
+	if (showReAllocation.value) headerRow3.push('₹ In Lakhs')
+	if (showFeAllocation.value) headerRow3.push('₹ In Lakhs')
+	if (showRelease.value) headerRow3.push('₹ In Lakhs')
+	if (showExpenditure.value) headerRow3.push('₹ In Lakhs')
+	data.push(headerRow3)
 	
 	// Data rows from filtered categories
 	filteredCategorizedBudgetHeads.value.forEach(category => {
@@ -2588,87 +2705,62 @@
 		if (showExpenditure.value) subcategoryRow.push(calculateSubcategoryTotalExpenditure(category.label, category.parentMajorHead))
 		data.push(subcategoryRow)
 		
-		// Individual budget head rows
+		// Individual budget head rows (use same display helpers as frontend)
 		category.budgetHeads.forEach(bh => {
 		  const bhRow = [`${bh.budget_code} - ${bh.budget_name}`]
 		  filteredProgramDivisions.value.forEach(pd => {
 			if (showAllocation.value) {
-			  bhRow.push(formatToFiveDecimals(allocationData.value[bh.bh_id]?.[pd.division_id] || 0))
+			  bhRow.push(formatToFiveDecimals(getDisplayAllocation(bh, pd.division_id)))
 			}
 			if (showReAllocation.value) {
-			  bhRow.push(formatToFiveDecimals(reAllocationData.value[bh.bh_id]?.[pd.division_id] || 0))
+			  bhRow.push(formatToFiveDecimals(getDisplayReAllocation(bh, pd.division_id)))
 			}
 			if (showFeAllocation.value) {
-			  bhRow.push(formatToFiveDecimals(feAllocationData.value[bh.bh_id]?.[pd.division_id] || 0))
+			  bhRow.push(formatToFiveDecimals(getDisplayFeAllocation(bh, pd.division_id)))
 			}
 			if (showRelease.value) {
-			  bhRow.push(getReleaseAmount(bh.bh_id, pd.division_id))
+			  bhRow.push(getDisplayRelease(bh, pd.division_id))
 			}
 			if (showExpenditure.value) {
-			  bhRow.push(getExpenditureAmount(bh.bh_id, pd.division_id))
+			  bhRow.push(getDisplayExpenditure(bh, pd.division_id))
 			}
 		  })
-		  if (showAllocation.value) bhRow.push(calculateRowTotal(bh.bh_id))
-		  if (showReAllocation.value) bhRow.push(calculateRowTotalRe(bh.bh_id))
-		  if (showFeAllocation.value) bhRow.push(calculateRowTotalFe(bh.bh_id))
-		  if (showRelease.value) bhRow.push(calculateRowTotalRelease(bh.bh_id))
-		  if (showExpenditure.value) bhRow.push(calculateRowTotalExpenditure(bh.bh_id))
+		  if (showAllocation.value) bhRow.push(calculateRowTotal(bh))
+		  if (showReAllocation.value) bhRow.push(calculateRowTotalRe(bh))
+		  if (showFeAllocation.value) bhRow.push(calculateRowTotalFe(bh))
+		  if (showRelease.value) bhRow.push(calculateRowTotalRelease(bh))
+		  if (showExpenditure.value) bhRow.push(calculateRowTotalExpenditure(bh))
 		  data.push(bhRow)
 		})
 	  }
 	})
 	
-	// Total row
+	// Total row (same column order as frontend)
 	const totalRow = ['Total']
 	filteredProgramDivisions.value.forEach(pd => {
-	  if (showAllocation.value) {
-		totalRow.push(calculateColumnTotal(pd.division_id, 'allocation'))
-	  }
-	  if (showRelease.value) {
-		totalRow.push(calculateColumnTotal(pd.division_id, 'release'))
-	  }
-	  if (showExpenditure.value) {
-		totalRow.push(calculateColumnTotal(pd.division_id, 'expenditure'))
-	  }
+	  if (showAllocation.value) totalRow.push(calculateColumnTotal(pd.division_id, 'allocation'))
+	  if (showReAllocation.value) totalRow.push(calculateColumnTotal(pd.division_id, 'reAllocation'))
+	  if (showFeAllocation.value) totalRow.push(calculateColumnTotal(pd.division_id, 'feAllocation'))
+	  if (showRelease.value) totalRow.push(calculateColumnTotal(pd.division_id, 'release'))
+	  if (showExpenditure.value) totalRow.push(calculateColumnTotal(pd.division_id, 'expenditure'))
 	})
-	totalRow.push(
-	  calculateGrandTotal(),
-	  calculateGrandTotalRelease(),
-	  calculateGrandTotalExpenditure()
-	)
+	if (showAllocation.value) totalRow.push(calculateGrandTotal())
+	if (showReAllocation.value) totalRow.push(calculateGrandTotalRe())
+	if (showFeAllocation.value) totalRow.push(calculateGrandTotalFe())
+	if (showRelease.value) totalRow.push(calculateGrandTotalRelease())
+	if (showExpenditure.value) totalRow.push(calculateGrandTotalExpenditure())
 	data.push(totalRow)
 	
 	return data
   }
 
-  // Function to export to Excel (CSV format that opens in Excel)
+  // Function to export to Excel (.xlsx)
   const exportToExcel = () => {
 	const data = prepareTableData()
-	let csvContent = ''
-	
-	data.forEach(row => {
-	  const csvRow = row.map(cell => {
-		const cellValue = String(cell || '')
-		if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
-		  return `"${cellValue.replace(/"/g, '""')}"`
-		}
-		return cellValue
-	  })
-	  csvContent += csvRow.join(',') + '\n'
-	})
-	
-	// Create BOM for UTF-8 to support special characters
-	const BOM = '\uFEFF'
-	const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-	const link = document.createElement('a')
-	const url = URL.createObjectURL(blob)
-	
-	link.setAttribute('href', url)
-	link.setAttribute('download', `PDwise_Budget_Allocation_Release_${selectedFinancialYear.value}_${new Date().getTime()}.xlsx`)
-	link.style.visibility = 'hidden'
-	document.body.appendChild(link)
-	link.click()
-	document.body.removeChild(link)
+	const wb = XLSX.utils.book_new()
+	const ws = XLSX.utils.aoa_to_sheet(data)
+	XLSX.utils.book_append_sheet(wb, ws, 'Budget Allocation Release')
+	XLSX.writeFile(wb, `PDwise_Budget_Allocation_Release_${selectedFinancialYear.value}_${new Date().getTime()}.xlsx`)
   }
 
   // Function to export to CSV
@@ -2715,23 +2807,28 @@
 	const headStart = '<head>'
 	const titleTag = '<title>PD wise Budget Allocation (AAP) with release - Budget Heads - ' + selectedFinancialYear.value + '</title>'
 	const styleStart = '<style>'
-	const styles = 'body { font-family: Arial, sans-serif; margin: 20px; }' +
-	  'h2 { text-align: center; color: #333; }' +
-	  '.meta-info { text-align: center; margin-bottom: 20px; color: #666; }' +
-	  'table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 9px; }' +
-	  'table th, table td { border: 1px solid #ddd; padding: 4px; text-align: center; }' +
-	  'table th { background-color: #343a40; color: white; font-weight: bold; }' +
+	const styles = 'body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }' +
+	  '#print-outer { margin: 0 auto; max-width: 100%; overflow-x: auto; overflow-y: visible; border: 1px solid #dee2e6; border-radius: 8px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 16px; }' +
+	  '#pdf-wrapper { margin: 0; min-width: min-content; }' +
+	  'h2 { text-align: center; color: #1a1a2e; margin: 0 0 10px 0; font-size: 1.2rem; font-weight: 700; }' +
+	  '.meta-info { text-align: center; margin-bottom: 10px; color: #444; font-size: 0.8rem; line-height: 1.4; }' +
+	  '.meta-info p { margin: 2px 0; }' +
+	  'table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10px; table-layout: auto; }' +
+	  'table th, table td { border: 1px solid #868e96; padding: 5px 6px; text-align: center; white-space: nowrap; }' +
+	  'table th { background-color: #343a40; color: #fff; font-weight: 600; }' +
 	  '.bg-success, .bg-success-subtle { background-color: #d4edda !important; }' +
-	  '.table-primary { background-color: #cce7ff !important; }' +
+	  '.table-primary { background-color: #cce5ff !important; }' +
 	  '.table-secondary { background-color: #e2e3e5 !important; }' +
 	  '.table-warning { background-color: #fff3cd !important; }' +
 	  '.fw-bold { font-weight: bold; }' +
-	  '.fw-sticky { position: sticky; left: 0; background-color: #fff; z-index: 1; }' +
-	  '@media print { @page { size: landscape; margin: 1cm; } body { margin: 0; } }'
+	  '.fw-sticky { position: sticky; left: 0; background-color: #fff !important; z-index: 1; box-shadow: 2px 0 4px rgba(0,0,0,0.06); }' +
+	  '@media print { @page { size: landscape; margin: 0.5cm; } body { margin: 0; padding: 0; background: #fff; } #print-outer { overflow: visible !important; box-shadow: none !important; border: none !important; padding: 0 !important; } #pdf-wrapper { transform-origin: top left !important; } }'
 	const styleEnd = '</style>'
 	const headEnd = '</head>'
 	
 	const bodyStart = '<body>'
+	const printOuterStart = '<div id="print-outer">'
+	const pdfWrapperStart = '<div id="pdf-wrapper">'
 	const h2Tag = '<h2>PD wise Budget Allocation (AAP) with release - Budget Heads</h2>'
 	const metaInfoStart = '<div class="meta-info">'
 	const financialYearP = '<p><strong>Financial Year:</strong> ' + selectedFinancialYear.value + '</p>'
@@ -2751,8 +2848,58 @@
 	  (showExpenditure.value ? 'Expenditure ' : '') +
 	  'Final Allocation, Total Release, Total Expenditure</p>'
 	const metaInfoEnd = '</div>'
+	const pdfWrapperEnd = '</div>'
+	const printOuterEnd = '</div>'
 	const scriptStart = '<' + 'script' + '>'
-	const scriptContent = 'window.onload = function() { window.print(); }'
+	const scriptContent = 'window.onload = function() {' +
+	  'var container = document.getElementById("reportTable");' +
+	  'var tableEl = container ? container.querySelector("table") : null;' +
+	  'var contentWidth = (tableEl && tableEl.scrollWidth > 0) ? tableEl.scrollWidth : (container ? container.scrollWidth : document.body.scrollWidth);' +
+	  'if (contentWidth <= 0) contentWidth = document.body.scrollWidth;' +
+	  'var outer = document.getElementById("print-outer");' +
+	  'var wrapper = document.getElementById("pdf-wrapper");' +
+	  'var pageWidth = 1050;' +
+	  'var pageHeight = 700;' +
+	  'function applyScaleForPrint() {' +
+	    'var cw = (tableEl && tableEl.scrollWidth > 0) ? tableEl.scrollWidth : contentWidth;' +
+	    'if (wrapper) wrapper.style.width = cw + "px";' +
+	    'var ch = wrapper ? wrapper.scrollHeight : document.body.scrollHeight;' +
+	    'if (ch <= 0) ch = document.body.scrollHeight;' +
+	    'var sW = pageWidth / Math.max(cw, 1);' +
+	    'var sH = pageHeight / Math.max(ch, 1);' +
+	    'var s = Math.min(1, sW, sH);' +
+	    'if (outer && wrapper) {' +
+	      'outer.style.width = (cw * s) + "px";' +
+	      'outer.style.height = (ch * s) + "px";' +
+	      'outer.style.overflow = "hidden";' +
+	      'outer.style.maxWidth = "none";' +
+	      'wrapper.style.width = cw + "px";' +
+	      'wrapper.style.transform = "scale(" + s + ")";' +
+	      'wrapper.style.transformOrigin = "top left";' +
+	    '}' +
+	  '}' +
+	  'function restoreScrollView() {' +
+	    'if (outer && wrapper) {' +
+	      'outer.style.width = "";' +
+	      'outer.style.height = "";' +
+	      'outer.style.maxWidth = "100%";' +
+	      'outer.style.overflow = "auto";' +
+	      'outer.style.overflowX = "auto";' +
+	      'wrapper.style.width = contentWidth + "px";' +
+	      'wrapper.style.minWidth = contentWidth + "px";' +
+	      'wrapper.style.transform = "none";' +
+	    '}' +
+	  '}' +
+	  'if (outer && wrapper) {' +
+	    'outer.style.maxWidth = "100%";' +
+	    'outer.style.overflowX = "auto";' +
+	    'wrapper.style.width = contentWidth + "px";' +
+	    'wrapper.style.minWidth = contentWidth + "px";' +
+	    'window.addEventListener("beforeprint", applyScaleForPrint);' +
+	    'window.addEventListener("afterprint", restoreScrollView);' +
+	  '}' +
+	  'setTimeout(function() { window.print(); }, 200);' +
+	'}'
 	const scriptEnd = '<' + '/' + 'script' + '>'
 	const scriptTag = scriptStart + scriptContent + scriptEnd
 	const bodyEnd = '<' + '/' + 'body' + '>'
@@ -2760,8 +2907,9 @@
 	
 	const htmlContent = '<!DOCTYPE html><html>' +
 	  headStart + titleTag + styleStart + styles + styleEnd + headEnd +
-	  bodyStart + h2Tag + metaInfoStart + financialYearP + generatedP + programDivisionsP + majorHeadP + budgetHeadP + columnsP + metaInfoEnd +
-	  tableHTML + scriptTag + bodyEnd + htmlEnd
+	  bodyStart + printOuterStart + pdfWrapperStart +
+	  h2Tag + metaInfoStart + financialYearP + generatedP + programDivisionsP + majorHeadP + budgetHeadP + columnsP + metaInfoEnd +
+	  tableHTML + pdfWrapperEnd + printOuterEnd + scriptTag + bodyEnd + htmlEnd
 	
 	printWindow.document.write(htmlContent)
 	printWindow.document.close()
@@ -2769,6 +2917,7 @@
   
   // Load data on component mount
   onMounted(async () => {
+	window.addEventListener('resize', updateFixedScrollBarWidth)
 	try {
 	  console.log('Component mounted, starting to load data...')
 	  
@@ -2800,12 +2949,19 @@
 	} finally {
 	  loading.value = false
 	  console.log('Component loading completed')
+	  nextTick(updateFixedScrollBarWidth)
+	  setTimeout(updateFixedScrollBarWidth, 300)
 	}
+  })
+
+  onUpdated(() => {
+	if (!loading.value && !error.value) updateFixedScrollBarWidth()
   })
 
   // Cleanup on unmount
   onBeforeUnmount(() => {
 	document.removeEventListener('click', handleClickOutside)
+	window.removeEventListener('resize', updateFixedScrollBarWidth)
   })
   </script>
   
@@ -2980,6 +3136,99 @@
 
   .table td {
 	vertical-align: middle;
+  }
+
+  /* Horizontal scroll wrapper for report table - scrollbar at bottom of wrapper + fixed bar at viewport bottom */
+  .report-table-scroll-wrapper {
+	width: 100%;
+	max-width: 100%;
+	overflow-x: auto;
+	overflow-y: visible;
+	border: 1px solid #dee2e6;
+	border-radius: 8px;
+	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+	background: #fff;
+	padding: 0;
+	margin-top: 4px;
+  }
+
+  .report-table-scroll-wrapper::-webkit-scrollbar {
+	height: 10px;
+  }
+
+  .report-table-scroll-wrapper::-webkit-scrollbar-track {
+	background: #f1f3f5;
+	border-radius: 0 0 6px 6px;
+  }
+
+  .report-table-scroll-wrapper::-webkit-scrollbar-thumb {
+	background: #868e96;
+	border-radius: 5px;
+  }
+
+  .report-table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+	background: #495057;
+  }
+
+  .report-table-scroll-wrapper {
+	scrollbar-width: thin;
+	scrollbar-color: #868e96 #f1f3f5;
+  }
+
+  .report-table-scroll-wrapper .table-responsive {
+	margin-bottom: 0;
+	min-width: max-content;
+	width: max-content;
+	overflow-x: visible;
+	overflow-y: visible;
+  }
+
+  .report-table-scroll-wrapper table {
+	min-width: max-content;
+	width: max-content;
+  }
+
+  /* Fixed horizontal scrollbar at bottom of viewport */
+  .fixed-horizontal-scrollbar {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 14px;
+	overflow-x: auto;
+	overflow-y: hidden;
+	background: #f1f3f5;
+	z-index: 1030;
+	border-top: 1px solid #dee2e6;
+	box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .fixed-horizontal-scrollbar-inner {
+	height: 1px;
+	pointer-events: none;
+  }
+
+  .fixed-horizontal-scrollbar::-webkit-scrollbar {
+	height: 12px;
+  }
+
+  .fixed-horizontal-scrollbar::-webkit-scrollbar-track {
+	background: #e9ecef;
+	border-radius: 0;
+  }
+
+  .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb {
+	background: #868e96;
+	border-radius: 6px;
+  }
+
+  .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: #495057;
+  }
+
+  .fixed-horizontal-scrollbar {
+	scrollbar-width: thin;
+	scrollbar-color: #868e96 #e9ecef;
   }
 
   /* Responsive improvements */
