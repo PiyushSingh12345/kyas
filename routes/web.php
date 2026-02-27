@@ -144,6 +144,10 @@ Route::get('/mother-sanction-history', function () {
     return Inertia::render('mother_sanction/MotherSanctionHistory');
 })->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction-history');
 
+Route::get('/mother-sanction-bulk-upload', function () {
+    return Inertia::render('mother_sanction/MotherSanctionBulkUpload');
+})->middleware(['auth', 'verified', 'role:2'])->name('mother-sanction-bulk-upload');
+
 Route::get('/pd-wise-budget-allocation', function () {
     return Inertia::render('Annual_action_plan/AapCentral');
 })->middleware(['auth', 'verified', 'role:2'])->name('pd-wise-budget-allocation');
@@ -355,6 +359,8 @@ Route::post('/debug-excel', function(Request $request) {
 
 
 
+    Route::get('/api/mother-sanction-bulk-upload-lookup', [MotherSanctionController::class, 'getBulkUploadLookup']);
+    Route::post('/api/mother-sanction-bulk-insert', [MotherSanctionController::class, 'bulkInsert']);
     Route::get('/api/sls-data/{stateId}', [MotherSanctionController::class, 'getSlsData']);
 
     Route::get('/api/fund-allocation/{slsId}/{stateId}', [MotherSanctionController::class, 'getFundAllocationData']);

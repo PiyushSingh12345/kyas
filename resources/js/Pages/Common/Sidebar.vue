@@ -145,6 +145,11 @@
                         <span class="sub-item">Mother Sanction History</span>
                       </Link>
                     </li>
+                    <!-- <li>
+                      <Link :href="route('mother-sanction-bulk-upload')" class="nav-link">
+                        <span class="sub-item">Mother Sanction Bulk Upload</span>
+                      </Link>
+                    </li> -->
                   </ul>
                 </div>
               </li>
@@ -378,6 +383,7 @@ const menuMap = {
   '/mother-sanction-list': 'module-mother-sanction',
   '/mother-sanction-list-module': 'module-mother-sanction',
   '/mother-sanction-history': 'module-mother-sanction',
+  '/mother-sanction-bulk-upload': 'module-mother-sanction',
   '/budget-phase-report': 'reports',
   '/mother-sanction-report': 'reports',
   '/fund-allocation-report': 'reports',

@@ -92,6 +92,223 @@ class MotherSanctionController extends Controller
     }
 
     /**
+     * Get states and pd_and_sls_comp lookup for mother sanction bulk upload.
+     * Used to resolve State Id and Full Program name from SLS/State/Program Division.
+     */
+    public function getBulkUploadLookup(Request $request)
+    {
+        try {
+            $states = DB::table('states')->select('id', 'name')->orderBy('name')->get();
+            $pdSlsComp = DB::table('pd_and_sls_comp as p')
+                ->select('p.id', 'p.name', 'p.sls_code', 'p.full_sls_name', 'p.slsPD', 'p.state_id', 's.name as state_name')
+                ->leftJoin('states as s', 'p.state_id', '=', 's.id')
+                ->orderBy('p.name')
+                ->get();
+            $programDivisions = DB::table('md_program_divisions')
+                ->select('division_id', 'division_name')
+                ->where('is_active', 1)
+                ->orderBy('division_name')
+                ->get();
+            return response()->json([
+                'success' => true,
+                'states' => $states,
+                'pd_sls_comp' => $pdSlsComp,
+                'program_divisions' => $programDivisions,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('getBulkUploadLookup error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Bulk insert preview rows into mother_sanction table (mapping from Excel preview columns).
+     */
+    public function bulkInsert(Request $request)
+    {
+        $request->validate(['rows' => 'required|array', 'rows.*' => 'array']);
+
+        $rows = $request->input('rows', []);
+        if (empty($rows)) {
+            return response()->json(['success' => false, 'message' => 'No rows to insert.'], 422);
+        }
+
+        $get = function (array $row, array $keys) {
+            foreach ($keys as $k) {
+                if (array_key_exists($k, $row) && $row[$k] !== '' && $row[$k] !== null) {
+                    return $row[$k];
+                }
+            }
+            return null;
+        };
+
+        // Find row value by key containing all of the given substrings (case-insensitive)
+        $getByKeyPattern = function (array $row, array $substrings) {
+            $lower = array_map('strtolower', $substrings);
+            foreach ($row as $key => $val) {
+                if ($val === '' || $val === null) continue;
+                $keyLower = mb_strtolower((string) $key);
+                if (count(array_filter($lower, fn ($s) => str_contains($keyLower, $s))) === count($lower)) {
+                    return $val;
+                }
+            }
+            return null;
+        };
+
+        $toLakhs = function ($val) {
+            if ($val === null || $val === '') return 0;
+            $str = (string) $val;
+            $str = preg_replace('/[\$₹€£,\s]/u', '', $str);
+            $str = preg_replace('/[^\d.-]/', '', $str);
+            $n = $str === '' ? 0 : (float) $str;
+            return round($n / 100000, 2);
+        };
+
+        $parseDate = function ($val) {
+            if ($val === null || $val === '') return null;
+            $str = trim((string) $val);
+            if ($str === '') return null;
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $str)) return $str;
+            if (is_numeric($str)) {
+                $days = (int) (float) $str;
+                $d = \DateTime::createFromFormat('Y-m-d', '1899-12-30');
+                if ($d) $d->modify('+' . $days . ' days');
+                return $d ? $d->format('Y-m-d') : null;
+            }
+            $d = date_create_from_format('d-m-Y', $str)
+                ?: date_create_from_format('d/m/Y', $str)
+                ?: date_create_from_format('Y-m-d', $str)
+                ?: date_create_from_format('d-M-Y', $str)
+                ?: date_create_from_format('d M Y', $str)
+                ?: @date_create($str);
+            return $d ? $d->format('Y-m-d') : null;
+        };
+
+        $financialYearFromDate = function ($dateStr) {
+            if (!$dateStr) return null;
+            $d = date_create($dateStr);
+            if (!$d) return null;
+            $y = (int) $d->format('Y');
+            $m = (int) $d->format('m');
+            return $m >= 4 ? "{$y}-" . ($y + 1) : ($y - 1) . "-{$y}";
+        };
+
+        $inserted = 0;
+        $errors = [];
+        $carried = [
+            'stateId' => null,
+            'motherSanctionNumber' => null,
+            'sanctionDate' => null,
+            'slsName' => null,
+            'pdComponent' => null,
+            'totalMsAmount' => null,
+            'statusText' => null,
+            'status' => 1,
+            'budgetHead' => null,
+        ];
+
+        try {
+            DB::beginTransaction();
+            foreach ($rows as $index => $row) {
+                $stateId = $get($row, ['State Id', 'state_id']) ?? $carried['stateId'];
+                $motherSanctionNumber = $get($row, ['Mother Sanction Number', 'ifd_no', 'ky_ms_no']) ?? $carried['motherSanctionNumber'];
+                $sanctionDateVal = $get($row, ['Mother Sanction Date', 'sanction_date']);
+                $parsed = $parseDate($sanctionDateVal);
+                $sanctionDate = $parsed ?? $carried['sanctionDate'];
+                if ($sanctionDate === null) {
+                    $sanctionDate = date('Y-m-d');
+                }
+                $slsRaw = $get($row, ['sls', 'SLS', 'sls_name']);
+                $slsName = null;
+                if ($slsRaw !== null && $slsRaw !== '') {
+                    $slsName = strpos($slsRaw, '-') !== false
+                        ? trim(substr($slsRaw, strpos($slsRaw, '-') + 1))
+                        : trim((string) $slsRaw);
+                }
+                $slsName = $slsName ?? $carried['slsName'];
+                $pdComponent = $get($row, ['Full Program division name', 'pd_component']) ?? $carried['pdComponent'];
+                $totalMsAmount = $get($row, ['Mother Sanction Amount (Fund released)', 'total_mother_sanction_amount'])
+                    ?? $getByKeyPattern($row, ['mother sanction amount', 'fund released'])
+                    ?? $carried['totalMsAmount'];
+                $budgetHead = $get($row, ['Budget_head', 'Budget head', 'budget_head'])
+                    ?? $getByKeyPattern($row, ['budget'])
+                    ?? $carried['budgetHead'];
+                $allocationType = $get($row, ['Allocation_Type', 'Allocation Type', 'category']);
+                $allocationAmount = $get($row, ['Allocation_Amount', 'Allocation Amount', 'mother_sanction_amount'])
+                    ?? $getByKeyPattern($row, ['allocation_amount', 'allocation amount']);
+                $carryForward = $get($row, ['Carry Forward Amount', 'carry_forward_amount'])
+                    ?? $getByKeyPattern($row, ['carry', 'forward']);
+                $statusText = $get($row, ['Status', 'status', 'STATUS']) ?? $carried['statusText'];
+                $remarkText = $statusText !== null ? (string) $statusText : '';
+
+                $status = 1;
+                if ($statusText !== null && $statusText !== '') {
+                    $status = (stripos((string) $statusText, 'active') !== false) ? 1 : 0;
+                }
+
+                if (!$stateId || !$motherSanctionNumber || $budgetHead === null || $budgetHead === '') {
+                    $errors[] = "Row " . ($index + 1) . ": missing State Id, Mother Sanction Number, or Budget_head.";
+                    continue;
+                }
+
+                $carried['stateId'] = $stateId;
+                $carried['motherSanctionNumber'] = $motherSanctionNumber;
+                $carried['sanctionDate'] = $sanctionDate;
+                $carried['slsName'] = $slsName;
+                $carried['pdComponent'] = $pdComponent;
+                $carried['totalMsAmount'] = $totalMsAmount;
+                $carried['statusText'] = $statusText;
+                $carried['status'] = $status;
+                $carried['budgetHead'] = $budgetHead;
+
+                $financialYear = $financialYearFromDate($sanctionDate) ?? '';
+
+                $data = [
+                    'financial_year' => $financialYear,
+                    'state_id' => (int) $stateId,
+                    'ms_sequence_no' => '1',
+                    'file_no' => '',
+                    'ifd_no' => $motherSanctionNumber,
+                    'sanction_date' => $sanctionDate,
+                    'ky_ms_no' => $motherSanctionNumber,
+                    'sls_name' => $slsName ?? '',
+                    'pd_component' => $pdComponent ?? '',
+                    'total_mother_sanction_amount' => $toLakhs($totalMsAmount),
+                    'budget_head' => trim((string) $budgetHead),
+                    'category' => $allocationType !== null ? trim((string) $allocationType) : '',
+                    'available_fund' => 0,
+                    'mother_sanction_amount' => $toLakhs($allocationAmount),
+                    'carry_forward_amount' => $toLakhs($carryForward),
+                    'uc_received_from_State' => '',
+                    'signed_copy_of_mother_sanction' => '',
+                    'status' => $status,
+                    'last_id' => rand(10, 99),
+                    'remark' => $remarkText,
+                ];
+
+                MotherSanction::create($data);
+                $inserted++;
+            }
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => $inserted . ' record(s) inserted successfully.',
+                'inserted' => $inserted,
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Mother sanction bulk insert error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'inserted' => $inserted,
+                'errors' => $errors,
+            ], 500);
+        }
+    }
+
+    /**
      * Get sum of mother_sanction_amount for a given budget_head and pd_component
      */
     public function getMotherSanctionReleasedAmount(Request $request)
