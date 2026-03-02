@@ -32,8 +32,13 @@
 
                   </div>
                   <div class="card-body">
-                    
-                    <div class="table-responsive mt-1">
+                    <div v-if="loading" class="text-center py-4">
+                      <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                      <p class="mt-2 mb-0 text-muted">Loading daily sanctions...</p>
+                    </div>
+                    <div v-else class="table-responsive mt-1">
                       <table class="table table-bordered table-head-bg-primary">
                         <thead>
                         <tr>
@@ -63,6 +68,9 @@
                             <td>Approved</td>
                           </tr> -->
 <!-- <tr><td>{{motherSanctions}}</td></tr> -->
+                          <tr v-if="motherSanctions.length === 0">
+                            <td colspan="12" class="text-center text-muted py-4">No daily sanction records found.</td>
+                          </tr>
                           <tr v-for="(item, index) in motherSanctions" :key="item.id">
                             <!-- <td>{{ index + 1 }}</td> -->
                             <td>{{ item.financial_year }}</td>
@@ -103,6 +111,26 @@
                         </tbody>
                       </table>
 
+                    </div>
+                    <div v-if="!loading && paginationMeta.total > 0" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3">
+                      <div class="text-muted small">
+                        Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} entries
+                      </div>
+                      <nav aria-label="Daily sanction list pagination">
+                        <ul class="pagination pagination-sm mb-0">
+                          <li class="page-item" :class="{ disabled: currentPage <= 1 }">
+                            <a class="page-link" href="#" @click.prevent="goToPage(currentPage - 1)" :aria-disabled="currentPage <= 1">Previous</a>
+                          </li>
+                          <template v-for="n in paginationPages" :key="n">
+                            <li class="page-item" :class="{ active: n === currentPage }">
+                              <a class="page-link" href="#" @click.prevent="goToPage(n)">{{ n }}</a>
+                            </li>
+                          </template>
+                          <li class="page-item" :class="{ disabled: currentPage >= paginationMeta.last_page }">
+                            <a class="page-link" href="#" @click.prevent="goToPage(currentPage + 1)" :aria-disabled="currentPage >= paginationMeta.last_page">Next</a>
+                          </li>
+                        </ul>
+                      </nav>
                     </div>
 
                     <!-- <div class="table-responsive">
@@ -148,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 
 import Header from '../Common/Header.vue'
@@ -156,6 +184,54 @@ import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 
 const motherSanctions = ref([])
+const loading = ref(false)
+const currentPage = ref(1)
+const perPage = ref(20)
+const paginationMeta = ref({
+  current_page: 1,
+  last_page: 1,
+  per_page: 20,
+  total: 0,
+  from: null,
+  to: null,
+})
+
+const fetchList = async (page = 1) => {
+  loading.value = true
+  try {
+    const res = await fetch(`/api/daily-sanctions-list?page=${page}&per_page=${perPage.value}`)
+    if (res.ok) {
+      const json = await res.json()
+      motherSanctions.value = json.data ?? []
+      paginationMeta.value = json.meta ?? paginationMeta.value
+      currentPage.value = paginationMeta.value.current_page
+    } else {
+      motherSanctions.value = []
+      console.error('Failed to fetch data')
+    }
+  } catch (error) {
+    console.error('Error fetching data:', error)
+    motherSanctions.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+const goToPage = (page) => {
+  if (page < 1 || page > paginationMeta.value.last_page) return
+  fetchList(page)
+}
+
+// Show at most 7 page numbers around current page
+const paginationPages = computed(() => {
+  const last = paginationMeta.value.last_page
+  const current = currentPage.value
+  if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1)
+  let start = Math.max(1, current - 3)
+  let end = Math.min(last, start + 6)
+  if (end - start < 6) start = Math.max(1, end - 6)
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+})
 
 // Function to format date to dd-mm-yyyy format
 const formatDate = (dateString) => {
@@ -185,18 +261,9 @@ const formatCurrency = (amount) => {
   });
 }
 
-onMounted(async () => {
-  try {
-    const res = await fetch('/api/daily-sanctions-list');
-    if (res.ok) {
-      motherSanctions.value = await res.json();
-    } else {
-      console.error('Failed to fetch data');
-    }
-  } catch (error) {
-    console.error('Error fetching data:', error);
-  }
-});
+onMounted(() => {
+  fetchList(1)
+})
 </script>
 
 <style scoped>

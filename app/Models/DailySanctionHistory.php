@@ -13,6 +13,8 @@ class DailySanctionHistory extends Model
 
     protected $table = 'daily_sanction_history';
 
+    protected $primaryKey = 'history_id';
+
     protected $fillable = [
         'daily_sanction_id',
         'financial_year',

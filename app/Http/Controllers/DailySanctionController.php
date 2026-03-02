@@ -35,61 +35,96 @@ class DailySanctionController extends Controller
         return response()->json($data);
     }
 
-public function list()
+public function list(Request $request)
     {
-        
+        $perPage = min((int) $request->get('per_page', 20), 50);
+        $page = max(1, (int) $request->get('page', 1));
+
         $subQuery = DB::table('daily_sanction')
             ->select(DB::raw('MAX(id) as id'))
             ->groupBy('daily_sanction_no');
 
-        // Get the sum of center_share_amount for each state_id
+        $query = DailySanction::with(['state', 'slsComponent'])
+            ->whereIn('id', $subQuery)
+            ->orderBy('created_at', 'desc');
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $items = $paginator->getCollection();
+
+        if ($items->isEmpty()) {
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'from' => $paginator->firstItem(),
+                    'to' => $paginator->lastItem(),
+                ],
+            ]);
+        }
+
+        $dailySanctionNos = $items->pluck('daily_sanction_no')->unique()->values()->all();
+        $stateIds = $items->pluck('state_id')->unique()->values()->all();
+
+        // Aggregates only for current page's state_id and daily_sanction_no (reduces query load)
         $stateAmounts = DB::table('daily_sanction')
             ->select('state_id', DB::raw('SUM(center_share_amount) as total_amount'))
+            ->whereIn('state_id', $stateIds)
             ->groupBy('state_id')
             ->pluck('total_amount', 'state_id')
             ->toArray();
 
-        // Get the sum of center_share_amount for each daily_sanction_no
         $dailySanctionAmounts = DB::table('daily_sanction')
             ->select('daily_sanction_no', DB::raw('SUM(center_share_amount) as total_amount'))
+            ->whereIn('daily_sanction_no', $dailySanctionNos)
             ->groupBy('daily_sanction_no')
             ->pluck('total_amount', 'daily_sanction_no')
             ->toArray();
 
-        // Get the sum of mother_sanction_amount for each daily_sanction_no
         $motherSanctionAmounts = DB::table('daily_sanction')
             ->select('daily_sanction_no', DB::raw('SUM(mother_sanction_amount) as total_amount'))
+            ->whereIn('daily_sanction_no', $dailySanctionNos)
             ->groupBy('daily_sanction_no')
             ->pluck('total_amount', 'daily_sanction_no')
             ->toArray();
-        
-        $data = DailySanction::with(['state', 'slsComponent'])
-            ->whereIn('id', $subQuery)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($item) use ($stateAmounts, $dailySanctionAmounts, $motherSanctionAmounts) {
-                $item->full_sls_name = $item->slsComponent ? $item->slsComponent->full_sls_name : null;
-                $item->sls_pd = $item->slsComponent ? $item->slsComponent->slsPD : null;
-                $item->state_total_amount = $stateAmounts[$item->state_id] ?? 0;
-                $item->daily_sanction_total_amount = $dailySanctionAmounts[$item->daily_sanction_no] ?? 0;
-                $item->mother_sanction_total_amount = $motherSanctionAmounts[$item->daily_sanction_no] ?? 0;
-                
-                // Get budget head details for this daily sanction
-                $budgetHeads = DailySanction::where('daily_sanction_no', $item->daily_sanction_no)
-                    ->select('budget_head', 'center_share_amount')
-                    ->get()
-                    ->map(function ($budget) {
-                        return [
-                            'budget_head' => $budget->budget_head,
-                            'daily_sanction_amount' => $budget->center_share_amount
-                        ];
-                    });
-                
-                $item->budget_heads = $budgetHeads;
-                return $item;
-            });
 
-        return response()->json($data);
+        // Single query for all budget heads on current page (avoids N+1)
+        $budgetRows = DB::table('daily_sanction')
+            ->whereIn('daily_sanction_no', $dailySanctionNos)
+            ->select('daily_sanction_no', 'budget_head', 'center_share_amount')
+            ->get();
+
+        $budgetHeadsByNo = [];
+        foreach ($budgetRows as $row) {
+            $budgetHeadsByNo[$row->daily_sanction_no][] = [
+                'budget_head' => $row->budget_head,
+                'daily_sanction_amount' => $row->center_share_amount,
+            ];
+        }
+
+        $data = $items->map(function ($item) use ($stateAmounts, $dailySanctionAmounts, $motherSanctionAmounts, $budgetHeadsByNo) {
+            $item->full_sls_name = $item->slsComponent ? $item->slsComponent->full_sls_name : null;
+            $item->sls_pd = $item->slsComponent ? $item->slsComponent->slsPD : null;
+            $item->state_total_amount = $stateAmounts[$item->state_id] ?? 0;
+            $item->daily_sanction_total_amount = $dailySanctionAmounts[$item->daily_sanction_no] ?? 0;
+            $item->mother_sanction_total_amount = $motherSanctionAmounts[$item->daily_sanction_no] ?? 0;
+            $item->budget_heads = $budgetHeadsByNo[$item->daily_sanction_no] ?? [];
+            return $item;
+        });
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
+        ]);
     }
 
 public function store(Request $request)
@@ -1884,7 +1919,7 @@ public function store(Request $request)
     public function historyList()
     {
         try {
-            $history = DailySanctionHistory::with(['state', 'dailySanction'])
+            $history = DailySanctionHistory::with('state')
                 ->orderBy('history_timestamp', 'desc')
                 ->get();
 
@@ -1937,7 +1972,7 @@ public function store(Request $request)
                     'change_description' => $firstItem->change_description,
                     'state' => [
                         'id' => $firstItem->state_id,
-                        'name' => $firstItem->state->name ?? '',
+                        'name' => $firstItem->state?->name ?? '',
                     ],
                 ];
             })->values();
