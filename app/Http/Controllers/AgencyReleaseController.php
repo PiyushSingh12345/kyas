@@ -6,9 +6,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use App\Models\AgencyReleaseTSA;
 use App\Models\AgencyReleaseLOA;
 use App\Models\AgencyReleaseAdministrativeExpenditure;
+use App\Models\AgencyReleaseHistory;
 use App\Models\BudgetPhase;
 use App\Models\BudgetHead;
 
@@ -84,6 +86,8 @@ class AgencyReleaseController extends Controller
                 'central_implementing_agency' => $validated['centralImplementingAgency'],
                 'status' => 1
             ]);
+
+            $this->saveAgencyReleaseHistory('tsa', $tsa, 'CREATE', 'TSA record created');
 
             Log::info('TSA record created successfully', ['id' => $tsa->id]);
 
@@ -183,6 +187,8 @@ class AgencyReleaseController extends Controller
                 'status' => 1
             ]);
 
+            $this->saveAgencyReleaseHistory('loa', $loa, 'CREATE', 'LOA record created');
+
             Log::info('LOA record created successfully', ['id' => $loa->id]);
 
             return response()->json([
@@ -280,6 +286,8 @@ class AgencyReleaseController extends Controller
                 'agency_vendor' => $validated['agencyVendor'],
                 'status' => 1
             ]);
+
+            $this->saveAgencyReleaseHistory('administrative-expenditure', $adminExp, 'CREATE', 'Administrative Expenditure record created');
 
             Log::info('Administrative Expenditure record created successfully', ['id' => $adminExp->id]);
 
@@ -454,6 +462,8 @@ class AgencyReleaseController extends Controller
                 $record->status = 0;
                 $record->save();
 
+                $this->saveAgencyReleaseHistory($type, $record, 'CLOSE', 'Record closed');
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Record closed successfully',
@@ -463,6 +473,8 @@ class AgencyReleaseController extends Controller
                 // Revise: Set old record to inactive
                 $record->status = 0;
                 $record->save();
+
+                $this->saveAgencyReleaseHistory($type, $record, 'REVISE', 'Record marked for revision');
 
                 // Return record data for prefilling form
                 $recordData = [
@@ -801,6 +813,107 @@ class AgencyReleaseController extends Controller
                 'success' => false,
                 'message' => 'Failed to fetch balanced fund amount: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Get TSA history list
+     */
+    public function tsaHistory(): JsonResponse
+    {
+        return $this->getHistoryByType('tsa');
+    }
+
+    /**
+     * Get LOA history list
+     */
+    public function loaHistory(): JsonResponse
+    {
+        return $this->getHistoryByType('loa');
+    }
+
+    /**
+     * Get Administrative Expenditure history list
+     */
+    public function administrativeExpenditureHistory(): JsonResponse
+    {
+        return $this->getHistoryByType('administrative-expenditure');
+    }
+
+    /**
+     * Common history fetcher by type
+     */
+    private function getHistoryByType(string $type): JsonResponse
+    {
+        try {
+            $history = AgencyReleaseHistory::where('release_type', $type)
+                ->orderBy('history_timestamp', 'desc')
+                ->get()
+                ->map(function ($record) {
+                    return [
+                        'id' => $record->history_id,
+                        'sanction_number' => $record->sanction_number,
+                        'date' => $record->date,
+                        'budget_head' => $record->budget_head,
+                        'purpose_of_grant' => $record->purpose_of_grant,
+                        'program_division_id' => $record->program_division_id,
+                        'amount' => $record->amount,
+                        'central_implementing_agency' => $record->central_implementing_agency,
+                        'ut' => $record->ut,
+                        'agency_vendor' => $record->agency_vendor,
+                        'status' => $record->status,
+                        'action_type' => $record->action_type,
+                        'changed_by' => $record->changed_by,
+                        'history_timestamp' => $record->history_timestamp,
+                    ];
+                });
+
+            return response()->json($history);
+        } catch (\Exception $e) {
+            Log::error('Error fetching Agency Release history', [
+                'type' => $type,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch Agency Release history: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Save history record for agency release changes
+     */
+    private function saveAgencyReleaseHistory(string $type, $record, string $actionType, ?string $description = null): void
+    {
+        try {
+            $changedBy = Auth::check() ? Auth::user()->name : 'System';
+
+            AgencyReleaseHistory::create([
+                'release_type' => $type,
+                'release_id' => $record->id,
+                'sanction_number' => $record->sanction_number ?? null,
+                'date' => $record->date ?? null,
+                'budget_head' => $record->budget_head ?? null,
+                'purpose_of_grant' => $record->purpose_of_grant ?? null,
+                'program_division_id' => $record->program_division_id ?? null,
+                'amount' => $record->amount ?? null,
+                'central_implementing_agency' => $record->central_implementing_agency ?? null,
+                'ut' => $record->ut ?? null,
+                'agency_vendor' => $record->agency_vendor ?? null,
+                'status' => $record->status ?? 1,
+                'action_type' => $actionType,
+                'changed_by' => $changedBy,
+                'change_description' => $description,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error saving Agency Release history', [
+                'type' => $type,
+                'action_type' => $actionType,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

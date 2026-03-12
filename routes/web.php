@@ -192,6 +192,30 @@ Route::get('/agency-release-administrative-expenditure-list', function () {
     return Inertia::render('agency/AgencyReleaseAdministrativeExpenditureList');
 })->middleware(['auth', 'verified', 'role:2'])->name('agency-release-administrative-expenditure-list');
 
+Route::get('/agency-release-tsa-history', function () {
+    return Inertia::render('agency/AgencyReleaseTSAHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-tsa-history');
+
+Route::get('/agency-release-loa-history', function () {
+    return Inertia::render('agency/AgencyReleaseLOAHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-loa-history');
+
+Route::get('/agency-release-administrative-expenditure-history', function () {
+    return Inertia::render('agency/AgencyReleaseAdministrativeExpenditureHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-administrative-expenditure-history');
+
+Route::get('/agency-release-tsa-history', function () {
+    return Inertia::render('agency/AgencyReleaseTSAHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-tsa-history');
+
+Route::get('/agency-release-loa-history', function () {
+    return Inertia::render('agency/AgencyReleaseLOAHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-loa-history');
+
+Route::get('/agency-release-administrative-expenditure-history', function () {
+    return Inertia::render('agency/AgencyReleaseAdministrativeExpenditureHistory');
+})->middleware(['auth', 'verified', 'role:2'])->name('agency-release-administrative-expenditure-history');
+
 Route::get('/role-based-access-demo', function () {
     return Inertia::render('RoleBasedAccessDemo');
 })->middleware(['auth', 'verified'])->name('role-based-access-demo');
@@ -235,6 +259,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/pdwise-aap-allocation-history', [PdWiseBudgetAllocationAAPCentralHistoryController::class, 'getHistoryData']);
     Route::get('/api/budget-heads-with-history-pdwise', [PdWiseBudgetAllocationAAPCentralHistoryController::class, 'getBudgetHeadsWithHistory']);
     Route::get('/api/program-divisions-with-history-pdwise', [PdWiseBudgetAllocationAAPCentralHistoryController::class, 'getProgramDivisionsWithHistory']);
+    Route::get('/api/agency-release-tsa-history', [AgencyReleaseController::class, 'tsaHistory']);
+    Route::get('/api/agency-release-loa-history', [AgencyReleaseController::class, 'loaHistory']);
+    Route::get('/api/agency-release-administrative-expenditure-history', [AgencyReleaseController::class, 'administrativeExpenditureHistory']);
     Route::get('/api/users', function() {
         return response()->json([
             'success' => true,

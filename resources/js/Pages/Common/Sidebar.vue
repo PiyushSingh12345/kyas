@@ -303,6 +303,11 @@
                       </Link>
                     </li>
                     <li>
+                      <Link :href="route('agency-release-tsa-history')" class="nav-link">
+                        <span class="sub-item">TSA History</span>
+                      </Link>
+                    </li>
+                    <li>
                       <Link :href="route('agency-release-loa')" class="nav-link">
                         <span class="sub-item">LOA</span>
                       </Link>
@@ -313,6 +318,11 @@
                       </Link>
                     </li>
                     <li>
+                      <Link :href="route('agency-release-loa-history')" class="nav-link">
+                        <span class="sub-item">LOA History</span>
+                      </Link>
+                    </li>
+                    <li>
                       <Link :href="route('agency-release-administrative-expenditure')" class="nav-link">
                         <span class="sub-item">Administrative Expenditure</span>
                       </Link>
@@ -320,6 +330,11 @@
                     <li>
                       <Link :href="route('agency-release-administrative-expenditure-list')" class="nav-link">
                         <span class="sub-item">Administrative Expenditure List</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link :href="route('agency-release-administrative-expenditure-history')" class="nav-link">
+                        <span class="sub-item">Administrative Expenditure History</span>
                       </Link>
                     </li>
                   </ul>
