@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\Log;
 
 class SlsPDComponentController extends Controller
 {
+    private function sanitizeText(?string $value): string
+    {
+        $clean = trim(strip_tags((string) $value));
+        return preg_replace('/[\x00-\x1F\x7F]/u', '', $clean) ?? '';
+    }
+
 
     public function index()
     {
@@ -46,11 +52,11 @@ class SlsPDComponentController extends Controller
             'component' => 'required|in:PD,SL',
             'comValue' => 'required|array',
             'comValue.*.state' => 'nullable|integer',
-            'comValue.*.name' => 'required|string',
-            'comValue.*.slsPD' => 'nullable|string',
-            'comValue.*.slsCode' => 'nullable|string',
-            'comValue.*.slsName' => 'nullable|string',
-            'comValue.*.fullSlsName' => 'nullable|string',
+            'comValue.*.name' => 'required|string|max:255',
+            'comValue.*.slsPD' => 'nullable|string|max:255',
+            'comValue.*.slsCode' => 'nullable|string|max:100',
+            'comValue.*.slsName' => 'nullable|string|max:255',
+            'comValue.*.fullSlsName' => 'nullable|string|max:255',
             'status' => 'required|in:0,1'
         ]);
 
@@ -58,10 +64,20 @@ class SlsPDComponentController extends Controller
             DB::beginTransaction();
 
             foreach ($validated['comValue'] as $entry) {
+                $sanitizedName = $this->sanitizeText($entry['name'] ?? '');
+                $sanitizedSlsPD = $this->sanitizeText($entry['slsPD'] ?? null);
+                $sanitizedSlsCode = $this->sanitizeText($entry['slsCode'] ?? null);
+                $sanitizedSlsName = $this->sanitizeText($entry['slsName'] ?? null);
+                $sanitizedFullSlsName = $this->sanitizeText($entry['fullSlsName'] ?? null);
+
+                if ($sanitizedName === '') {
+                    throw new \InvalidArgumentException('Invalid input provided in component name.');
+                }
+
                 if ($validated['component'] === 'PD') {
                     // Save PD components to md_program_divisions table
                     ProgramDivision::create([
-                        'division_name' => $entry['name'],
+                        'division_name' => $sanitizedName,
                         'is_active' => $validated['status'],
                         'created_at' => now()
                     ]);
@@ -70,12 +86,16 @@ class SlsPDComponentController extends Controller
                     // die();
                     // Save SL components to pd_and_sls_comp table with duplicate checking
                     $stateId = $entry['state'];
-                    $slsCode = $entry['slsCode'] ?? $entry['name']; // Use slsCode if provided, otherwise fallback to name
-                    $slsName = $entry['slsName'] ?? $entry['name']; // Use slsName if provided, otherwise fallback to name
-                    $pdId = $entry['slsPD'] ?? null;
+                    $slsCode = $sanitizedSlsCode !== '' ? $sanitizedSlsCode : $sanitizedName; // Use slsCode if provided, otherwise fallback to name
+                    $slsName = $sanitizedSlsName !== '' ? $sanitizedSlsName : $sanitizedName; // Use slsName if provided, otherwise fallback to name
+                    $pdId = $sanitizedSlsPD !== '' ? $sanitizedSlsPD : null;
+
+                    if ($slsCode === '' || $slsName === '') {
+                        throw new \InvalidArgumentException('Invalid input provided in SLS fields.');
+                    }
                     
                     // Create full SLS name (SLS Code - SLS Name)
-                    $fullSlsName = $entry['fullSlsName'] ?? ($slsCode . ' - ' . $slsName);
+                    $fullSlsName = $sanitizedFullSlsName !== '' ? $sanitizedFullSlsName : ($slsCode . ' - ' . $slsName);
                     
                     // print_r($pdId);
                     // die();
@@ -478,12 +498,12 @@ class SlsPDComponentController extends Controller
     {
         $request->validate([
             'data' => 'required|array',
-            'data.*.slsCode' => 'required|string',
-            'data.*.slsName' => 'required|string',
-            'data.*.stateName' => 'required|string',
-            'data.*.sgAccount' => 'nullable|string',
-            'data.*.sharingPatternCentre' => 'nullable|string',
-            'data.*.sharingPatternState' => 'nullable|string'
+            'data.*.slsCode' => 'required|string|max:100',
+            'data.*.slsName' => 'required|string|max:255',
+            'data.*.stateName' => 'required|string|max:255',
+            'data.*.sgAccount' => 'nullable|string|max:100',
+            'data.*.sharingPatternCentre' => 'nullable|string|max:50',
+            'data.*.sharingPatternState' => 'nullable|string|max:50'
         ]);
 
         try {
@@ -493,26 +513,37 @@ class SlsPDComponentController extends Controller
             $errors = [];
             foreach ($request->data as $item) {
                 try {
+                    $slsCode = $this->sanitizeText($item['slsCode'] ?? '');
+                    $slsName = $this->sanitizeText($item['slsName'] ?? '');
+                    $stateName = $this->sanitizeText($item['stateName'] ?? '');
+                    $sharingPatternCentre = $this->sanitizeText($item['sharingPatternCentre'] ?? '');
+                    $sharingPatternState = $this->sanitizeText($item['sharingPatternState'] ?? '');
+
+                    if ($slsCode === '' || $slsName === '' || $stateName === '') {
+                        $errors[] = "Invalid or empty sanitized data for SLS '{$slsCode}'";
+                        continue;
+                    }
+
                     // Get state ID by state name
-                    $stateId = $this->getStateIDbyStateName($item['stateName']);
+                    $stateId = $this->getStateIDbyStateName($stateName);
                     
                     if (!$stateId) {
-                        $errors[] = "State '{$item['stateName']}' not found in database";
+                        $errors[] = "State '{$stateName}' not found in database";
                         continue;
                     }
 
                     // Check if SLS already exists
-                    $existingSLS = SlsPDComponent::where('sls_code', $item['slsCode'])
+                    $existingSLS = SlsPDComponent::where('sls_code', $slsCode)
                         ->where('state_id', $stateId)
                         ->first();
 
                     if ($existingSLS) {
                         // Update existing record instead of failing
                         $existingSLS->update([
-                            'name' => $item['slsName'],
-                            'full_sls_name' => $item['slsCode'] . ' - ' . $item['slsName'],
-                            'sharing_patter_center' => $item['sharingPatternCentre'] !== '' ? ($item['sharingPatternCentre'] ?? 0) : 0, // Store 0 for empty/null
-                            'sharing_patter_state' => $item['sharingPatternState'] !== '' ? ($item['sharingPatternState'] ?? 0) : 0, // Store 0 for empty/null
+                            'name' => $slsName,
+                            'full_sls_name' => $slsCode . ' - ' . $slsName,
+                            'sharing_patter_center' => $sharingPatternCentre !== '' ? $sharingPatternCentre : 0, // Store 0 for empty/null
+                            'sharing_patter_state' => $sharingPatternState !== '' ? $sharingPatternState : 0, // Store 0 for empty/null
                             'status' => 1
                         ]);
                         $savedCount++;
@@ -522,21 +553,21 @@ class SlsPDComponentController extends Controller
                     // Create new SLS record with only the fields that exist in the database
                     SlsPDComponent::create([
                         'state_id' => $stateId,
-                        'name' => $item['slsName'], // slsName => name
-                        'full_sls_name' => $item['slsCode'] . ' - ' . $item['slsName'],
-                        'sharing_patter_center' => $item['sharingPatternCentre'] !== '' ? ($item['sharingPatternCentre'] ?? 0) : 0, // Store 0 for empty/null
-                        'sharing_patter_state' => $item['sharingPatternState'] !== '' ? ($item['sharingPatternState'] ?? 0) : 0, // Store 0 for empty/null
-                        'sls_code' => $item['slsCode'], // slsCode => sls_code
+                        'name' => $slsName, // slsName => name
+                        'full_sls_name' => $slsCode . ' - ' . $slsName,
+                        'sharing_patter_center' => $sharingPatternCentre !== '' ? $sharingPatternCentre : 0, // Store 0 for empty/null
+                        'sharing_patter_state' => $sharingPatternState !== '' ? $sharingPatternState : 0, // Store 0 for empty/null
+                        'sls_code' => $slsCode, // slsCode => sls_code
                         'status' => 1
                     ]);
 
                     $savedCount++;
 
                 } catch (\Exception $e) {
-                    $errors[] = "Error saving SLS '{$item['slsCode']}': " . $e->getMessage();
+                    $errors[] = "Error saving SLS '{$slsCode}': " . $e->getMessage();
                     Log::error("Error saving SLS data: " . $e->getMessage(), [
-                        'slsCode' => $item['slsCode'],
-                        'stateName' => $item['stateName'],
+                        'slsCode' => $slsCode,
+                        'stateName' => $stateName,
                         'error' => $e->getMessage()
                     ]);
                 }
@@ -656,7 +687,7 @@ class SlsPDComponentController extends Controller
     {
         $request->validate([
             'mappings' => 'required|array',
-            'mappings.*.pd_name' => 'required|string',
+            'mappings.*.pd_name' => 'required|string|max:255',
             'mappings.*.sls_id' => 'required|integer'
         ]);
 // var_dump($request->mappings);
@@ -669,13 +700,19 @@ class SlsPDComponentController extends Controller
 
             foreach ($request->mappings as $mapping) {
                 try {
+                    $pdName = $this->sanitizeText($mapping['pd_name'] ?? '');
+                    if ($pdName === '') {
+                        $errors[] = "Invalid PD name for SLS ID {$mapping['sls_id']}";
+                        continue;
+                    }
+
                     // Find the SLS record by ID
                     $slsRecord = SlsPDComponent::find($mapping['sls_id']);
 
                     if ($slsRecord) {
                         // Update the existing record with the new PD mapping
                         $slsRecord->update([
-                            'slsPD' => $mapping['pd_name'],
+                            'slsPD' => $pdName,
                             'updated_at' => now()
                         ]);
                         $updatedCount++;
@@ -684,7 +721,7 @@ class SlsPDComponentController extends Controller
                         $errors[] = "SLS record with ID {$mapping['sls_id']} not found";
                         Log::error("SLS record not found", [
                             'sls_id' => $mapping['sls_id'],
-                            'pd_name' => $mapping['pd_name']
+                            'pd_name' => $pdName
                         ]);
                     }
 
@@ -692,7 +729,7 @@ class SlsPDComponentController extends Controller
                     $errors[] = "Error updating mapping for SLS ID {$mapping['sls_id']}: " . $e->getMessage();
                     Log::error("Error updating PD-SLS mapping: " . $e->getMessage(), [
                         'sls_id' => $mapping['sls_id'],
-                        'pd_name' => $mapping['pd_name'],
+                        'pd_name' => $pdName,
                         'error' => $e->getMessage()
                     ]);
                 }
