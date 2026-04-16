@@ -72,7 +72,9 @@ Route::get('/fund-allocation', function () {
     return Inertia::render('Budget_allocation/FundAllocation');
 })->middleware(['auth', 'verified', 'role:2'])->name('fund-allocation');
 
-Route::get('/budget-heads', [BudgetHeadController::class, 'index'])->middleware(['auth', 'verified', 'role:2,3'])->name('budget-heads');
+Route::get('/budget-heads', [BudgetHeadController::class, 'index'])
+    ->middleware(['auth', 'verified', 'role:2,3', 'throttle:10,1'])
+    ->name('budget-heads');
 
 
 Route::get('/state-uts', function () {
@@ -243,7 +245,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/budget-phase-summary', [BudgetPhaseController::class, 'budgetPhaseSummary']);
 
 
-   Route::get('/api/budget-heads', [BudgetPhaseController::class, 'fetchActiveBudgetHeads']);
+   Route::get('/api/budget-heads', [BudgetPhaseController::class, 'fetchActiveBudgetHeads'])
+    ->middleware(['throttle:10,1']);
    Route::get('/api/budget-heads-by-major-head', [BudgetHeadController::class, 'fetchBudgetHeadsByMajorHead']);
 
     Route::post('/budget-phase', [BudgetPhaseController::class, 'store'])->name('budget-phase.store');
