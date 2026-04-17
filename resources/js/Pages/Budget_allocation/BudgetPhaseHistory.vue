@@ -537,21 +537,32 @@ export default {
         'Budget Amount', 'Status', 'Draft Flag', 'Action Type', 'Changed By', 
         'Created At', 'Updated At'
       ]
+
+      const sanitizeCsvCell = (value) => {
+        // CSV/Formula injection mitigation for spreadsheet programs (Excel, LibreOffice).
+        // If a cell starts with: = + - @ (after leading whitespace), prefix with apostrophe.
+        const cellString = value == null ? '' : String(value)
+        const trimmedStart = cellString.replace(/^\s+/, '')
+        if (trimmedStart && ['=', '+', '-', '@'].includes(trimmedStart[0])) {
+          return "'" + cellString
+        }
+        return cellString
+      }
       
       const csvContent = [
         headers.join(','),
         ...historyRecords.value.map(record => [
-          formatDateTime(record.history_timestamp),
-          record.financial_year,
-          record.budget_phase,
-          record.budget_head ? `"${record.budget_head.budget}"` : 'N/A',
-          record.budget_amount,
-          getStatusText(record.status),
-          getDraftFlagText(record.draft_flag),
-          record.action_type,
-          record.changed_by_user ? `"${record.changed_by_user.name}"` : 'N/A',
-          formatDateTime(record.created_at),
-          formatDateTime(record.updated_at)
+          sanitizeCsvCell(formatDateTime(record.history_timestamp)),
+          sanitizeCsvCell(record.financial_year),
+          sanitizeCsvCell(record.budget_phase),
+          record.budget_head ? `"${sanitizeCsvCell(record.budget_head.budget)}"` : 'N/A',
+          sanitizeCsvCell(record.budget_amount),
+          sanitizeCsvCell(getStatusText(record.status)),
+          sanitizeCsvCell(getDraftFlagText(record.draft_flag)),
+          sanitizeCsvCell(record.action_type),
+          record.changed_by_user ? `"${sanitizeCsvCell(record.changed_by_user.name)}"` : 'N/A',
+          sanitizeCsvCell(formatDateTime(record.created_at)),
+          sanitizeCsvCell(formatDateTime(record.updated_at))
         ].join(','))
       ].join('\n')
 

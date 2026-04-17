@@ -2766,11 +2766,21 @@
   // Function to export to CSV
   const exportToCSV = () => {
 	const data = prepareTableData()
+	const sanitizeCsvCell = (value) => {
+	  // CSV/Formula injection mitigation for spreadsheet programs (Excel, LibreOffice).
+	  // If a cell starts with: = + - @ (after leading whitespace), prefix with apostrophe.
+	  const cellString = String(value || '')
+	  const trimmedStart = cellString.replace(/^\s+/, '')
+	  if (trimmedStart && ['=', '+', '-', '@'].includes(trimmedStart[0])) {
+		return "'" + cellString
+	  }
+	  return cellString
+	}
 	let csvContent = ''
 	
 	data.forEach(row => {
 	  const csvRow = row.map(cell => {
-		const cellValue = String(cell || '')
+		const cellValue = sanitizeCsvCell(cell)
 		if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
 		  return `"${cellValue.replace(/"/g, '""')}"`
 		}
