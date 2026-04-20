@@ -11,23 +11,30 @@ use Illuminate\Support\Facades\DB;
 
 class FundAllocationController extends Controller
 {
+    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
+    private const SAFE_BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
    
 
     // Store budget allocation (as draft or final)
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'fund_allocation_for' => 'required|string',
-            'financial_year' => 'required|string',
-            'budget_phase' => 'required|string',
+            'fund_allocation_for' => ['required', 'string', 'max:100', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'financial_year' => ['required', 'string', 'max:20', 'regex:/^\d{4}-\d{2,4}$/'],
+            'budget_phase' => ['required', 'string', 'max:50', 'regex:' . self::SAFE_TEXT_PATTERN],
             'state_id' => 'required|integer',
             'status' => 'required|in:0,1',
             'budget_array' => 'required|array|min:1',
-            'budget_array.*.category' => 'required|string',
-            'budget_array.*.budget' => 'required|string',
+            'budget_array.*.category' => ['required', 'string', 'max:100', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'budget_array.*.budget' => ['required', 'string', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
             'budget_array.*.budget_amount' => 'required|numeric',
-            'budget_array.*.sls_pd_name' => 'required|string',
+            'budget_array.*.sls_pd_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
             'budget_array.*.amount' => 'required|numeric'
+        ], [
+            'financial_year.regex' => 'Financial year format must be like 2025-26.',
+            'budget_array.*.budget.regex' => 'Budget head format is invalid.',
+            'budget_array.*.category.regex' => 'Category contains invalid special characters.',
+            'budget_array.*.sls_pd_name.regex' => 'SLS/PD name contains invalid special characters.',
         ]);
 
         DB::beginTransaction();

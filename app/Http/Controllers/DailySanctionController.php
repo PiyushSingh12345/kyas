@@ -16,6 +16,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class DailySanctionController extends Controller
 {
+    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
+    private const SAFE_BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
     
     public function getMotherSanctions(Request $request)
     {
@@ -137,18 +139,27 @@ public function store(Request $request)
         ]);
 
         $validated = $request->validate([
-            'financial_year' => 'required|string',
+            'financial_year' => ['required', 'string', 'max:20', 'regex:/^\d{4}-\d{2,4}$/'],
             'state_id' => 'required|integer',
             'ds_date' => 'required|date',
-            'daily_sanction_no' => 'required|string|unique:daily_sanction,daily_sanction_no',
-            'mother_sanction' => 'required|string',
-            'ifd_no' => 'required|string',
-            'sls_name' => 'required|string',
+            'daily_sanction_no' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN, 'unique:daily_sanction,daily_sanction_no'],
+            'mother_sanction' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'ifd_no' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'sls_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
             'entries' => 'required|array|min:1',
-            'entries.*.budget_head' => 'required|string',
+            'entries.*.budget_head' => ['required', 'string', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
             'entries.*.mother_sanction_amount' => 'required|numeric',
             'entries.*.available_amount' => 'required|numeric',
             'entries.*.center_share_amount' => 'required|numeric',
+            'remark' => ['nullable', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+        ], [
+            'financial_year.regex' => 'Financial year format must be like 2025-26.',
+            'daily_sanction_no.regex' => 'Daily sanction number contains invalid special characters.',
+            'mother_sanction.regex' => 'Mother sanction no contains invalid special characters.',
+            'ifd_no.regex' => 'IFD no contains invalid special characters.',
+            'sls_name.regex' => 'SLS name contains invalid special characters.',
+            'entries.*.budget_head.regex' => 'Budget head format is invalid.',
+            'remark.regex' => 'Remark contains invalid special characters.',
         ]);
 
         Log::info('Daily Sanction Validation Passed', ['validated_data' => $validated]);
@@ -1817,8 +1828,8 @@ public function store(Request $request)
             $request->validate([
                 'header_data' => 'required|array',
                 'header_data.report_title' => 'nullable|string',
-                'header_data.financial_year' => 'nullable|string|max:40',
-                'header_data.state' => 'required|string',
+                'header_data.financial_year' => ['nullable', 'string', 'max:40', 'regex:/^\d{4}-\d{2,4}$/'],
+                'header_data.state' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'header_data.scheme_css' => 'nullable|string',
                 'header_data.scheme_sls' => 'nullable|string',
                 'header_data.from_date' => 'nullable|string',
@@ -1827,6 +1838,9 @@ public function store(Request $request)
                 'header_data.figures_in' => 'nullable|string',
                 'header_data.total_sanction' => 'nullable|string',
                 'rows' => 'required|array|min:1',
+            ], [
+                'header_data.financial_year.regex' => 'Financial year format must be like 2025-26.',
+                'header_data.state.regex' => 'State contains invalid special characters.',
             ]);
 
             $mapped = $this->mapRawRowsToDailySanction($request->header_data, $request->rows);

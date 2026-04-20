@@ -16,6 +16,9 @@ use App\Models\BudgetHead;
 
 class AgencyReleaseController extends Controller
 {
+    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
+    private const SAFE_BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
+
     /**
      * Store TSA form data
      */
@@ -23,13 +26,18 @@ class AgencyReleaseController extends Controller
     {
         try {
             $validated = $request->validate([
-                'sanctionNumber' => 'required|string|max:255',
+                'sanctionNumber' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'date' => 'required|date',
-                'budgetHead' => 'required|string|max:255',
-                'purposeOfGrant' => 'required|string',
+                'budgetHead' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
+                'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
-                'centralImplementingAgency' => 'required|string|max:255',
+                'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            ], [
+                'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
+                'budgetHead.regex' => 'Budget head format is invalid.',
+                'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
+                'centralImplementingAgency.regex' => 'Agency name contains invalid special characters.',
             ]);
 
             // Get budget head record
@@ -123,13 +131,18 @@ class AgencyReleaseController extends Controller
     {
         try {
             $validated = $request->validate([
-                'sanctionNumber' => 'required|string|max:255',
+                'sanctionNumber' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'date' => 'required|date',
-                'budgetHead' => 'required|string|max:255',
-                'purposeOfGrant' => 'required|string',
+                'budgetHead' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
+                'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
-                'ut' => 'required|string|max:255',
+                'ut' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            ], [
+                'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
+                'budgetHead.regex' => 'Budget head format is invalid.',
+                'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
+                'ut.regex' => 'UT contains invalid special characters.',
             ]);
 
             // Get budget head record
@@ -223,13 +236,18 @@ class AgencyReleaseController extends Controller
     {
         try {
             $validated = $request->validate([
-                'sanctionNumber' => 'required|string|max:255',
+                'sanctionNumber' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'date' => 'required|date',
-                'budgetHead' => 'required|string|max:255',
-                'purposeOfGrant' => 'required|string',
+                'budgetHead' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
+                'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
-                'agencyVendor' => 'required|string|max:255',
+                'agencyVendor' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            ], [
+                'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
+                'budgetHead.regex' => 'Budget head format is invalid.',
+                'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
+                'agencyVendor.regex' => 'Agency/vendor contains invalid special characters.',
             ]);
 
             // Get budget head record

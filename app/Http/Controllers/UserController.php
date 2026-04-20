@@ -23,6 +23,8 @@ use App\Http\Requests\UpdateUserRequest;
 
 class UserController extends Controller
 {
+    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/']+$/";
+
     /**
      * Display a listing of the resource.
      */
@@ -136,11 +138,18 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
+            'first_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'last_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
             'email' => 'required|email',
             'user_type' => 'required|array', // Ensure user_type is an array
             'user_type.*' => 'required|integer', // Each user_type must be an integer ID
+            'designation' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'mobile' => ['nullable', 'digits_between:10,15'],
+            'program_division' => 'nullable|integer',
+        ], [
+            'first_name.regex' => 'First name contains invalid special characters.',
+            'last_name.regex' => 'Last name contains invalid special characters.',
+            'designation.regex' => 'Designation contains invalid special characters.',
         ]);
         // Convert the user_type array to a comma-separated string
         $userTypeString = implode(',', $request->user_type);
@@ -231,14 +240,19 @@ class UserController extends Controller
     {
         try {
             $validated = $request->validate([
-                'first_name' => 'required|string|max:255',
-                'last_name' => 'required|string|max:255',
+                'first_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'last_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'email' => 'required|email|unique:users,email,' . $id,
-                'designation' => 'nullable',
-                'mobile_number' => 'required|numeric',
+                'designation' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'mobile_number' => ['required', 'digits_between:10,15'],
                 'program_division_id' => 'required|integer',
                 'user_type_id' => 'required|array',
                 'user_type_id.*' => 'required|integer',
+                'password' => 'nullable|string|min:6',
+            ], [
+                'first_name.regex' => 'First name contains invalid special characters.',
+                'last_name.regex' => 'Last name contains invalid special characters.',
+                'designation.regex' => 'Designation contains invalid special characters.',
             ]);
             $user = User::findOrFail($id);
             $userTypeString = implode(',', $request->user_type_id);

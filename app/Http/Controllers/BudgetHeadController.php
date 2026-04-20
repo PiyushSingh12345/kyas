@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Log;
 
 class BudgetHeadController extends Controller
 {
+    private const BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
+    private const DESCRIPTION_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/']+$/";
+
     public function index(Request $request)
     {
         $perPage = $request->get('per_page', 10);
@@ -32,11 +35,17 @@ class BudgetHeadController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'budget' => 'required|max:255',
-            'description' => 'required|string|max:255',
-            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,DAJUGA,Others'
-        ]);
+        $validated = $request->validate(
+            [
+                'budget' => ['required', 'string', 'max:255', 'regex:' . self::BUDGET_HEAD_PATTERN],
+                'description' => ['required', 'string', 'max:255', 'regex:' . self::DESCRIPTION_PATTERN],
+                'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,DAJUGA,Others'
+            ],
+            [
+                'budget.regex' => 'Budget Head must be 15 digits or in format 1234.56.789.01.23.45.',
+                'description.regex' => 'Head Description contains invalid special characters.',
+            ]
+        );
 
         // Format the budget head code before saving
         $formattedBudget = $this->formatBudgetHeadCode($validated['budget']);
@@ -61,11 +70,17 @@ class BudgetHeadController extends Controller
 
     public function update(Request $request, BudgetHead $budgetHead)
     {
-        $validated = $request->validate([
-            'budget' => 'required|max:255',
-            'description' => 'required|string|max:255',
-            'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,DAJUGA,Others'
-        ]);
+        $validated = $request->validate(
+            [
+                'budget' => ['required', 'string', 'max:255', 'regex:' . self::BUDGET_HEAD_PATTERN],
+                'description' => ['required', 'string', 'max:255', 'regex:' . self::DESCRIPTION_PATTERN],
+                'category' => 'required|in:Gen,SC,ST,Capital-Gen,Capital-SC,Capital-ST,DAJUGA,Others'
+            ],
+            [
+                'budget.regex' => 'Budget Head must be 15 digits or in format 1234.56.789.01.23.45.',
+                'description.regex' => 'Head Description contains invalid special characters.',
+            ]
+        );
 
         // Format the budget head code before updating
         $formattedBudget = $this->formatBudgetHeadCode($validated['budget']);
@@ -81,6 +96,10 @@ class BudgetHeadController extends Controller
 
     public function toggleStatus($id, Request $request)
     {
+        $request->validate([
+            'status' => 'required|in:0,1'
+        ]);
+
         $budgetHead = BudgetHead::findOrFail($id);
         $budgetHead->status = $request->status;
         $budgetHead->save();
@@ -101,15 +120,12 @@ class BudgetHeadController extends Controller
      */
     public function fetchBudgetHeadsByMajorHead(Request $request)
     {
+        $request->validate([
+            'major_head' => ['required', 'regex:/^\d{4}$/']
+        ]);
+
         $majorHead = $request->query('major_head');
         
-        if (!$majorHead) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Major head parameter is required'
-            ], 400);
-        }
-
         // Get budget heads where the budget code starts with the major head
         // The budget code format is like "2435.60.103.04.00.04", so we check if it starts with the major head
         $budgetHeads = BudgetHead::where('status', 1)
@@ -412,11 +428,14 @@ class BudgetHeadController extends Controller
     {
         $request->validate([
             'structured_data' => 'required|array',
-            'structured_data.*.code' => 'required|string',
-            'structured_data.*.item' => 'required|string',
+            'structured_data.*.code' => ['required', 'string', 'regex:' . self::BUDGET_HEAD_PATTERN],
+            'structured_data.*.item' => ['required', 'string', 'max:255', 'regex:' . self::DESCRIPTION_PATTERN],
             'structured_data.*.be_2024_25' => 'nullable|string',
             'structured_data.*.be_2025_26' => 'nullable|string',
             'file_name' => 'required|string'
+        ], [
+            'structured_data.*.code.regex' => 'Each imported budget code must be 15 digits or in format 1234.56.789.01.23.45.',
+            'structured_data.*.item.regex' => 'Imported description contains invalid special characters.',
         ]);
 
         try {

@@ -15,6 +15,8 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
+    private const SAFE_NAME_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/']+$/";
+
     /**
      * Display the registration view.
      */
@@ -31,9 +33,11 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_NAME_PATTERN],
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ], [
+            'name.regex' => 'Name contains invalid special characters.',
         ]);
 
         $user = User::create([

@@ -35,8 +35,8 @@ class NewPasswordController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'token' => 'required',
-            'email' => 'required|email',
+            'token' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 

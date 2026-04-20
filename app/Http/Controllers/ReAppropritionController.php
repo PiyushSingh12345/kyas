@@ -7,6 +7,8 @@ use App\Models\ReAppropriation;
 use App\Models\BudgetPhase;
 class ReAppropritionController extends Controller
 {
+    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
+
     public function index()
     {
         $reappropriations = ReAppropriation::orderBy('created_at', 'desc')->get();
@@ -25,24 +27,27 @@ class ReAppropritionController extends Controller
         $reappropriationAmount = is_numeric($request->reappropriation_amount) ? (float) $request->reappropriation_amount : 0;
 
         $data = $request->validate([
-            'financial_year' => 'required|string',
-            'budget_phase' => 'required|string',
+            'financial_year' => ['required', 'string', 'max:20', 'regex:/^\d{4}-\d{2,4}$/'],
+            'budget_phase' => ['required', 'string', 'max:50', 'regex:' . self::SAFE_TEXT_PATTERN],
             'ro_date' => 'nullable|date',
-            'type' => 'nullable|string',
-            'section' => 'nullable|string',
+            'type' => ['nullable', 'string', 'max:100', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'section' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
             'program_division_id' => 'nullable|integer',
             'from_budget_head_id' => 'nullable|integer',
-            'from_budget_head_remarks' => 'nullable|string',
+            'from_budget_head_remarks' => ['nullable', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
             'to_budget_head_id' => 'nullable|integer',
             'reappropriation_amount' => 'nullable|numeric',
-            'other_details' => 'nullable|string',
-            'entity_type' => 'nullable|string',
+            'other_details' => ['nullable', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'entity_type' => ['nullable', 'string', 'max:100', 'regex:' . self::SAFE_TEXT_PATTERN],
             'selected_entity_ids' => 'nullable|array',
-            'from_rule' => 'nullable|string',
-            'to_rule' => 'nullable|string',
-            'reason_for_additionality' => 'nullable|string',
-            'proposal_attract_ns_nis' => 'nullable|string',
-            'remarks' => 'nullable|string',
+            'from_rule' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'to_rule' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'reason_for_additionality' => ['nullable', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'proposal_attract_ns_nis' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'remarks' => ['nullable', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+        ], [
+            'financial_year.regex' => 'Financial year format must be like 2025-26.',
+            '*.regex' => 'Input contains invalid special characters.',
         ]);
 
         // Save reappropriation record
