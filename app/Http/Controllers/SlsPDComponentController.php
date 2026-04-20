@@ -17,10 +17,31 @@ class SlsPDComponentController extends Controller
         return preg_replace('/[\x00-\x1F\x7F]/u', '', $clean) ?? '';
     }
 
+    private function encodeForHtml(?string $value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private function encodeRecordForResponse(array $record): array
+    {
+        foreach (['name', 'full_sls_name', 'sls_code', 'slsPD'] as $field) {
+            if (array_key_exists($field, $record) && $record[$field] !== null) {
+                $record[$field] = $this->encodeForHtml((string) $record[$field]);
+            }
+        }
+
+        if (isset($record['state']) && is_array($record['state']) && array_key_exists('name', $record['state'])) {
+            $record['state']['name'] = $this->encodeForHtml((string) $record['state']['name']);
+        }
+
+        return $record;
+    }
+
 
     public function index()
     {
         $data = SlsPDComponent::with('state')->get()->toArray();
+        $data = array_map(fn(array $record) => $this->encodeRecordForResponse($record), $data);
         // print_r($data);die();
 
         return response()->json($data);
@@ -31,7 +52,11 @@ class SlsPDComponentController extends Controller
         $data = ProgramDivision::where('is_active', 1)
             ->where('is_pd', 1)
             ->orderBy('division_id','desc')
-            ->get();
+            ->get()
+            ->map(function ($item) {
+                $item->division_name = $this->encodeForHtml($item->division_name);
+                return $item;
+            });
 
         return response()->json($data);
     }
@@ -41,7 +66,11 @@ class SlsPDComponentController extends Controller
         $data = ProgramDivision::select('division_id', 'division_name')
             ->where('is_active', 1)
             ->orderBy('division_name')
-            ->get();
+            ->get()
+            ->map(function ($item) {
+                $item->division_name = $this->encodeForHtml($item->division_name);
+                return $item;
+            });
 
         return response()->json($data);
     }

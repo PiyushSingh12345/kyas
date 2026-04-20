@@ -543,17 +543,17 @@ const getEntityNames = (ids) => {
 DataTable.use(DataTablesCore)
 const pdColumns = [
   { title: 'S. No.', data: 'serial',width: '1%' },
-  { title: 'Division Name', data: 'division_name' }
+  { title: 'Division Name', data: 'division_name', render: DataTablesCore.render.text() }
 ]
 
 const slColumns = [
-  { title: 'SLS Code', data: 'sls_code' },
-  { title: 'SLS Name', data: 'name' },
-  { title: 'Full SLS Name', data: 'full_sls_name' },
-  { title: 'PD Name', data: 'slsPD' },
-  { title: 'State Name', data: 'state.name' },
-  { title: 'Sharing Pattern(Centre)', data: 'sharing_patter_center' },
-  { title: 'Sharing Pattern(State)', data: 'sharing_patter_state' }
+  { title: 'SLS Code', data: 'sls_code', render: DataTablesCore.render.text() },
+  { title: 'SLS Name', data: 'name', render: DataTablesCore.render.text() },
+  { title: 'Full SLS Name', data: 'full_sls_name', render: DataTablesCore.render.text() },
+  { title: 'PD Name', data: 'slsPD', render: DataTablesCore.render.text() },
+  { title: 'State Name', data: 'state.name', render: DataTablesCore.render.text() },
+  { title: 'Sharing Pattern(Centre)', data: 'sharing_patter_center', render: DataTablesCore.render.text() },
+  { title: 'Sharing Pattern(State)', data: 'sharing_patter_state', render: DataTablesCore.render.text() }
 ]  
 
 const pdData = computed(() =>

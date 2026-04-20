@@ -18,7 +18,9 @@ use App\Http\Controllers\AnnualActionPlanController;
 use App\Http\Controllers\StatewiseAapAllocationHistoryController;
 use App\Http\Controllers\PdWiseBudgetAllocationAAPCentralHistoryController;
 use App\Http\Controllers\AgencyReleaseController;
+use App\Http\Controllers\CspReportController;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
@@ -40,6 +42,10 @@ Route::get('/', function () {
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
+
+Route::post('/csp-report', CspReportController::class)
+    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->name('csp.report');
 
 Route::get('/user-create', function () {
     return Inertia::render('User_management/createUser');
