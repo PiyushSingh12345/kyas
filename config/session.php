@@ -32,9 +32,21 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => (int) env('SESSION_LIFETIME', 30),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inactivity Timeout
+    |--------------------------------------------------------------------------
+    |
+    | Number of minutes an authenticated session may remain idle before
+    | being invalidated server-side by middleware.
+    |
+    */
+
+    'inactivity_timeout' => (int) env('SESSION_INACTIVITY_TIMEOUT', 12),
 
     /*
     |--------------------------------------------------------------------------

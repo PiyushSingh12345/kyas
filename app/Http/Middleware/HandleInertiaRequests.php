@@ -58,6 +58,9 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
             ],
+            'session' => [
+                'inactivity_timeout_minutes' => (int) config('session.inactivity_timeout', 12),
+            ],
         ];
     }
 }

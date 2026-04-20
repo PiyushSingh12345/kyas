@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
             \App\Http\Middleware\SetAppUserIdInMysql::class,
+            \App\Http\Middleware\EnforceSessionTimeout::class,
             \App\Http\Middleware\SecurityHeaders::class,
         ]);
 

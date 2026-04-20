@@ -32,6 +32,7 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import InactivityWarning from './Components/InactivityWarning.vue';
 
 
 
@@ -50,7 +51,22 @@ createInertiaApp({
             import.meta.glob('./Pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
-        return createApp({ render: () => h(App, props) })
+        const initialPageProps = props?.initialPage?.props ?? {};
+        const inactivityTimeoutMinutes = Number(
+            initialPageProps?.session?.inactivity_timeout_minutes ?? 12,
+        );
+        const isAuthenticated = Boolean(initialPageProps?.auth?.user);
+
+        return createApp({
+            render: () =>
+                h('div', [
+                    h(InactivityWarning, {
+                        isAuthenticated,
+                        timeoutMinutes: inactivityTimeoutMinutes,
+                    }),
+                    h(App, props),
+                ]),
+        })
             .use(plugin)
             .use(ZiggyVue)
             .mount(el);

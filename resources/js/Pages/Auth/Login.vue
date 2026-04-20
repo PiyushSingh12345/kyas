@@ -14,6 +14,10 @@ defineProps({
     status: {
         type: String,
     },
+    statusType: {
+        type: String,
+        default: '',
+    },
 });
 
 const form = useForm({
@@ -34,7 +38,11 @@ const submit = () => {
         <!-- <Head title="Log in" /> -->
 
         
-		<div v-if="status" class="mb-4 text-sm font-medium text-green-600">
+		<div
+            v-if="status"
+            class="mb-4 text-sm font-medium"
+            :class="statusType === 'warning' ? 'text-amber-600' : 'text-green-600'"
+        >
             {{ status }}
         </div>
 
