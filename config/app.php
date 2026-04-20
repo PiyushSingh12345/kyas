@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Trusted Hosts
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated hostnames that are allowed in the incoming Host header.
+    | Supports wildcard entries like "*.example.com".
+    |
+    */
+    'trusted_hosts' => array_values(array_filter(array_map(
+        static fn (string $host) => trim($host),
+        explode(',', (string) env('TRUSTED_HOSTS', ''))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

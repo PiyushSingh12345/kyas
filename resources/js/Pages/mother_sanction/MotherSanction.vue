@@ -232,6 +232,7 @@
                         <div class="form-group">
                           <label for="ucFile">UC Received From State</label>
                           <input type="file" class="form-control" id="ucFile"
+                          accept=".csv,.pdf,.png,.jpg,.jpeg,text/csv,application/pdf,image/png,image/jpeg"
                           @change="handleUcFileChange" name="uc_file_path" />
                         </div>
                           <!-- UC File Preview -->
@@ -249,6 +250,7 @@
                         <div class="form-group">
                           <label for="sanctionFile">Signed Copy of Mother Sanction</label>
                           <input type="file" class="form-control" id="sanctionFile"
+                          accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
                           @change="handleSanctionFileChange" name="signed_copy_path" />
                         </div>
                         <div v-if="sanctionFilePreview" class="mt-2">
@@ -493,6 +495,15 @@ const getCurrentAvailableFundAmount = (row) => {
 
 const handleUcFileChange = (e) => {
   const file = e.target.files[0];
+  const validation = validateUploadFile(file, ['csv', 'pdf', 'png', 'jpg', 'jpeg']);
+  if (!validation.valid) {
+    e.target.value = '';
+    ucFile.value = null;
+    ucFilePreview.value = null;
+    showFlashMessage('danger', validation.message, 'fas fa-exclamation-triangle');
+    return;
+  }
+
   ucFile.value = file;
   if (file) {
     ucFilePreview.value = URL.createObjectURL(file);
@@ -520,6 +531,15 @@ const selectedBudgetHeads = computed(() =>
 
 const handleSanctionFileChange = (e) => {
   const file = e.target.files[0];
+  const validation = validateUploadFile(file, ['pdf', 'png', 'jpg', 'jpeg']);
+  if (!validation.valid) {
+    e.target.value = '';
+    sanctionFile.value = null;
+    sanctionFilePreview.value = null;
+    showFlashMessage('danger', validation.message, 'fas fa-exclamation-triangle');
+    return;
+  }
+
   sanctionFile.value = file;
   if (file) {
     sanctionFilePreview.value = URL.createObjectURL(file);
@@ -552,17 +572,25 @@ const submitData = async (status) => {
   }
 
   const formData = new FormData();
+  const safeFinancialYear = sanitizeTextInput(financialYear.value);
+  const safeIfdNo = sanitizeTextInput(ifdNo.value);
+  const safeKyMsNo = sanitizeTextInput(kyMsNo.value);
+  const safeSlsName = sanitizeTextInput(selectedSlsId.value);
+  const safePdComponent = sanitizeTextInput(pdComponent.value);
+  const safeRemark = sanitizeTextInput(remark.value);
+
   formData.append('financial_year', financialYear.value);
   formData.append('state_id', selectedState.value);
   formData.append('ms_sequence_no', msSequenceNo.value);
   // formData.append('file_no', sanctionNo.value);
-  formData.append('remark', remark.value);
-  formData.append('ifd_no', ifdNo.value);
+  formData.append('remark', safeRemark);
+  formData.append('ifd_no', safeIfdNo);
   formData.append('sanction_date', sanctionDate.value);
-  formData.append('ky_ms_no', kyMsNo.value);
+  formData.append('ky_ms_no', safeKyMsNo);
 
-  formData.append('sls_name', selectedSlsId.value);
-  formData.append('pd_component', pdComponent.value);
+  formData.append('sls_name', safeSlsName);
+  formData.append('pd_component', safePdComponent);
+  formData.set('financial_year', safeFinancialYear);
   formData.append('total_mother_sanction_amount', totalSanctionAmount.value);
   formData.append('status', status);
   
@@ -598,9 +626,17 @@ const submitData = async (status) => {
       
       return {
         ...row,
+        budget_head: sanitizeTextInput(row.budget_head),
+        category: sanitizeTextInput(row.category),
         sanction_amount: finalMsAmount.toString()
       };
     });
+  } else {
+    reappropriationsToSubmit = reappropriations.value.map(row => ({
+      ...row,
+      budget_head: sanitizeTextInput(row.budget_head),
+      category: sanitizeTextInput(row.category),
+    }));
   }
   
   formData.append('reappropriations', JSON.stringify(reappropriationsToSubmit));
@@ -662,6 +698,34 @@ const submitData = async (status) => {
     console.error('Network error:', error);
     showFlashMessage('danger', 'Network error. Please check your connection and try again.', 'fas fa-exclamation-triangle');
   }
+};
+
+const sanitizeTextInput = (value) => {
+  return String(value ?? '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .trim();
+};
+
+const validateUploadFile = (file, allowedExtensions) => {
+  if (!file) {
+    return { valid: true };
+  }
+
+  const extension = (file.name.split('.').pop() || '').toLowerCase();
+  if (!allowedExtensions.includes(extension)) {
+    return {
+      valid: false,
+      message: `Invalid file type. Allowed: ${allowedExtensions.join(', ').toUpperCase()}.`,
+    };
+  }
+
+  const maxFileSize = 10 * 1024 * 1024;
+  if (file.size > maxFileSize) {
+    return { valid: false, message: 'File exceeds 10MB size limit.' };
+  }
+
+  return { valid: true };
 };
 
 

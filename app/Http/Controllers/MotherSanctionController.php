@@ -11,11 +11,17 @@ use App\Models\BudgetPhase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\ValidationException;
 
 use Inertia\Inertia;
 
 class MotherSanctionController extends Controller
 {
+    private const UPLOAD_DISK = 'public';
+    private const UPLOAD_DIR = 'mother_sanction';
+
     public function getBudgetHeads()
     {
         return response()->json(
@@ -579,6 +585,8 @@ public function listReport(Request $request)
         'reappropriations' => 'required|json',
         'status' => 'required|in:0,1',
         'remark' => 'nullable|string',
+        'uc_file_path' => 'nullable|file|max:10240|mimes:csv,pdf,png,jpg,jpeg|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/pdf,image/png,image/jpeg',
+        'signed_copy_path' => 'nullable|file|max:10240|mimes:pdf,png,jpg,jpeg|mimetypes:application/pdf,image/png,image/jpeg',
     ]);
 
     try {
@@ -590,30 +598,42 @@ public function listReport(Request $request)
         $signedCopyPath = '';
 
         if ($request->hasFile('uc_file_path')) {
-            $ucFilePath = $request->file('uc_file_path')->store('mother_sanction', 'public');
+            $ucFilePath = $this->storeValidatedFile(
+                $request->file('uc_file_path'),
+                ['csv', 'pdf', 'png', 'jpg', 'jpeg']
+            );
             Log::info('UC File stored at:', ['path' => $ucFilePath]);
         } else {
             Log::info('No UC file received');
         }
 
         if ($request->hasFile('signed_copy_path')) {
-            $signedCopyPath = $request->file('signed_copy_path')->store('mother_sanction', 'public');
+            $signedCopyPath = $this->storeValidatedFile(
+                $request->file('signed_copy_path'),
+                ['pdf', 'png', 'jpg', 'jpeg']
+            );
             Log::info('Signed Copy stored at:', ['path' => $signedCopyPath]);
         } else {
             Log::info('No Signed Copy file received');
         }
+
+        $sanitizedRemark = $this->sanitizeTextInput($request->remark);
+        $sanitizedIfdNo = $this->sanitizeTextInput($request->ifd_no);
+        $sanitizedKyMsNo = $this->sanitizeTextInput($request->ky_ms_no);
+        $sanitizedSlsName = $this->sanitizeTextInput($request->sls_name);
+        $sanitizedPdComponent = $this->sanitizeTextInput($request->pd_component);
 
         $commonData = [
             'financial_year' => $request->financial_year,
             'state_id' => $request->state_id,
             'ms_sequence_no' => $request->ms_sequence_no,
             'file_no' => $request->filled('file_no') ? $request->file_no : '',
-            'remark' => $request->remark,
-            'ifd_no' => $request->ifd_no,
+            'remark' => $sanitizedRemark,
+            'ifd_no' => $sanitizedIfdNo,
             'sanction_date' => $request->sanction_date,
-            'ky_ms_no' => $request->ky_ms_no,
-            'sls_name' => $request->sls_name,
-            'pd_component' => $request->pd_component,
+            'ky_ms_no' => $sanitizedKyMsNo,
+            'sls_name' => $sanitizedSlsName,
+            'pd_component' => $sanitizedPdComponent,
             'total_mother_sanction_amount' => $request->total_mother_sanction_amount,
             'uc_received_from_State' => $ucFilePath,
             'signed_copy_of_mother_sanction' => $signedCopyPath,
@@ -635,12 +655,18 @@ public function listReport(Request $request)
         $lastInserted = null;
 
         foreach ($reappropriations as $row) {
+            $safeBudgetHead = $this->sanitizeTextInput($row['budget_head'] ?? '');
+            $safeCategory = $this->sanitizeTextInput($row['category'] ?? '');
+            $safeAvailableAmount = is_numeric($row['available_amount'] ?? null) ? (float) $row['available_amount'] : 0;
+            $safeSanctionAmount = is_numeric($row['sanction_amount'] ?? null) ? (float) $row['sanction_amount'] : 0;
+            $safeCarryForward = is_numeric($row['carry_forward'] ?? null) ? (float) $row['carry_forward'] : 0;
+
             $sanction = MotherSanction::create(array_merge($commonData, [
-                'budget_head' => $row['budget_head'],
-                'category' => $row['category'],
-                'available_fund' => $row['available_amount'],
-                'mother_sanction_amount' => $row['sanction_amount'],
-                'carry_forward_amount' => $row['carry_forward'] ?? 0,
+                'budget_head' => $safeBudgetHead,
+                'category' => $safeCategory,
+                'available_fund' => $safeAvailableAmount,
+                'mother_sanction_amount' => $safeSanctionAmount,
+                'carry_forward_amount' => $safeCarryForward,
             ]));
 
             // Save history for creation
@@ -669,6 +695,148 @@ public function listReport(Request $request)
         ], 500);
     }
 }
+
+    private function sanitizeTextInput($value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $text = trim((string) $value);
+        $text = strip_tags($text);
+        // Remove control chars but keep newlines/tabs/spaces.
+        $text = preg_replace('/[^\P{C}\n\r\t]/u', '', $text);
+
+        return $text ?? '';
+    }
+
+    private function storeValidatedFile(UploadedFile $file, array $allowedExtensions): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!in_array($extension, $allowedExtensions, true)) {
+            throw ValidationException::withMessages([
+                'file' => ['Unsupported file extension.'],
+            ]);
+        }
+
+        $detectedMime = mime_content_type($file->getRealPath()) ?: '';
+        $clientMime = (string) $file->getClientMimeType();
+        $allowedMimes = $this->getAllowedMimesForExtension($extension);
+
+        if (!in_array($detectedMime, $allowedMimes, true) && !in_array($clientMime, $allowedMimes, true)) {
+            throw ValidationException::withMessages([
+                'file' => ['File MIME type does not match the allowed extension.'],
+            ]);
+        }
+
+        $storedContent = file_get_contents($file->getRealPath());
+        if ($storedContent === false) {
+            throw ValidationException::withMessages([
+                'file' => ['Unable to read uploaded file.'],
+            ]);
+        }
+
+        if ($extension === 'csv') {
+            $storedContent = $this->sanitizeCsvContent($file);
+        }
+
+        if ($extension === 'pdf') {
+            $this->assertPdfIsSafe($storedContent);
+        }
+
+        $generatedName = uniqid('ms_', true) . '.' . $extension;
+        $path = self::UPLOAD_DIR . '/' . $generatedName;
+        Storage::disk(self::UPLOAD_DISK)->put($path, $storedContent);
+
+        return $path;
+    }
+
+    private function getAllowedMimesForExtension(string $extension): array
+    {
+        return match ($extension) {
+            'csv' => ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'],
+            'pdf' => ['application/pdf'],
+            'png' => ['image/png'],
+            'jpg', 'jpeg' => ['image/jpeg'],
+            default => [],
+        };
+    }
+
+    private function sanitizeCsvContent(UploadedFile $file): string
+    {
+        $input = fopen($file->getRealPath(), 'rb');
+        if ($input === false) {
+            throw ValidationException::withMessages([
+                'uc_file_path' => ['Unable to parse CSV file.'],
+            ]);
+        }
+
+        $firstLine = fgets($input);
+        rewind($input);
+        $delimiter = $this->detectCsvDelimiter($firstLine ?: '');
+
+        $output = fopen('php://temp', 'w+b');
+        if ($output === false) {
+            fclose($input);
+            throw ValidationException::withMessages([
+                'uc_file_path' => ['Unable to sanitize CSV file.'],
+            ]);
+        }
+
+        while (($row = fgetcsv($input, 0, $delimiter)) !== false) {
+            $safeRow = array_map(function ($cell) {
+                $cell = is_string($cell) ? str_replace("\0", '', $cell) : (string) $cell;
+                if (preg_match('/^\s*[=\+\-@]/', $cell)) {
+                    return "'" . $cell;
+                }
+                return $cell;
+            }, $row);
+            fputcsv($output, $safeRow, $delimiter);
+        }
+
+        rewind($output);
+        $csv = stream_get_contents($output);
+
+        fclose($input);
+        fclose($output);
+
+        return $csv === false ? '' : $csv;
+    }
+
+    private function detectCsvDelimiter(string $line): string
+    {
+        $delimiters = [',', ';', "\t", '|'];
+        $bestDelimiter = ',';
+        $bestCount = 0;
+
+        foreach ($delimiters as $delimiter) {
+            $count = substr_count($line, $delimiter);
+            if ($count > $bestCount) {
+                $bestCount = $count;
+                $bestDelimiter = $delimiter;
+            }
+        }
+
+        return $bestDelimiter;
+    }
+
+    private function assertPdfIsSafe(string $binaryContent): void
+    {
+        if (!str_starts_with($binaryContent, '%PDF-')) {
+            throw ValidationException::withMessages([
+                'file' => ['Uploaded file is not a valid PDF document.'],
+            ]);
+        }
+
+        $dangerousPdfObjects = '/\/(JavaScript|JS|OpenAction|AA|Launch|RichMedia|SubmitForm|ImportData)\b/i';
+        $dangerousHtmlScripts = '/<script\b|javascript:/i';
+
+        if (preg_match($dangerousPdfObjects, $binaryContent) || preg_match($dangerousHtmlScripts, $binaryContent)) {
+            throw ValidationException::withMessages([
+                'file' => ['PDF contains potentially dangerous embedded scripts or actions.'],
+            ]);
+        }
+    }
 
     public function motherSanctionData(Request $req){
       $query = MotherSanction::query();
