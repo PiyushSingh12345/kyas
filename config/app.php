@@ -70,6 +70,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | CORS Allowed Origins
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated allowed origins for Access-Control-Allow-Origin.
+    | Example: "https://app.example.com,https://admin.example.com"
+    | If empty, middleware falls back to trusted hosts and APP_URL.
+    |
+    */
+    'cors_allowed_origins' => array_values(array_filter(array_map(
+        static fn (string $origin) => trim($origin),
+        explode(',', (string) env('CORS_ALLOWED_ORIGINS', ''))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

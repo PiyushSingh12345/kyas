@@ -31,3 +31,25 @@ Quick verification examples:
 - `openssl s_client -connect <host>:443 -tls1` should fail
 - `openssl s_client -connect <host>:443 -tls1_1` should fail
 - `openssl s_client -connect <host>:443 -tls1_2` should succeed with an AEAD suite (GCM/CHACHA20)
+
+## CORS origin hardening (security fix)
+
+To prevent wildcard CORS (`Access-Control-Allow-Origin: *`), configure explicit origins using:
+
+- `CORS_ALLOWED_ORIGINS` in `.env` (comma-separated)
+- full origins are recommended (including scheme)
+
+Example production value:
+
+`CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com`
+
+If this variable is empty, the middleware falls back to `APP_URL` and `TRUSTED_HOSTS`.
+
+Verification commands:
+
+- Allowed origin should return that same origin:
+  `curl -i -H "Origin: https://app.example.com" https://<host>/`
+- Disallowed origin should not receive `Access-Control-Allow-Origin`:
+  `curl -i -H "Origin: https://evil.example" https://<host>/`
+- Header must never be wildcard:
+  `curl -i -H "Origin: https://app.example.com" https://<host>/ | findstr /I "Access-Control-Allow-Origin"`

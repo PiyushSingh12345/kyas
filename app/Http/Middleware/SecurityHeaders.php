@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
@@ -156,7 +157,118 @@ class SecurityHeaders
             $headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
         }
 
+        $this->hardenCorsOriginHeader($request, $response);
+
         return $response;
+    }
+
+    /**
+     * Replace wildcard ACAO with explicit trusted origins.
+     */
+    protected function hardenCorsOriginHeader(Request $request, Response $response): void
+    {
+        $headers = $response->headers;
+
+        if (! $headers->has('Access-Control-Allow-Origin')) {
+            return;
+        }
+
+        $configuredOrigin = trim((string) $headers->get('Access-Control-Allow-Origin', ''));
+
+        if ($configuredOrigin !== '*') {
+            return;
+        }
+
+        $origin = trim((string) $request->headers->get('Origin', ''));
+        $fallbackOrigin = $request->getSchemeAndHttpHost();
+        $allowedOrigins = $this->allowedCorsOrigins();
+
+        if ($origin !== '' && in_array(Str::lower($origin), $allowedOrigins, true)) {
+            $headers->set('Access-Control-Allow-Origin', $origin);
+            $headers->set('Vary', 'Origin', false);
+
+            return;
+        }
+
+        if (in_array(Str::lower($fallbackOrigin), $allowedOrigins, true)) {
+            $headers->set('Access-Control-Allow-Origin', $fallbackOrigin);
+            $headers->set('Vary', 'Origin', false);
+
+            return;
+        }
+
+        $headers->remove('Access-Control-Allow-Origin');
+    }
+
+    /**
+     * Build explicit allowlist from environment and runtime hosts.
+     *
+     * @return array<int, string>
+     */
+    protected function allowedCorsOrigins(): array
+    {
+        $origins = [];
+        $configuredOrigins = config('app.cors_allowed_origins', []);
+        $appUrl = trim((string) config('app.url', ''));
+        $trustedHosts = config('app.trusted_hosts', []);
+
+        if (is_array($configuredOrigins)) {
+            foreach ($configuredOrigins as $origin) {
+                if (! is_string($origin)) {
+                    continue;
+                }
+
+                $origin = trim(Str::lower($origin));
+
+                if ($origin === '') {
+                    continue;
+                }
+
+                if (filter_var($origin, FILTER_VALIDATE_URL)) {
+                    $origins[] = rtrim($origin, '/');
+                    continue;
+                }
+
+                // Host-only entries are expanded to both schemes for convenience.
+                if (! str_contains($origin, '*')) {
+                    $origins[] = "https://{$origin}";
+                    $origins[] = "http://{$origin}";
+                }
+            }
+        }
+
+        if ($appUrl !== '' && filter_var($appUrl, FILTER_VALIDATE_URL)) {
+            $origins[] = Str::lower(rtrim($appUrl, '/'));
+        }
+
+        if (is_array($trustedHosts)) {
+            foreach ($trustedHosts as $hostPattern) {
+                if (! is_string($hostPattern)) {
+                    continue;
+                }
+
+                $hostPattern = trim(Str::lower($hostPattern));
+
+                // Skip wildcard host patterns; they cannot be translated safely to one origin.
+                if ($hostPattern === '' || str_contains($hostPattern, '*')) {
+                    continue;
+                }
+
+                $origins[] = "https://{$hostPattern}";
+                $origins[] = "http://{$hostPattern}";
+            }
+        }
+
+        if (app()->environment(['local', 'testing'])) {
+            $origins = array_merge($origins, [
+                'http://localhost',
+                'https://localhost',
+                'http://127.0.0.1',
+                'https://127.0.0.1',
+            ]);
+        }
+
+        return array_values(array_unique(array_filter($origins)));
     }
 }
 
