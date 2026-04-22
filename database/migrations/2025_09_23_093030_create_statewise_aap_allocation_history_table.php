@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('statewise_aap_allocation_history')) {
+            return;
+        }
+
         Schema::create('statewise_aap_allocation_history', function (Blueprint $table) {
             // $table->id();
             // $table->timestamps();

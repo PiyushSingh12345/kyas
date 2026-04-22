@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('state_release_data')) {
+            return;
+        }
+
         Schema::create('state_release_data', function (Blueprint $table) {
             $table->id();
             $table->string('fy'); // Financial year like 2025-26

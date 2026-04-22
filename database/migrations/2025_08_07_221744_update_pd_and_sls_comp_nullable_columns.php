@@ -11,6 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('pd_and_sls_comp')
+            || ! Schema::hasColumn('pd_and_sls_comp', 'sharing_patter_center')
+            || ! Schema::hasColumn('pd_and_sls_comp', 'sharing_patter_state')) {
+            return;
+        }
+
         Schema::table('pd_and_sls_comp', function (Blueprint $table) {
             $table->string('sharing_patter_center')->nullable()->default('0')->change();
             $table->string('sharing_patter_state')->nullable()->default('0')->change();
@@ -22,6 +28,12 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('pd_and_sls_comp')
+            || ! Schema::hasColumn('pd_and_sls_comp', 'sharing_patter_center')
+            || ! Schema::hasColumn('pd_and_sls_comp', 'sharing_patter_state')) {
+            return;
+        }
+
         Schema::table('pd_and_sls_comp', function (Blueprint $table) {
             $table->string('sharing_patter_center')->nullable(false)->change();
             $table->string('sharing_patter_state')->nullable(false)->change();

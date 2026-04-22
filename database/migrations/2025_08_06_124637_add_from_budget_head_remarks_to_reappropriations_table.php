@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('reappropriations') || Schema::hasColumn('reappropriations', 'from_budget_head_remarks')) {
+            return;
+        }
+
         Schema::table('reappropriations', function (Blueprint $table) {
             $table->text('from_budget_head_remarks')->nullable()->after('from_budget_head_id');
         });
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('reappropriations') || ! Schema::hasColumn('reappropriations', 'from_budget_head_remarks')) {
+            return;
+        }
+
         Schema::table('reappropriations', function (Blueprint $table) {
             $table->dropColumn('from_budget_head_remarks');
         });

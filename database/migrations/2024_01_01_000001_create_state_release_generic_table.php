@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('state_release_generic')) {
+            return;
+        }
+
         Schema::create('state_release_generic', function (Blueprint $table) {
             $table->id();
             $table->string('allocation_name');

@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('mother_sanction') || Schema::hasColumn('mother_sanction', 'carry_forward_amount')) {
+            return;
+        }
+
         Schema::table('mother_sanction', function (Blueprint $table) {
             $table->decimal('carry_forward_amount', 15, 2)->default(0)->after('mother_sanction_amount');
         });
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('mother_sanction') || ! Schema::hasColumn('mother_sanction', 'carry_forward_amount')) {
+            return;
+        }
+
         Schema::table('mother_sanction', function (Blueprint $table) {
             $table->dropColumn('carry_forward_amount');
         });

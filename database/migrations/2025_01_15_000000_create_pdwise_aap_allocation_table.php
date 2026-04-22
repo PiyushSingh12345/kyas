@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('pdwise_aap_allocation')) {
+            return;
+        }
+
         Schema::create('pdwise_aap_allocation', function (Blueprint $table) {
             $table->id();
             $table->string('financial_year', 20);

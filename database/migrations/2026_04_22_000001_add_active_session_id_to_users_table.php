@@ -11,7 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Intentionally left blank.
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('active_session_id')->nullable()->after('remember_token');
+        });
     }
 
     /**
@@ -19,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Intentionally left blank.
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('active_session_id');
+        });
     }
 };

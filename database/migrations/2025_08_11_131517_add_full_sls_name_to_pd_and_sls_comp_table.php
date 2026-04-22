@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('pd_and_sls_comp') || Schema::hasColumn('pd_and_sls_comp', 'full_sls_name')) {
+            return;
+        }
+
         Schema::table('pd_and_sls_comp', function (Blueprint $table) {
             $table->string('full_sls_name')->nullable()->after('name');
         });
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('pd_and_sls_comp') || ! Schema::hasColumn('pd_and_sls_comp', 'full_sls_name')) {
+            return;
+        }
+
         Schema::table('pd_and_sls_comp', function (Blueprint $table) {
             $table->dropColumn('full_sls_name');
         });

@@ -7,7 +7,9 @@ use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -45,14 +47,62 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
 
+        if (! Schema::hasColumn('users', 'active_session_id')) {
+            return $this->redirectByUserType($user->user_type_id);
+        }
+
+        $currentSessionId = (string) $request->session()->getId();
+        $previousSessionId = (string) ($user->active_session_id ?? '');
+
+        if ($previousSessionId !== '' && $previousSessionId !== $currentSessionId && config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('id', $previousSessionId)
+                ->delete();
+        }
+
+        if ($previousSessionId !== $currentSessionId) {
+            $user->forceFill([
+                'active_session_id' => $currentSessionId,
+            ])->save();
+        }
+
+        return $this->redirectByUserType($user->user_type_id);
+
+    }
+
+    /**
+     * Destroy an authenticated session.
+     */
+    public function destroy(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $currentSessionId = (string) $request->session()->getId();
+
+        if ($user && Schema::hasColumn('users', 'active_session_id') && (string) ($user->active_session_id ?? '') === $currentSessionId) {
+            $user->forceFill([
+                'active_session_id' => null,
+            ])->save();
+        }
+
+        Auth::guard('web')->logout();
+
+        $request->session()->invalidate();
+
+        $request->session()->regenerateToken();
+
+        return redirect('/');
+    }
+
+    private function redirectByUserType(array|string|null $userTypeId): RedirectResponse
+    {
         // Convert user_type_id to array if stored as CSV
-        $userTypes = is_array($user->user_type_id)
-            ? $user->user_type_id
-            : explode(',', $user->user_type_id);
+        $userTypes = is_array($userTypeId)
+            ? $userTypeId
+            : explode(',', (string) $userTypeId);
 
         // Redirect based on user type
         if (in_array(1, $userTypes)) {
-             return redirect()->intended('/user-listing'); // KY_Admin
+            return redirect()->intended('/user-listing'); // KY_Admin
         } elseif (in_array(2, $userTypes)) {
             return redirect()->intended('/budget-phase'); // KY_User
         } elseif (in_array(3, $userTypes)) {
@@ -64,20 +114,5 @@ class AuthenticatedSessionController extends Controller
         } else {
             return redirect()->intended('/dashboard'); // Default  (need to ask with team)
         }
-
-    }
-
-    /**
-     * Destroy an authenticated session.
-     */
-    public function destroy(Request $request): RedirectResponse
-    {
-        Auth::guard('web')->logout();
-
-        $request->session()->invalidate();
-
-        $request->session()->regenerateToken();
-
-        return redirect('/');
     }
 }

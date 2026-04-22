@@ -11,10 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
-            $table->string('designation_id ')->change();
-            $table->string('program_division_id ')->change();
-            $table->string('user_type_id')->change();
+            if (Schema::hasColumn('users', 'designation_id')) {
+                $table->string('designation_id')->nullable()->change();
+            }
+
+            if (Schema::hasColumn('users', 'program_division_id')) {
+                $table->string('program_division_id')->nullable()->change();
+            }
+
+            if (Schema::hasColumn('users', 'user_type_id')) {
+                $table->string('user_type_id')->nullable()->change();
+            }
         });
     }
 
@@ -23,10 +35,22 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
-            $table->unsignedBigInteger('user_type_id')->change();
-            $table->unsignedBigInteger('user_type_id')->change();
-            $table->unsignedBigInteger('user_type_id')->change();
+            if (Schema::hasColumn('users', 'designation_id')) {
+                $table->unsignedBigInteger('designation_id')->nullable()->change();
+            }
+
+            if (Schema::hasColumn('users', 'program_division_id')) {
+                $table->unsignedBigInteger('program_division_id')->nullable()->change();
+            }
+
+            if (Schema::hasColumn('users', 'user_type_id')) {
+                $table->unsignedBigInteger('user_type_id')->nullable()->change();
+            }
         });
     }
 };
