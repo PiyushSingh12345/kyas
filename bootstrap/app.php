@@ -12,6 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
         $middleware->web(prepend: [
             \App\Http\Middleware\ValidateHostHeader::class,
         ]);
@@ -21,7 +23,6 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
             \App\Http\Middleware\SetAppUserIdInMysql::class,
             \App\Http\Middleware\EnforceSessionTimeout::class,
-            \App\Http\Middleware\SecurityHeaders::class,
         ]);
 
         $middleware->alias([

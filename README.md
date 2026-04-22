@@ -18,6 +18,14 @@ Example VirtualHost line:
 
 `Include "D:/xampp/htdocs/kyas/deploy/apache/tls-hardening.conf"`
 
+XAMPP Apache location (common):
+
+- edit `D:/xampp/apache/conf/extra/httpd-ssl.conf`
+- in the target `<VirtualHost _default_:443>` for this application, add:
+  `Include "D:/xampp/htdocs/kyas/deploy/apache/tls-hardening.conf"`
+- ensure this include is placed after other `SSLProtocol`/`SSLCipherSuite` directives
+- restart Apache from XAMPP control panel
+
 Quick verification examples:
 
 - `openssl s_client -connect <host>:443 -tls1` should fail

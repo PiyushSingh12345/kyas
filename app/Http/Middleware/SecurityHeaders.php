@@ -61,7 +61,7 @@ class SecurityHeaders
             "default-src 'self'",
             "base-uri 'self'",
             "object-src 'none'",
-            "frame-ancestors 'self'",
+            "frame-ancestors 'none'",
             "form-action 'self'",
             'script-src ' . implode(' ', $scriptSources),
             'style-src ' . implode(' ', $styleSources),
@@ -113,7 +113,7 @@ class SecurityHeaders
             "default-src 'self'",
             "base-uri 'self'",
             "object-src 'none'",
-            "frame-ancestors 'self'",
+            "frame-ancestors 'none'",
             "form-action 'self'",
             'script-src ' . implode(' ', $reportOnlyScriptSources),
             'style-src ' . implode(' ', $reportOnlyStyleSources),
@@ -137,7 +137,7 @@ class SecurityHeaders
         }
 
         if (! $headers->has('X-Frame-Options')) {
-            $headers->set('X-Frame-Options', 'SAMEORIGIN');
+            $headers->set('X-Frame-Options', 'DENY');
         }
 
         if (! $headers->has('Referrer-Policy')) {
