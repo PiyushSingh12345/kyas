@@ -35,6 +35,7 @@ const form = useForm({
 const isRecaptchaV3 = () => props.recaptcha?.version === 'v3';
 
 const isRecaptchaV2 = () => props.recaptcha?.version === 'v2';
+let recaptchaRenderIntervalId = null;
 
 const loadRecaptchaScript = () => {
     if (!props.recaptcha?.enabled || !props.recaptcha?.siteKey) {
@@ -46,13 +47,23 @@ const loadRecaptchaScript = () => {
         : 'https://www.google.com/recaptcha/api.js';
     const existingScript = document.querySelector(`script[src="${scriptSrc}"]`);
 
-    if (!existingScript) {
-        const script = document.createElement('script');
-        script.src = scriptSrc;
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
+    if (existingScript) {
+        if (isRecaptchaV2()) {
+            startRecaptchaV2RenderLoop();
+        }
+        return;
     }
+
+    const script = document.createElement('script');
+    script.src = scriptSrc;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+        if (isRecaptchaV2()) {
+            startRecaptchaV2RenderLoop();
+        }
+    };
+    document.head.appendChild(script);
 };
 
 const renderRecaptchaV2Widget = () => {
@@ -76,20 +87,26 @@ const renderRecaptchaV2Widget = () => {
     return true;
 };
 
+const startRecaptchaV2RenderLoop = () => {
+    if (!props.recaptcha?.enabled || !isRecaptchaV2()) {
+        return;
+    }
+
+    if (recaptchaRenderIntervalId) {
+        window.clearInterval(recaptchaRenderIntervalId);
+    }
+
+    recaptchaRenderIntervalId = window.setInterval(() => {
+        if (renderRecaptchaV2Widget()) {
+            window.clearInterval(recaptchaRenderIntervalId);
+            recaptchaRenderIntervalId = null;
+        }
+    }, 150);
+};
+
 onMounted(() => {
     loadRecaptchaScript();
-
-    if (props.recaptcha?.enabled && isRecaptchaV2()) {
-        const intervalId = window.setInterval(() => {
-            if (renderRecaptchaV2Widget()) {
-                window.clearInterval(intervalId);
-            }
-        }, 150);
-
-        window.setTimeout(() => {
-            window.clearInterval(intervalId);
-        }, 6000);
-    }
+    startRecaptchaV2RenderLoop();
 });
 
 const getCaptchaToken = async () => {
