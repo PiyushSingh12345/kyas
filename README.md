@@ -1,13 +1,15 @@
 # My New Project
 
-## TLS 1.0/1.1 hardening (security fix)
+## TLS and server banner hardening (security fix)
 
-To address insecure protocol findings, this project includes an Apache TLS hardening snippet at `deploy/apache/tls-hardening.conf`.
+To address insecure protocol findings and server-version disclosure, this project includes an Apache hardening snippet at `deploy/apache/tls-hardening.conf`.
 
 Apply it inside the HTTPS VirtualHost for this site, then restart Apache:
 
 - include the file in the SSL VirtualHost
 - keep only `TLSv1.2` and `TLSv1.3`
+- set Apache to not disclose version details (`ServerTokens Prod`, `ServerSignature Off`)
+- remove `X-Powered-By` response header
 - retest with your vulnerability scanner
 - ensure no CBC cipher suites are enabled for TLS 1.2
 
