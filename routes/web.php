@@ -36,6 +36,13 @@ Route::get('/', function () {
         'canRegister' => Route::has('register'),
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
+        'recaptcha' => [
+            'enabled' => (bool) config('services.recaptcha.enabled')
+                && ! empty(config('services.recaptcha.site_key'))
+                && ! empty(config('services.recaptcha.secret_key')),
+            'version' => config('services.recaptcha.version', 'v2'),
+            'siteKey' => config('services.recaptcha.site_key'),
+        ],
     ]);
 });                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
 

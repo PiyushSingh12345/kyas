@@ -4,6 +4,7 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -26,10 +27,20 @@ class LoginRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             'email' => ['required', 'string', 'email', 'max:255'],
             'password' => ['required', 'string', 'max:255'],
         ];
+
+        if ($this->isRecaptchaEnabled()) {
+            $rules['captcha_token'] = ['required', 'string', function (string $attribute, mixed $value, \Closure $fail) {
+                if (! $this->verifyRecaptchaToken((string) $value)) {
+                    $fail('Captcha verification failed. Please try again.');
+                }
+            }];
+        }
+
+        return $rules;
     }
 
     /**
@@ -81,5 +92,49 @@ class LoginRequest extends FormRequest
     public function throttleKey(): string
     {
         return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+    }
+
+    protected function isRecaptchaEnabled(): bool
+    {
+        return (bool) config('services.recaptcha.enabled')
+            && ! empty(config('services.recaptcha.site_key'))
+            && ! empty(config('services.recaptcha.secret_key'));
+    }
+
+    protected function verifyRecaptchaToken(string $token): bool
+    {
+        $response = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => config('services.recaptcha.secret_key'),
+            'response' => $token,
+            'remoteip' => $this->ip(),
+        ]);
+
+        if (! $response->ok()) {
+            return false;
+        }
+
+        $result = $response->json();
+        $minScore = (float) config('services.recaptcha.min_score', 0.5);
+
+        if (! ($result['success'] ?? false)) {
+            return false;
+        }
+
+        if ($this->recaptchaVersion() === 'v3') {
+            if (isset($result['score']) && (float) $result['score'] < $minScore) {
+                return false;
+            }
+
+            if (isset($result['action']) && $result['action'] !== 'login') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    protected function recaptchaVersion(): string
+    {
+        return (string) config('services.recaptcha.version', 'v2');
     }
 }

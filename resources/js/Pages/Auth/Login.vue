@@ -1,13 +1,11 @@
 <script setup>
-import Checkbox from '@/Components/Checkbox.vue';
-import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
+import { onMounted } from 'vue';
 
-defineProps({
+const props = defineProps({
     canResetPassword: {
         type: Boolean,
     },
@@ -18,24 +16,127 @@ defineProps({
         type: String,
         default: '',
     },
+    recaptcha: {
+        type: Object,
+        default: () => ({
+            enabled: false,
+            version: 'v2',
+            siteKey: '',
+        }),
+    },
 });
 
 const form = useForm({
     email: '',
     password: '',
     remember: false,
+    captcha_token: '',
 });
 
-const submit = () => {
+const isRecaptchaV3 = () => props.recaptcha?.version === 'v3';
+
+const isRecaptchaV2 = () => props.recaptcha?.version === 'v2';
+
+const loadRecaptchaScript = () => {
+    if (!props.recaptcha?.enabled || !props.recaptcha?.siteKey) {
+        return;
+    }
+
+    const scriptSrc = isRecaptchaV3()
+        ? `https://www.google.com/recaptcha/api.js?render=${props.recaptcha.siteKey}`
+        : 'https://www.google.com/recaptcha/api.js';
+    const existingScript = document.querySelector(`script[src="${scriptSrc}"]`);
+
+    if (!existingScript) {
+        const script = document.createElement('script');
+        script.src = scriptSrc;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+    }
+};
+
+const renderRecaptchaV2Widget = () => {
+    if (!props.recaptcha?.enabled || !isRecaptchaV2()) {
+        return false;
+    }
+
+    if (!window.grecaptcha) {
+        return false;
+    }
+
+    const container = document.getElementById('recaptcha-container');
+    if (!container || container.childElementCount > 0) {
+        return false;
+    }
+
+    window.grecaptcha.render(container, {
+        sitekey: props.recaptcha.siteKey,
+    });
+
+    return true;
+};
+
+onMounted(() => {
+    loadRecaptchaScript();
+
+    if (props.recaptcha?.enabled && isRecaptchaV2()) {
+        const intervalId = window.setInterval(() => {
+            if (renderRecaptchaV2Widget()) {
+                window.clearInterval(intervalId);
+            }
+        }, 150);
+
+        window.setTimeout(() => {
+            window.clearInterval(intervalId);
+        }, 6000);
+    }
+});
+
+const getCaptchaToken = async () => {
+    if (!props.recaptcha?.enabled || !props.recaptcha?.siteKey) {
+        return '';
+    }
+
+    if (!window.grecaptcha) {
+        throw new Error('reCAPTCHA is not loaded');
+    }
+
+    if (isRecaptchaV2()) {
+        const token = window.grecaptcha.getResponse();
+        if (!token) {
+            throw new Error('Please complete the CAPTCHA challenge');
+        }
+
+        return token;
+    }
+
+    return new Promise((resolve) => {
+        window.grecaptcha.ready(async () => {
+            const token = await window.grecaptcha.execute(props.recaptcha.siteKey, { action: 'login' });
+            resolve(token);
+        });
+    });
+};
+
+const submit = async () => {
+    if (props.recaptcha?.enabled) {
+        try {
+            form.captcha_token = await getCaptchaToken();
+        } catch (error) {
+            form.setError('email', error?.message || 'Captcha verification failed. Please refresh and try again.');
+            return;
+        }
+    }
+
     form.post(route('login'), {
-        onFinish: () => form.reset('password'),
+        onFinish: () => form.reset('password', 'captcha_token'),
     });
 };
 </script>
 
 <template>
-    <!-- <GuestLayout> -->
-        <!-- <Head title="Log in" /> -->
+    <Head title="Log in" />
 
         
 		<div
@@ -136,17 +237,9 @@ const submit = () => {
 													</div>
 												</div> -->
 												
-												<!-- Captcha -->
-												<!-- <div class="mb-3 text-start">
-													<label class="form-label">Enter Captcha</label>
-													<div class="input-group">
-														<span class="input-group-text">
-															<i class="bi bi-shield-lock-fill"></i>
-														</span>
-														<input type="text" class="form-control" placeholder="Enter captcha" required="">
-														<span class="captcha-img">X7K9P</span>
-													</div>
-												</div> -->
+                                                <div v-if="recaptcha?.enabled && recaptcha?.version === 'v2'" class="mb-3 text-start">
+                                                    <div id="recaptcha-container"></div>
+                                                </div>
 												
 												<!-- Submit Button -->
 												<div class="d-grid">
@@ -175,5 +268,4 @@ const submit = () => {
 				</div>
 			</div>
 		</section>
-    <!-- </GuestLayout> -->
 </template>
