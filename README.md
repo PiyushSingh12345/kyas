@@ -7,11 +7,12 @@ To address insecure protocol findings and server-version disclosure, this projec
 Apply it inside the HTTPS VirtualHost for this site, then restart Apache:
 
 - include the file in the SSL VirtualHost
+- place this include after other SSL directives so it overrides weaker defaults
 - keep only `TLSv1.2` and `TLSv1.3`
 - set Apache to not disclose version details (`ServerTokens Prod`, `ServerSignature Off`)
 - remove `X-Powered-By` response header
 - retest with your vulnerability scanner
-- ensure no CBC cipher suites are enabled for TLS 1.2
+- ensure no CBC/3DES/RC4/MD5/SHA1 cipher suites are enabled for TLS 1.2
 
 Example VirtualHost line:
 
