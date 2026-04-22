@@ -141,7 +141,15 @@ class SecurityHeaders
         }
 
         if (! $headers->has('Referrer-Policy')) {
-            $headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+            $headers->set('Referrer-Policy', 'no-referrer');
+        }
+
+        // HSTS is only valid over HTTPS responses (direct or proxy-terminated TLS).
+        $forwardedProto = strtolower((string) $request->headers->get('X-Forwarded-Proto', ''));
+        $isHttps = $request->isSecure() || in_array('https', array_map('trim', explode(',', $forwardedProto)), true);
+
+        if ($isHttps && ! $headers->has('Strict-Transport-Security')) {
+            $headers->set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
         }
 
         if (! $headers->has('Permissions-Policy')) {
