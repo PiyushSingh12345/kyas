@@ -41,8 +41,14 @@ class SlsPDComponentController extends Controller
     }
 
 
-    public function index()
+    public function index(Request $request)
     {
+        // If this JSON endpoint is accidentally hit via an Inertia visit, redirect
+        // to the intended Inertia page instead of returning plain JSON.
+        if ($request->header('X-Inertia')) {
+            return \Inertia\Inertia::location(route('state-uts-pd'));
+        }
+
         $data = SlsPDComponent::with('state')->get()->toArray();
         $data = array_map(fn(array $record) => $this->encodeRecordForResponse($record), $data);
         // print_r($data);die();
@@ -50,8 +56,13 @@ class SlsPDComponentController extends Controller
         return response()->json($data);
     }
 
-    public function getPDComponents()
+    public function getPDComponents(Request $request)
     {
+        // Avoid Inertia "plain JSON response" error if navigated accidentally.
+        if ($request->header('X-Inertia')) {
+            return \Inertia\Inertia::location(route('state-uts-pd'));
+        }
+
         $data = ProgramDivision::where('is_active', 1)
             ->where('is_pd', 1)
             ->orderBy('division_id','desc')
@@ -64,8 +75,13 @@ class SlsPDComponentController extends Controller
         return response()->json($data);
     }
 
-    public function getPDComponentsForDropdown()
+    public function getPDComponentsForDropdown(Request $request)
     {
+        // Avoid Inertia "plain JSON response" error if navigated accidentally.
+        if ($request->header('X-Inertia')) {
+            return \Inertia\Inertia::location(route('state-uts-pd'));
+        }
+
         $data = ProgramDivision::select('division_id', 'division_name')
             ->where('is_active', 1)
             ->orderBy('division_name')
@@ -555,6 +571,8 @@ class SlsPDComponentController extends Controller
             $savedCount = 0;
             $errors = [];
             foreach ($request->data as $item) {
+                $slsCode = '';
+                $stateName = '';
                 try {
                     $slsCode = $this->sanitizeText($item['slsCode'] ?? '');
                     $slsName = $this->sanitizeText($item['slsName'] ?? '');
@@ -674,6 +692,11 @@ class SlsPDComponentController extends Controller
 
     public function getComponentsByFund(Request $request)
     {
+        // Avoid Inertia "plain JSON response" error if navigated accidentally.
+        if ($request->header('X-Inertia')) {
+            return \Inertia\Inertia::location(url()->previous() ?: route('dashboard'));
+        }
+
         $request->validate([
             'fund' => ['required', 'string', 'regex:/^\d{4}$/'],
             'state_id' => 'nullable|integer',
@@ -687,13 +710,6 @@ class SlsPDComponentController extends Controller
 
 
         if ($fund == '2435') {
-            // get program division by fund
-            $programDivision = ProgramDivision::where('fund', $fund)->first();
-            $programDivisionId = $programDivision->id;
-            // get pd by program division id
-            $pd = Pd::where('program_division_id', $programDivisionId)->get();
-            $pdId = $pd->id;
-
             $components = SlsPDComponent::with('state')
                 // ->where('component', 'PD')
                 ->get();
@@ -749,6 +765,7 @@ class SlsPDComponentController extends Controller
             $errors = [];
 
             foreach ($request->mappings as $mapping) {
+                $pdName = '';
                 try {
                     $pdName = $this->sanitizeText($mapping['pd_name'] ?? '');
                     if ($pdName === '') {

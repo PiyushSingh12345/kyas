@@ -34,6 +34,10 @@ class StateController extends Controller
     }
     public function getStatesApi()
     {
+        if (request()->header('X-Inertia')) {
+            return \Inertia\Inertia::location(route('state-uts'));
+        }
+
         return response()->json(State::all());
     }
 }
