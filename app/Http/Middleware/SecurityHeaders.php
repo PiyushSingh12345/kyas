@@ -58,6 +58,9 @@ class SecurityHeaders
         }
 
         // Compatibility-safe CSP for current frontend stack (enforced).
+        // Explicit style-src-elem / style-src-attr: some browsers apply these for
+        // SPA/Vite-injected styles; they do not always inherit style-src as expected.
+        $styleCsp = implode(' ', $styleSources);
         $enforcedDirectives = [
             "default-src 'self'",
             "base-uri 'self'",
@@ -65,7 +68,9 @@ class SecurityHeaders
             "frame-ancestors 'none'",
             "form-action 'self'",
             'script-src ' . implode(' ', $scriptSources),
-            'style-src ' . implode(' ', $styleSources),
+            "style-src {$styleCsp}",
+            "style-src-elem {$styleCsp}",
+            "style-src-attr {$styleCsp}",
             "img-src 'self' data: blob: https:",
             "font-src 'self' data: https:",
             'connect-src ' . implode(' ', $connectSources),
@@ -84,9 +89,10 @@ class SecurityHeaders
         $reportOnlyScriptSources = $isLocal
             ? ["'self'", 'http://127.0.0.1:5173', 'http://localhost:5173']
             : ["'self'"];
+        // Match enforced style policy so report-only does not flood logs for Vue/Vite inline styles.
         $reportOnlyStyleSources = $isLocal
-            ? ["'self'", 'http://127.0.0.1:5173', 'http://localhost:5173']
-            : ["'self'"];
+            ? ["'self'", "'unsafe-inline'", 'http://127.0.0.1:5173', 'http://localhost:5173']
+            : ["'self'", "'unsafe-inline'"];
         $reportOnlyConnectSources = $isLocal
             ? ["'self'", 'ws:', 'wss:', 'http://127.0.0.1:5173', 'http://localhost:5173', 'ws://127.0.0.1:5173', 'ws://localhost:5173']
             : ["'self'", 'ws:', 'wss:'];
@@ -110,6 +116,7 @@ class SecurityHeaders
             ]);
         }
 
+        $reportOnlyStyleCsp = implode(' ', $reportOnlyStyleSources);
         $reportOnlyDirectives = [
             "default-src 'self'",
             "base-uri 'self'",
@@ -117,7 +124,9 @@ class SecurityHeaders
             "frame-ancestors 'none'",
             "form-action 'self'",
             'script-src ' . implode(' ', $reportOnlyScriptSources),
-            'style-src ' . implode(' ', $reportOnlyStyleSources),
+            "style-src {$reportOnlyStyleCsp}",
+            "style-src-elem {$reportOnlyStyleCsp}",
+            "style-src-attr {$reportOnlyStyleCsp}",
             "img-src 'self' data: blob: https:",
             "font-src 'self' data: https:",
             'connect-src ' . implode(' ', $reportOnlyConnectSources),

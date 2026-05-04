@@ -16,6 +16,20 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class DailySanctionController extends Controller
 {
+    private function sanitizeTextInput($value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $text = trim((string) $value);
+        $text = strip_tags($text);
+        // Remove control chars but keep newlines/tabs/spaces.
+        $text = preg_replace('/[^\P{C}\n\r\t]/u', '', $text);
+
+        return $text ?? '';
+    }
+
     private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
     private const SAFE_BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
     
@@ -164,20 +178,27 @@ public function store(Request $request)
 
         Log::info('Daily Sanction Validation Passed', ['validated_data' => $validated]);
 
+        $safeDailySanctionNo = $this->sanitizeTextInput($validated['daily_sanction_no'] ?? '');
+        $safeMotherSanction = $this->sanitizeTextInput($validated['mother_sanction'] ?? '');
+        $safeIfdNo = $this->sanitizeTextInput($validated['ifd_no'] ?? '');
+        $safeSlsName = $this->sanitizeTextInput($validated['sls_name'] ?? '');
+        $safeRemark = $this->sanitizeTextInput($validated['remark'] ?? $request->remark);
+
         foreach ($validated['entries'] as $entry) {
+            $safeBudgetHead = $this->sanitizeTextInput($entry['budget_head'] ?? '');
             $record = DailySanction::create([
                 'financial_year' => $validated['financial_year'],
                 'state_id' => $validated['state_id'],
                 'ds_date' => $validated['ds_date'],
-                'daily_sanction_no' => $validated['daily_sanction_no'],
-                'mother_sanction' => $validated['mother_sanction'],
-                'ifd_no' => $validated['ifd_no'],
-                'sls_name' => $validated['sls_name'],
-                'budget_head' => $entry['budget_head'],
+                'daily_sanction_no' => $safeDailySanctionNo,
+                'mother_sanction' => $safeMotherSanction,
+                'ifd_no' => $safeIfdNo,
+                'sls_name' => $safeSlsName,
+                'budget_head' => $safeBudgetHead,
                 'mother_sanction_amount' => $entry['mother_sanction_amount'],
                 'available_amount' => $entry['available_amount'],
                 'center_share_amount' => $entry['center_share_amount'],
-                'remark' => $request->remark,
+                'remark' => $safeRemark,
                 'status' => 1
             ]);
             $this->saveDailySanctionHistory($record, 'CREATE', 'New daily sanction entry created');

@@ -9,6 +9,7 @@ use Inertia\Inertia;
 use Smalot\PdfParser\Parser;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class BudgetHeadController extends Controller
 {
@@ -164,6 +165,13 @@ class BudgetHeadController extends Controller
             $extractedData = [];
             
             if ($fileExtension === 'pdf') {
+                $binary = @file_get_contents($fullPath);
+                if ($binary === false) {
+                    throw ValidationException::withMessages([
+                        'file' => ['Unable to read uploaded PDF.'],
+                    ]);
+                }
+                $this->assertPdfIsSafe($binary);
                 $extractedData = $this->processPdfFile($fullPath);
                 Log::info('PDF processed', ['extractedLines' => count($extractedData['extracted_lines'] ?? [])]);
             }
@@ -187,6 +195,24 @@ class BudgetHeadController extends Controller
                 'success' => false,
                 'message' => 'Error processing file: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    private function assertPdfIsSafe(string $binaryContent): void
+    {
+        if (!str_starts_with($binaryContent, '%PDF-')) {
+            throw ValidationException::withMessages([
+                'file' => ['Uploaded file is not a valid PDF document.'],
+            ]);
+        }
+
+        $dangerousPdfObjects = '/\/(JavaScript|JS|OpenAction|AA|Launch|RichMedia|SubmitForm|ImportData)\b/i';
+        $dangerousHtmlScripts = '/<script\b|javascript:/i';
+
+        if (preg_match($dangerousPdfObjects, $binaryContent) || preg_match($dangerousHtmlScripts, $binaryContent)) {
+            throw ValidationException::withMessages([
+                'file' => ['PDF contains potentially dangerous embedded scripts or actions.'],
+            ]);
         }
     }
 

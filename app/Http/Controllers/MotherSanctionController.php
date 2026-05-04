@@ -21,8 +21,6 @@ class MotherSanctionController extends Controller
 {
     private const UPLOAD_DISK = 'public';
     private const UPLOAD_DIR = 'mother_sanction';
-    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
-    private const SAFE_BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
 
     public function getBudgetHeads()
     {
@@ -572,32 +570,32 @@ public function listReport(Request $request)
 
     public function addMotherSanction(Request $request)
 {
+    // Frontend submits empty-string for optional file inputs when no file is selected.
+    // Normalize these to null so Laravel's `nullable|file` validation passes.
+    if ($request->has('uc_file_path') && $request->input('uc_file_path') === '') {
+        $request->merge(['uc_file_path' => null]);
+    }
+    if ($request->has('signed_copy_path') && $request->input('signed_copy_path') === '') {
+        $request->merge(['signed_copy_path' => null]);
+    }
+
     // Validate the request data
     $validated = $request->validate([
-        'financial_year' => ['required', 'string', 'max:20', 'regex:/^\d{4}-\d{2,4}$/'],
+        'financial_year' => 'required|string',
         'state_id' => 'required|integer',
-        'ms_sequence_no' => ['required', 'string', 'max:50', 'regex:' . self::SAFE_TEXT_PATTERN],
-        'file_no' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-        'ifd_no' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+        'ms_sequence_no' => 'required|string',
+        'file_no' => 'nullable|string',
+        'ifd_no' => 'required|string',
         'sanction_date' => 'required|date',
-        'ky_ms_no' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-        'sls_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-        'pd_component' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+        'ky_ms_no' => 'required|string',
+        'sls_name' => 'required|string',
+        'pd_component' => 'required|string',
         'total_mother_sanction_amount' => 'required|numeric|min:0',
         'reappropriations' => 'required|json',
         'status' => 'required|in:0,1',
-        'remark' => ['nullable', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+        'remark' => 'nullable|string',
         'uc_file_path' => 'nullable|file|max:10240|mimes:csv,pdf,png,jpg,jpeg|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/pdf,image/png,image/jpeg',
         'signed_copy_path' => 'nullable|file|max:10240|mimes:pdf,png,jpg,jpeg|mimetypes:application/pdf,image/png,image/jpeg',
-    ], [
-        'financial_year.regex' => 'Financial year format must be like 2025-26.',
-        'ms_sequence_no.regex' => 'MS sequence contains invalid special characters.',
-        'file_no.regex' => 'File no contains invalid special characters.',
-        'ifd_no.regex' => 'IFD no contains invalid special characters.',
-        'ky_ms_no.regex' => 'KY MS no contains invalid special characters.',
-        'sls_name.regex' => 'SLS name contains invalid special characters.',
-        'pd_component.regex' => 'Program division contains invalid special characters.',
-        'remark.regex' => 'Remark contains invalid special characters.',
     ]);
 
     try {
@@ -671,11 +669,6 @@ public function listReport(Request $request)
             $safeAvailableAmount = is_numeric($row['available_amount'] ?? null) ? (float) $row['available_amount'] : 0;
             $safeSanctionAmount = is_numeric($row['sanction_amount'] ?? null) ? (float) $row['sanction_amount'] : 0;
             $safeCarryForward = is_numeric($row['carry_forward'] ?? null) ? (float) $row['carry_forward'] : 0;
-            if (!preg_match(self::SAFE_BUDGET_HEAD_PATTERN, $safeBudgetHead)) {
-                throw ValidationException::withMessages([
-                    'reappropriations' => ['Invalid budget head format found in reappropriation rows.'],
-                ]);
-            }
 
             $sanction = MotherSanction::create(array_merge($commonData, [
                 'budget_head' => $safeBudgetHead,
@@ -882,12 +875,9 @@ public function updateStatus(Request $request)
         // Accept either a single ky_ms_no (string) or an array of ky_ms_no values
         $request->validate([
             'ky_ms_no' => 'required', // Can be string or array
-            'ky_ms_no.*' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
             // Added "close" as a valid action for full closure via Close button
             // Added "revise" as a valid action to add Available Fund to MS Amount
             'action' => 'required|in:deactivate,activate,close,revise'
-        ], [
-            'ky_ms_no.*.regex' => 'KY MS no contains invalid special characters.',
         ]);
 
         $kyMsNoInput = $request->input('ky_ms_no');

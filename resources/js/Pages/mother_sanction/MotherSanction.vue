@@ -653,6 +653,8 @@ const submitData = async (status) => {
       body: formData,
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
       }
     });
 

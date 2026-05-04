@@ -18,12 +18,20 @@ use App\Models\MdProgramDivision;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Auth\Events\Registered;
-use App\Http\Requests\StoreUserRequest; 
-use App\Http\Requests\UpdateUserRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Database\QueryException;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/']+$/";
+    /**
+     * Letters (Unicode), digits, spaces, common name punctuation.
+     * Does not allow &, |, ;, etc. (reduces noise from automated scanners).
+     */
+    private const SAFE_TEXT_PATTERN = '/^[\p{L}\p{M}0-9\s\-\.,()\/\']+$/u';
+
+    /** Reject shell / script metacharacters if they appear in text fields. */
+    private const FORBIDDEN_TEXT_CHARS_PATTERN = '/[|;&$<>\\\\`\x00-\x1F]/u';
 
     /**
      * Display a listing of the resource.
@@ -137,33 +145,59 @@ class UserController extends Controller
     // }
     public function store(Request $request)
     {
+        $textFieldRules = [
+            'required',
+            'string',
+            'max:255',
+            'regex:' . self::SAFE_TEXT_PATTERN,
+            'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN,
+        ];
+
         $validated = $request->validate([
-            'first_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-            'last_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-            'email' => 'required|email',
-            'user_type' => 'required|array', // Ensure user_type is an array
-            'user_type.*' => 'required|integer', // Each user_type must be an integer ID
-            'designation' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'first_name' => $textFieldRules,
+            'last_name' => $textFieldRules,
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')],
+            'user_type' => 'required|array',
+            'user_type.*' => 'required|integer',
+            'designation' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN, 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
             'mobile' => ['nullable', 'digits_between:10,15'],
             'program_division' => 'nullable|integer',
         ], [
-            'first_name.regex' => 'First name contains invalid special characters.',
-            'last_name.regex' => 'Last name contains invalid special characters.',
-            'designation.regex' => 'Designation contains invalid special characters.',
+            'first_name.regex' => 'First name contains invalid characters.',
+            'first_name.not_regex' => 'First name contains invalid characters.',
+            'last_name.regex' => 'Last name contains invalid characters.',
+            'last_name.not_regex' => 'Last name contains invalid characters.',
+            'designation.regex' => 'Designation contains invalid characters.',
+            'designation.not_regex' => 'Designation contains invalid characters.',
+            'email.unique' => 'This email is already registered.',
         ]);
-        // Convert the user_type array to a comma-separated string
-        $userTypeString = implode(',', $request->user_type);
-        User::create([
-            'name' => $validated['first_name'] . ' ' . $validated['last_name'],
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'designation_id' => $request->designation,
-            'mobile_number' => $request->mobile,
-            'program_division_id' => $request->program_division,
-            'user_type_id' => $userTypeString,
-            'email' => $validated['email'],
-            'password' => Hash::make('Test@123'),
-        ]);
+
+        $userTypeString = implode(',', $validated['user_type']);
+
+        try {
+            User::create([
+                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'designation_id' => $validated['designation'] ?? null,
+                'mobile_number' => $validated['mobile'] ?? null,
+                'program_division_id' => $validated['program_division'] ?? null,
+                'user_type_id' => $userTypeString,
+                'email' => $validated['email'],
+                'password' => Hash::make('Test@123'),
+            ]);
+        } catch (QueryException $e) {
+            $sqlState = $e->errorInfo[0] ?? '';
+            $driverCode = (string) ($e->errorInfo[1] ?? '');
+            if (($sqlState === '23000' || $driverCode === '1062')
+                && str_contains($e->getMessage(), 'users_email_unique')) {
+                throw ValidationException::withMessages([
+                    'email' => ['This email is already registered.'],
+                ]);
+            }
+            throw $e;
+        }
+
         return redirect()->route('user-listing')->with('success', 'User created successfully!');
     }
 
@@ -239,20 +273,30 @@ class UserController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $nameFieldRules = [
+                'required',
+                'string',
+                'max:255',
+                'regex:' . self::SAFE_TEXT_PATTERN,
+                'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN,
+            ];
             $validated = $request->validate([
-                'first_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-                'last_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'first_name' => $nameFieldRules,
+                'last_name' => $nameFieldRules,
                 'email' => 'required|email|unique:users,email,' . $id,
-                'designation' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'designation' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN, 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
                 'mobile_number' => ['required', 'digits_between:10,15'],
                 'program_division_id' => 'required|integer',
                 'user_type_id' => 'required|array',
                 'user_type_id.*' => 'required|integer',
                 'password' => 'nullable|string|min:6',
             ], [
-                'first_name.regex' => 'First name contains invalid special characters.',
-                'last_name.regex' => 'Last name contains invalid special characters.',
-                'designation.regex' => 'Designation contains invalid special characters.',
+                'first_name.regex' => 'First name contains invalid characters.',
+                'first_name.not_regex' => 'First name contains invalid characters.',
+                'last_name.regex' => 'Last name contains invalid characters.',
+                'last_name.not_regex' => 'Last name contains invalid characters.',
+                'designation.regex' => 'Designation contains invalid characters.',
+                'designation.not_regex' => 'Designation contains invalid characters.',
             ]);
             $user = User::findOrFail($id);
             $userTypeString = implode(',', $request->user_type_id);
@@ -315,6 +359,12 @@ class UserController extends Controller
      */
     public function userCounts()
     {
+        // If this endpoint is accidentally visited via Inertia navigation,
+        // redirect to a page route instead of returning plain JSON.
+        if (request()->header('X-Inertia')) {
+            return \Inertia\Inertia::location(url()->previous() ?: route('dashboard'));
+        }
+
         $KY_DIVISION_ID = 1;
 
         $totalUsers = User::count();

@@ -605,16 +605,16 @@ const submitForm = async () => {
   }
 
   const payload = {
-    financial_year: financialYear.value,
+    financial_year: sanitizeTextInput(financialYear.value),
     state_id: selectedState.value,
     ds_date: dsDate.value,
-    daily_sanction_no: dailySanctionNo.value,
-    mother_sanction: selectedMotherSanction.value,
-    ifd_no: ifdNo.value,
-    sls_name: slsName.value, // Use slsName instead of slsID
-    remark: remark.value,
+    daily_sanction_no: sanitizeTextInput(dailySanctionNo.value),
+    mother_sanction: sanitizeTextInput(selectedMotherSanction.value),
+    ifd_no: sanitizeTextInput(ifdNo.value),
+    sls_name: sanitizeTextInput(slsName.value), // Use slsName instead of slsID
+    remark: sanitizeTextInput(remark.value),
     entries: sanctionDetails.value.map(entry => ({
-      budget_head: entry.budget_head,
+      budget_head: sanitizeTextInput(entry.budget_head),
       mother_sanction_amount: entry.mother_sanction_amount,
       available_amount: entry.available_fund,
       center_share_amount: entry.center_share_amount || 0,
@@ -668,6 +668,13 @@ const submitForm = async () => {
       'fas fa-exclamation-triangle'
     )
   }
+}
+
+const sanitizeTextInput = (value) => {
+  return String(value ?? '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .trim()
 }
 
 </script>

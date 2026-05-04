@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Smalot\PdfParser\Parser;
 use App\Models\State;
 use App\Models\MotherSanction;
+use Illuminate\Validation\ValidationException;
 
 class DailySanctionPdfController extends Controller
 {
@@ -18,6 +19,14 @@ class DailySanctionPdfController extends Controller
             ]);
 
             $file = $request->file('pdf_file');
+            $binary = @file_get_contents($file->getRealPath());
+            if ($binary === false) {
+                throw ValidationException::withMessages([
+                    'pdf_file' => ['Unable to read uploaded PDF.'],
+                ]);
+            }
+            $this->assertPdfIsSafe($binary);
+
             $parser = new Parser();
             $pdf = $parser->parseFile($file->getPathname());
             $text = $pdf->getText();
@@ -49,6 +58,25 @@ class DailySanctionPdfController extends Controller
                 'success' => false,
                 'message' => 'Failed to process PDF: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    private function assertPdfIsSafe(string $binaryContent): void
+    {
+        if (!str_starts_with($binaryContent, '%PDF-')) {
+            throw ValidationException::withMessages([
+                'pdf_file' => ['Uploaded file is not a valid PDF document.'],
+            ]);
+        }
+
+        // Block common scriptable/action objects that are abused in malicious PDFs.
+        $dangerousPdfObjects = '/\/(JavaScript|JS|OpenAction|AA|Launch|RichMedia|SubmitForm|ImportData)\b/i';
+        $dangerousHtmlScripts = '/<script\b|javascript:/i';
+
+        if (preg_match($dangerousPdfObjects, $binaryContent) || preg_match($dangerousHtmlScripts, $binaryContent)) {
+            throw ValidationException::withMessages([
+                'pdf_file' => ['PDF contains potentially dangerous embedded scripts or actions.'],
+            ]);
         }
     }
 

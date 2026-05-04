@@ -187,12 +187,12 @@ class SlsPDComponentController extends Controller
 
             DB::commit();
 
-            return redirect()->back()->with('success', 'Data stored successfully!');
+            return redirect()->route('state-uts-pd')->with('success', 'Data stored successfully!');
 
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Store error: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Error storing data: ' . $e->getMessage());
+            return redirect()->route('state-uts-pd')->with('error', 'Error storing data: ' . $e->getMessage());
         }
     }
 
