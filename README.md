@@ -2,29 +2,21 @@
 
 ## TLS and server banner hardening (security fix)
 
-To address insecure protocol findings and server-version disclosure, this project includes an Apache hardening snippet at `deploy/apache/tls-hardening.conf`.
+### Apache 2 (production): `kyas-ssl.conf`
 
-Apply it inside the HTTPS VirtualHost for this site, then restart Apache:
+Use the self-contained vhost at `deploy/apache/kyas-ssl.conf` (no `Include` of other project snippets). Copy it to the server, for example:
 
-- include the file in the SSL VirtualHost
-- place this include after other SSL directives so it overrides weaker defaults
-- keep only `TLSv1.2` and `TLSv1.3`
-- set Apache to not disclose version details (`ServerTokens Prod`, `ServerSignature Off`)
-- remove `X-Powered-By` response header
-- retest with your vulnerability scanner
-- ensure no CBC/3DES/RC4/MD5/SHA1 cipher suites are enabled for TLS 1.2
+- `/etc/apache2/sites-available/kyas-ssl.conf`
 
-Example VirtualHost line:
+Then enable SSL, enable the site, adjust `ServerName`, `DocumentRoot`, certificate paths, run `apache2ctl configtest`, and reload Apache.
 
-`Include "D:/xampp/htdocs/kyas/deploy/apache/tls-hardening.conf"`
+Optional banner hardening (server-wide): `deploy/apache/tls-server-hardening.conf` — include once from `apache2.conf` or a conf-enabled fragment if you want `ServerTokens Prod` and no `X-Powered-By`.
 
-XAMPP Apache location (common):
+### XAMPP (local Windows)
 
-- edit `D:/xampp/apache/conf/extra/httpd-ssl.conf`
-- in the target `<VirtualHost _default_:443>` for this application, add:
-  `Include "D:/xampp/htdocs/kyas/deploy/apache/tls-hardening.conf"`
-- ensure this include is placed after other `SSLProtocol`/`SSLCipherSuite` directives
-- restart Apache from XAMPP control panel
+TLS policy is inlined in `conf/extra/httpd-ssl.conf` (no Include of repo files). Restart Apache from the XAMPP control panel after changes.
+
+Scan the **same host and port** your app uses for HTTPS (a load balancer or another node may still show old TLS if not updated).
 
 Quick verification examples:
 
