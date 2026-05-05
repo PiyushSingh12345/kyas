@@ -1,4 +1,7 @@
 <IfModule mod_headers.c>
+    # Fallback banner suppression at app edge (keeps functionality unchanged).
+    Header always unset Server
+    Header always unset X-Powered-By
     Header always set X-Frame-Options "DENY"
     Header always set Content-Security-Policy "frame-ancestors 'none'"
 </IfModule>
