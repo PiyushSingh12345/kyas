@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,8 +27,9 @@ class EnforceSingleSession
             return $next($request);
         }
 
-        $user = $request->user();
-        $activeSessionId = (string) ($user?->active_session_id ?? '');
+        $activeSessionId = (string) DB::table('users')
+            ->where('id', Auth::id())
+            ->value('active_session_id');
         $currentSessionId = (string) $request->session()->getId();
 
         if ($activeSessionId !== '' && ! hash_equals($activeSessionId, $currentSessionId)) {
