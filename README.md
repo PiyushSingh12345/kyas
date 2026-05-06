@@ -14,12 +14,14 @@ Then enable SSL, enable the site, adjust `ServerName`, `DocumentRoot`, certifica
 
 To ensure scanner findings are fixed even on default/fallback SSL vhosts, deploy:
 
-- `deploy/apache/apache2-ssl-policy.conf` -> `/etc/apache2/conf-available/kyas-ssl-policy.conf`
+- `deploy/apache/apache2-ssl-policy.conf` -> `/etc/apache2/conf-available/zzz-kyas-ssl-policy.conf`
+
+The `zzz-` prefix makes Apache load this **after** `mods-enabled/ssl.conf` (which often defaults to permissive cipher classes like `HIGH:MEDIUM`). If a weaker `SSLCipherSuite` or `SSLProtocol` is applied **later** than this policy, scanners will still report SWEET32 / TLS 1.0 until that override is fixed.
 
 Enable it and ensure the intended SSL site is active:
 
-- `sudo a2enconf kyas-ssl-policy`
-- `sudo a2dissite default-ssl` (if not needed)
+- `sudo a2enconf zzz-kyas-ssl-policy`
+- `sudo a2dissite default-ssl` (if not needed; it frequently reintroduces TLS 1.0 and 3DES)
 - `sudo a2ensite kyas-ssl`
 - `sudo apache2ctl configtest && sudo systemctl reload apache2`
 
@@ -27,7 +29,11 @@ Optional banner hardening (server-wide): `deploy/apache/tls-server-hardening.con
 
 ### XAMPP (local Windows)
 
-TLS policy is inlined in `conf/extra/httpd-ssl.conf` (no Include of repo files). Restart Apache from the XAMPP control panel after changes.
+In `D:/xampp/apache/conf/extra/httpd-ssl.conf`, inside the `<VirtualHost _default_:443>` for this site, add **after** any existing `SSLProtocol` / `SSLCipherSuite` lines:
+
+`Include "D:/xampp/htdocs/kyas/deploy/apache/tls-hardening.conf"`
+
+Then restart Apache from the XAMPP control panel.
 
 Scan the **same host and port** your app uses for HTTPS (a load balancer or another node may still show old TLS if not updated).
 
@@ -40,6 +46,12 @@ Quick verification examples:
 - `openssl s_client -connect <host>:443 -tls1` should fail
 - `openssl s_client -connect <host>:443 -tls1_1` should fail
 - `openssl s_client -connect <host>:443 -tls1_2` should succeed with an AEAD suite (GCM/CHACHA20)
+
+On the **Apache server** (Linux images usually have `openssl`), paste the same `SSLCipherSuite` string from `deploy/apache/apache2-ssl-policy.conf` into:
+
+- `openssl ciphers -V '<paste here>'`
+
+There must be **no** suites whose names contain `DES-CBC3`, `3DES`, or `DES-CBC` (aside from the letters inside unrelated algorithm names such as `AES`).
 
 ## CORS origin hardening (security fix)
 
