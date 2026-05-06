@@ -10,13 +10,30 @@ Use the self-contained vhost at `deploy/apache/kyas-ssl.conf` (no `Include` of o
 
 Then enable SSL, enable the site, adjust `ServerName`, `DocumentRoot`, certificate paths, run `apache2ctl configtest`, and reload Apache.
 
-Optional banner hardening (server-wide): `deploy/apache/tls-server-hardening.conf` — include once from `apache2.conf` or a conf-enabled fragment if you want `ServerTokens Prod` and no `X-Powered-By`.
+### Apache2 global TLS enforcement (recommended)
+
+To ensure scanner findings are fixed even on default/fallback SSL vhosts, deploy:
+
+- `deploy/apache/apache2-ssl-policy.conf` -> `/etc/apache2/conf-available/kyas-ssl-policy.conf`
+
+Enable it and ensure the intended SSL site is active:
+
+- `sudo a2enconf kyas-ssl-policy`
+- `sudo a2dissite default-ssl` (if not needed)
+- `sudo a2ensite kyas-ssl`
+- `sudo apache2ctl configtest && sudo systemctl reload apache2`
+
+Optional banner hardening (server-wide): `deploy/apache/tls-server-hardening.conf` for `ServerTokens Prod` and removing `X-Powered-By`.
 
 ### XAMPP (local Windows)
 
 TLS policy is inlined in `conf/extra/httpd-ssl.conf` (no Include of repo files). Restart Apache from the XAMPP control panel after changes.
 
 Scan the **same host and port** your app uses for HTTPS (a load balancer or another node may still show old TLS if not updated).
+
+Use this to confirm which vhost answers on `:443`:
+
+- `sudo apache2ctl -S`
 
 Quick verification examples:
 
