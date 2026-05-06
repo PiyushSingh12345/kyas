@@ -174,7 +174,7 @@
     import { onMounted, ref, computed, watch } from 'vue'
     import axios from 'axios'
     import { useScriptTag } from '@vueuse/core'
-    import { router } from '@inertiajs/vue3'
+    // Let the server-side redirect handle navigation after submit.
 
     // Correct relative paths (from createUser.vue to Common/)
     import Header from '../Common/Header.vue'
@@ -244,15 +244,9 @@
           // },
           
           onSuccess: () => {
-            router.visit('/user-listing', {
-              method: 'get',
-              preserveState: false,
-              preserveScroll: false,
-              replace: true,
-              only: [],
-              data: {},
-              // flash: { success: 'User created successfully!' }
-            });
+            // Inertia will follow the controller redirect (to `/user-listing`).
+            // Just reset local form state here.
+            form.reset();
           },
           onError: (errors) => {
             console.error('Form submission errors:', errors)

@@ -278,7 +278,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/agency-release-tsa-history', [AgencyReleaseController::class, 'tsaHistory']);
     Route::get('/api/agency-release-loa-history', [AgencyReleaseController::class, 'loaHistory']);
     Route::get('/api/agency-release-administrative-expenditure-history', [AgencyReleaseController::class, 'administrativeExpenditureHistory']);
-    Route::get('/api/users', function() {
+    Route::get('/api/users', function(\Illuminate\Http\Request $request) {
+        // If this endpoint is accidentally visited via Inertia navigation,
+        // redirect to a real page route instead of returning plain JSON.
+        if ($request->header('X-Inertia')) {
+            return \Inertia\Inertia::location(route('dashboard'));
+        }
+
         return response()->json([
             'success' => true,
             'data' => \App\Models\User::select('id', 'name', 'email')->get()
@@ -475,10 +481,16 @@ Route::get('/api/user-counts', [UserController::class, 'userCounts']);
 // });
 
 Route::get('/md-program-divisions', function () {
+    if (request()->header('X-Inertia')) {
+        return \Inertia\Inertia::location(route('dashboard'));
+    }
     return MdProgramDivision::select('division_id', 'division_name')->get();
 });
 
 Route::get('/md-user-types', function () {
+    if (request()->header('X-Inertia')) {
+        return \Inertia\Inertia::location(route('dashboard'));
+    }
     return MdUserType::select('md_user_type_id', 'user_type_name')->get();
 });
 

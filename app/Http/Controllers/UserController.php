@@ -87,40 +87,45 @@ class UserController extends Controller
     // }
 
 
-    public function index()
-{
-    // // Retrieve all users
-    // $users = User::all();
+    public function index(Request $request)
+    {
+        // Retrieve all users ordered by id descending
+        $users = User::orderBy('id', 'desc')->get();
 
-    // Retrieve all users ordered by id descending
-    $users = User::orderBy('id', 'desc')->get();
+        // Retrieve all user types and map them by their IDs
+        $userTypes = MdUserType::pluck('user_type_name', 'md_user_type_id');
 
-    // Retrieve all user types and map them by their IDs
-    $userTypes = MdUserType::pluck('user_type_name', 'md_user_type_id');
+        // Retrieve all program divisions and map them by their IDs
+        $programDivisions = MdProgramDivision::pluck('division_name', 'division_id');
 
-    // Retrieve all program divisions and map them by their IDs
-    $programDivisions = MdProgramDivision::pluck('division_name', 'division_id');
+        // Process each user to replace IDs with corresponding names
+        $users->transform(function ($user) use ($userTypes, $programDivisions) {
+            // Process user_type_id (comma-separated IDs)
+            $userTypeIds = array_filter(array_map('trim', explode(',', (string) $user->user_type_id)));
+            $userTypeNames = array_map(function ($id) use ($userTypes) {
+                return $userTypes[$id] ?? null;
+            }, $userTypeIds);
+            $user->user_type = implode(', ', array_filter($userTypeNames));
 
-    // Process each user to replace IDs with corresponding names
-    $users->transform(function ($user) use ($userTypes, $programDivisions) {
-        // Process user_type_id (comma-separated IDs)
-        $userTypeIds = array_filter(array_map('trim', explode(',', $user->user_type_id)));
-        $userTypeNames = array_map(function ($id) use ($userTypes) {
-            return $userTypes[$id] ?? null;
-        }, $userTypeIds);
-        $user->user_type = implode(', ', array_filter($userTypeNames));
+            // Process program_division_id
+            $user->program_division = $programDivisions[$user->program_division_id] ?? null;
 
-        // Process program_division_id
-        $user->program_division = $programDivisions[$user->program_division_id] ?? null;
+            // Keep raw ids for frontend prefills.
+            return $user;
+        });
 
-        // Do NOT unset user_type_id or program_division_id, so frontend can use them for prefill
-        // (No unset here)
+        // If the frontend navigates to `/users` via Inertia, a JSON response will cause an Inertia error.
+        // Treat this endpoint as "API-like" and only return JSON for Ajax/JSON callers.
+        if ($request->header('X-Inertia')) {
+            return Inertia::location(route('user-listing'));
+        }
 
-        return $user;
-    });
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+            return response()->json($users);
+        }
 
-    return response()->json($users);
-}
+        return redirect()->route('user-listing');
+    }
 
     /**
      * Show the form for creating a new resource.
@@ -350,7 +355,7 @@ class UserController extends Controller
         // echo "assaas"; print_r($user); die;
         $user->delete();
         // return redirect()->back()->with('success', 'User deleted successfully.');
-        return json_encode(['success' => true, 'message' => 'User deleted successfully.']);
+        return response()->json(['success' => true, 'message' => 'User deleted successfully.']);
         
     }
 
@@ -359,10 +364,18 @@ class UserController extends Controller
      */
     public function userCounts()
     {
-        // If this endpoint is accidentally visited via Inertia navigation,
-        // redirect to a page route instead of returning plain JSON.
-        if (request()->header('X-Inertia')) {
-            return \Inertia\Inertia::location(url()->previous() ?: route('dashboard'));
+        $request = request();
+
+        // If this endpoint is accidentally visited via Inertia navigation or
+        // normal browser navigation, redirect to a page route instead of rendering raw JSON.
+        if ($request->header('X-Inertia')) {
+            return Inertia::location(route('user-listing'));
+        }
+
+        // Visiting `/api/user-counts` directly in the browser should not dump JSON on screen.
+        // Keep JSON for XHR/API callers only.
+        if (! $request->expectsJson() && ! $request->wantsJson() && ! $request->ajax()) {
+            return redirect()->route('user-listing');
         }
 
         $KY_DIVISION_ID = 1;

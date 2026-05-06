@@ -344,6 +344,18 @@ import Footer from '../Common/Footer.vue'
 import { useForm, usePage, router } from '@inertiajs/vue3'
 import { computed, ref, defineProps, watch } from 'vue'
 
+const parseJsonSafely = async (response) => {
+  const responseText = await response.text()
+  if (!responseText) return {}
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    const error = new Error('Invalid JSON response from server.')
+    error.responseText = responseText
+    throw error
+  }
+}
+
 const deleteBudgetHead = (id) => {
   if (confirm('Are you sure you want to deactivate this Budget Head?')) {
     router.delete(route('BudgetHead.destroy', id), {
@@ -532,10 +544,18 @@ const uploadFile = () => {
     method: 'POST',
     body: formData,
     headers: {
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
     }
   })
-  .then(response => response.json())
+  .then(async (response) => {
+    const data = await parseJsonSafely(response)
+    if (!response.ok) {
+      throw new Error(data.message || 'Upload failed. Please try again.')
+    }
+    return data
+  })
   .then(data => {
     console.log('Upload success response:', data)
     if (data.success) {
@@ -548,7 +568,7 @@ const uploadFile = () => {
   })
   .catch(error => {
     console.log('Upload error:', error)
-    uploadError.value = 'Upload failed. Please try again.'
+    uploadError.value = error?.message || 'Upload failed. Please try again.'
   })
   .finally(() => {
     uploading.value = false
@@ -574,14 +594,22 @@ const acceptExtractedData = () => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
     },
     body: JSON.stringify({
       structured_data: extractedData.value.structured_data,
       file_name: selectedFile.value?.name || 'Unknown'
     })
   })
-  .then(response => response.json())
+  .then(async (response) => {
+    const data = await parseJsonSafely(response)
+    if (!response.ok) {
+      throw new Error(data.message || 'Import failed. Please try again.')
+    }
+    return data
+  })
   .then(data => {
     if (data.success) {
       uploadSuccess.value = data.message || 'Data imported successfully!'
@@ -595,7 +623,7 @@ const acceptExtractedData = () => {
   })
   .catch(error => {
     console.log('Import error:', error)
-    uploadError.value = 'Import failed. Please try again.'
+    uploadError.value = error?.message || 'Import failed. Please try again.'
   })
   .finally(() => {
     processing.value = false

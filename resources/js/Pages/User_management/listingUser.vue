@@ -26,6 +26,10 @@
             <!-- <h2 class="showmsg text-success"></h2>
             <h2 class="showerror text-danger"></h2> -->
           </div>
+          <!-- local status message (update/delete) -->
+          <div v-if="showStatus" :class="`alert alert-${statusType}`">
+            {{ statusMessage }}
+          </div>
            <!-- flash message -->
           <div v-if="showSuccess" class="alert alert-success">
             {{ successMessage }}
@@ -372,10 +376,17 @@
     //   }
     // };
 
+    const showStatus = ref(false);
+    const statusMessage = ref('');
+    const statusType = ref('success'); // success | danger | warning | info
+
     const showMessage = (msg, type) => {
-      const el = document.querySelector('.page-message');
-      el.innerHTML = `<h2 class="text-${type}">${msg}</h2>`;
-      setTimeout(() => (el.innerHTML = ''), 3000);
+      statusMessage.value = msg;
+      statusType.value = type === 'danger' ? 'danger' : 'success';
+      showStatus.value = true;
+      setTimeout(() => {
+        showStatus.value = false;
+      }, 3000);
     };
 
     const removeModalBackdrop = () => {
@@ -632,6 +643,7 @@ console.log('Selected Division:', selectedDivision);
 
       form.put(`/users/${form.id}`, {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
 
           // closeEditFormModal();
@@ -651,7 +663,12 @@ console.log('Selected Division:', selectedDivision);
 
           hideModal('myModal');
           fetchUsers();
-          showMessage('User updated successfully!', 'success');
+          // Show success message directly (flash can be same string and not re-trigger watchers)
+          successMessage.value = 'User updated successfully!';
+          showSuccess.value = true;
+          setTimeout(() => {
+            showSuccess.value = false;
+          }, 3000);
           // show Success message with h2 heading and class text-success in the page-message class div for 3 ms only
           // const messageElement = document.querySelector('.page-message');
           // messageElement.innerHTML = '<h2 class="text-success">User updated successfully!</h2>';
@@ -661,7 +678,12 @@ console.log('Selected Division:', selectedDivision);
         },
         onError: (errors) => {
           hideModal('myModal');
-          showMessage('Failed to update user.', 'danger');
+          statusMessage.value = 'Failed to update user.';
+          statusType.value = 'danger';
+          showStatus.value = true;
+          setTimeout(() => {
+            showStatus.value = false;
+          }, 3000);
           // closeEditFormModal();
           console.error('Error updating user:', errors);
           // // show Error message with h2 heading and class text-danger in the page-message class div for 3 ms only

@@ -29,13 +29,22 @@ class StateController extends Controller
 
         State::create($validated);
 
-        return redirect()->back()->with('success', 'State added successfully!');
+        // Avoid redirect()->back() here because Inertia/XHR requests may not include Referer,
+        // which can fall back to `/` and send users to the wrong page.
+        return redirect()->route('state-uts')->with('success', 'State added successfully!');
 
     }
     public function getStatesApi()
     {
-        if (request()->header('X-Inertia')) {
-            return \Inertia\Inertia::location(route('state-uts'));
+        $request = request();
+
+        if ($request->header('X-Inertia')) {
+            return Inertia::location(route('state-uts'));
+        }
+
+        // If visited directly in browser, redirect to the page instead of dumping JSON.
+        if (! $request->expectsJson() && ! $request->wantsJson() && ! $request->ajax()) {
+            return redirect()->route('state-uts');
         }
 
         return response()->json(State::all());

@@ -51,22 +51,42 @@ class BudgetHeadController extends Controller
         // Format the budget head code before saving
         $formattedBudget = $this->formatBudgetHeadCode($validated['budget']);
 
-        BudgetHead::create([
+        $budgetHead = BudgetHead::create([
             'budget' => $formattedBudget,
             'description' => $validated['description'],
             'category' => $validated['category'],
             'status' => '1',
         ]);
 
-        return redirect()->back()->with('success', 'Budget Heads added successfully!');
+        // Never return JSON to an Inertia form submit; it expects a redirect/Inertia response.
+        if (! $request->header('X-Inertia') && $request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Budget Head added successfully!',
+                'data' => $budgetHead,
+                'redirect_url' => url()->previous(),
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Budget Head added successfully!');
     }
 
     public function destroy(BudgetHead $budgetHead)
     {
         $budgetHead->update(['status' => '0']);
 
-        return redirect()->route('BudgetHead.index')
-                         ->with('success', 'Budget Head deactivated successfully.');
+        // Never return JSON to an Inertia request.
+        if (! request()->header('X-Inertia') && request()->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Budget Head deactivated successfully.',
+                'data' => $budgetHead->fresh(),
+                'redirect_url' => route('budget-heads'),
+            ]);
+        }
+
+        return redirect()->route('budget-heads')
+            ->with('success', 'Budget Head deactivated successfully.');
     }
 
     public function update(Request $request, BudgetHead $budgetHead)
@@ -92,6 +112,16 @@ class BudgetHeadController extends Controller
             'category' => $validated['category']
         ]);
 
+        // Never return JSON to an Inertia form submit; it expects a redirect/Inertia response.
+        if (! $request->header('X-Inertia') && $request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Budget Head updated successfully!',
+                'data' => $budgetHead->fresh(),
+                'redirect_url' => url()->previous(),
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Budget Head updated successfully!');
     }
 
@@ -104,6 +134,16 @@ class BudgetHeadController extends Controller
         $budgetHead = BudgetHead::findOrFail($id);
         $budgetHead->status = $request->status;
         $budgetHead->save();
+
+        // Never return JSON to an Inertia request.
+        if (! $request->header('X-Inertia') && $request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Status updated successfully!',
+                'data' => $budgetHead->fresh(),
+                'redirect_url' => url()->previous(),
+            ]);
+        }
 
         return back()->with('success', 'Status updated successfully!');
     }
