@@ -915,8 +915,20 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
 onMounted(async () => {
   try {
     const [statesRes, budgetHeadsRes] = await Promise.all([
-      fetch('/api/states'),
-      fetch('/api/budget-heads')
+      fetch('/api/states', {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+      }),
+      fetch('/api/budget-heads', {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+      })
     ]);
 
     if (statesRes.ok) {
@@ -1081,6 +1093,11 @@ const clearRowData = (row) => {
 </script>
 
 <style scoped>
+/* Kaiadmin theme sets `.main-panel > .container { overflow: hidden; }` which clips native select dropdowns. */
+.main-panel > .container {
+  overflow: visible !important;
+}
+
 /* Custom styling for flash messages */
 .alert {
   border-radius: 8px;

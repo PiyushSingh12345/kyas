@@ -36,17 +36,13 @@ class StateController extends Controller
     }
     public function getStatesApi()
     {
-        $request = request();
-
-        if ($request->header('X-Inertia')) {
-            return Inertia::location(route('state-uts'));
-        }
-
-        // If visited directly in browser, redirect to the page instead of dumping JSON.
-        if (! $request->expectsJson() && ! $request->wantsJson() && ! $request->ajax()) {
-            return redirect()->route('state-uts');
-        }
-
-        return response()->json(State::all());
+        // This endpoint is consumed by frontend `fetch()` calls that may not set
+        // Accept / X-Requested-With headers consistently. Always return JSON.
+        return response()->json(
+            State::query()
+                ->select(['id', 'name'])
+                ->orderBy('name')
+                ->get()
+        );
     }
 }
