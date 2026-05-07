@@ -68,7 +68,9 @@ class BudgetHeadController extends Controller
             ]);
         }
 
-        return redirect()->back()->with('success', 'Budget Head added successfully!');
+        // Avoid redirect()->back() because Inertia/XHR requests may not include a Referer,
+        // which can lead to unexpected fallback redirects.
+        return redirect()->route('budget-heads')->with('success', 'Budget Head added successfully!');
     }
 
     public function destroy(BudgetHead $budgetHead)
@@ -122,7 +124,7 @@ class BudgetHeadController extends Controller
             ]);
         }
 
-        return redirect()->back()->with('success', 'Budget Head updated successfully!');
+        return redirect()->route('budget-heads')->with('success', 'Budget Head updated successfully!');
     }
 
     public function toggleStatus($id, Request $request)
@@ -145,7 +147,7 @@ class BudgetHeadController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Status updated successfully!');
+        return redirect()->route('budget-heads')->with('success', 'Status updated successfully!');
     }
 
      public function fetchBudgetHeads(Request $request)
