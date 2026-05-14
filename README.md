@@ -29,9 +29,13 @@ Optional banner hardening (server-wide): `deploy/apache/tls-server-hardening.con
 
 ### XAMPP (local Windows)
 
-In `D:/xampp/apache/conf/extra/httpd-ssl.conf`, inside the `<VirtualHost _default_:443>` for this site, add **after** any existing `SSLProtocol` / `SSLCipherSuite` lines:
+In `D:/xampp/apache/conf/extra/httpd-ssl.conf`, inside the `<VirtualHost _default_:443>` (or the `<VirtualHost *:443>` that actually serves your hostname), add **at the very end of the vhost** (after any existing `SSLProtocol` / `SSLCipherSuite` lines):
 
 `Include "D:/xampp/htdocs/kyas/deploy/apache/tls-hardening.conf"`
+
+If `httpd-ssl.conf` (or another included file) has `SSLProtocol` / `SSLCipherSuite` directives **after** this `Include`, they will override the hardening snippet and scanners will still report TLS 1.0/1.1, BEAST, SWEET32, and weak ciphers. In that case, either move the `Include` to the bottom, or replace the entire vhost using:
+
+- `deploy/apache/kyas-xampp-ssl-vhost.conf`
 
 Then restart Apache from the XAMPP control panel.
 
