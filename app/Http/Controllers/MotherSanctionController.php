@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Services\SafePdfValidator;
 use Illuminate\Http\Request;
 use App\Models\BudgetHead;
 use App\Models\SlsPDComponent;
@@ -750,7 +751,7 @@ public function listReport(Request $request)
         }
 
         if ($extension === 'pdf') {
-            $this->assertPdfIsSafe($storedContent);
+            app(SafePdfValidator::class)->assertSafe($storedContent, 'file');
         }
 
         $generatedName = uniqid('ms_', true) . '.' . $extension;
@@ -827,24 +828,6 @@ public function listReport(Request $request)
         }
 
         return $bestDelimiter;
-    }
-
-    private function assertPdfIsSafe(string $binaryContent): void
-    {
-        if (!str_starts_with($binaryContent, '%PDF-')) {
-            throw ValidationException::withMessages([
-                'file' => ['Uploaded file is not a valid PDF document.'],
-            ]);
-        }
-
-        $dangerousPdfObjects = '/\/(JavaScript|JS|OpenAction|AA|Launch|RichMedia|SubmitForm|ImportData)\b/i';
-        $dangerousHtmlScripts = '/<script\b|javascript:/i';
-
-        if (preg_match($dangerousPdfObjects, $binaryContent) || preg_match($dangerousHtmlScripts, $binaryContent)) {
-            throw ValidationException::withMessages([
-                'file' => ['PDF contains potentially dangerous embedded scripts or actions.'],
-            ]);
-        }
     }
 
     public function motherSanctionData(Request $req){

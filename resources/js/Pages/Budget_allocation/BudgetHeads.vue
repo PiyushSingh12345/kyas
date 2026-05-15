@@ -356,6 +356,45 @@ const parseJsonSafely = async (response) => {
   }
 }
 
+const getCsrfToken = () =>
+  document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''
+
+const csrfFetch = async (url, options = {}) => {
+  const token = getCsrfToken()
+  if (!token) {
+    throw new Error('CSRF token not found. Please refresh the page and try again.')
+  }
+
+  let body = options.body
+  if (body instanceof FormData && !body.has('_token')) {
+    body.append('_token', token)
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': token,
+      ...options.headers,
+    },
+    body,
+  })
+
+  const data = await parseJsonSafely(response)
+
+  if (response.status === 419) {
+    throw new Error(data.message || 'CSRF token mismatch. Please refresh the page and try again.')
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Request failed. Please try again.')
+  }
+
+  return data
+}
+
 const deleteBudgetHead = (id) => {
   if (confirm('Are you sure you want to deactivate this Budget Head?')) {
     router.delete(route('BudgetHead.destroy', id), {
@@ -538,23 +577,10 @@ const uploadFile = () => {
   
   const formData = new FormData()
   formData.append('file', selectedFile.value)
-  
-  // Use fetch instead of router.post for file upload
-  fetch(route('BudgetHead.upload'), {
+
+  csrfFetch('/budget-heads/upload', {
     method: 'POST',
     body: formData,
-    headers: {
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    }
-  })
-  .then(async (response) => {
-    const data = await parseJsonSafely(response)
-    if (!response.ok) {
-      throw new Error(data.message || 'Upload failed. Please try again.')
-    }
-    return data
   })
   .then(data => {
     console.log('Upload success response:', data)
@@ -589,26 +615,23 @@ const acceptExtractedData = () => {
   
   processing.value = true
   
-  // Send the extracted data to backend for processing
-  fetch(route('BudgetHead.import'), {
+  const token = getCsrfToken()
+  if (!token) {
+    uploadError.value = 'CSRF token not found. Please refresh the page and try again.'
+    processing.value = false
+    return
+  }
+
+  csrfFetch('/budget-heads/import', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
     },
     body: JSON.stringify({
+      _token: token,
       structured_data: extractedData.value.structured_data,
-      file_name: selectedFile.value?.name || 'Unknown'
-    })
-  })
-  .then(async (response) => {
-    const data = await parseJsonSafely(response)
-    if (!response.ok) {
-      throw new Error(data.message || 'Import failed. Please try again.')
-    }
-    return data
+      file_name: selectedFile.value?.name || 'Unknown',
+    }),
   })
   .then(data => {
     if (data.success) {

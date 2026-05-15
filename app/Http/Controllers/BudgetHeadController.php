@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BudgetHead;
 use App\Models\BudgetPhase;
+use App\Services\SafePdfValidator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Smalot\PdfParser\Parser;
@@ -213,7 +214,7 @@ class BudgetHeadController extends Controller
                         'file' => ['Unable to read uploaded PDF.'],
                     ]);
                 }
-                $this->assertPdfIsSafe($binary);
+                app(SafePdfValidator::class)->assertSafe($binary, 'file');
                 $extractedData = $this->processPdfFile($fullPath);
                 Log::info('PDF processed', ['extractedLines' => count($extractedData['extracted_lines'] ?? [])]);
             }
@@ -227,6 +228,12 @@ class BudgetHeadController extends Controller
                 'data' => $extractedData
             ]);
             
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first(),
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             Log::error('File upload error', [
                 'message' => $e->getMessage(),
@@ -237,24 +244,6 @@ class BudgetHeadController extends Controller
                 'success' => false,
                 'message' => 'Error processing file: ' . $e->getMessage()
             ], 500);
-        }
-    }
-
-    private function assertPdfIsSafe(string $binaryContent): void
-    {
-        if (!str_starts_with($binaryContent, '%PDF-')) {
-            throw ValidationException::withMessages([
-                'file' => ['Uploaded file is not a valid PDF document.'],
-            ]);
-        }
-
-        $dangerousPdfObjects = '/\/(JavaScript|JS|OpenAction|AA|Launch|RichMedia|SubmitForm|ImportData)\b/i';
-        $dangerousHtmlScripts = '/<script\b|javascript:/i';
-
-        if (preg_match($dangerousPdfObjects, $binaryContent) || preg_match($dangerousHtmlScripts, $binaryContent)) {
-            throw ValidationException::withMessages([
-                'file' => ['PDF contains potentially dangerous embedded scripts or actions.'],
-            ]);
         }
     }
 
