@@ -448,12 +448,16 @@ Route::post('/debug-excel', function(Request $request) {
 
     // Agency Release API routes
     Route::post('/api/agency-release-tsa', [AgencyReleaseController::class, 'storeTSA'])->middleware(['role:2'])->name('agency-release-tsa.store');
+    Route::put('/api/agency-release-tsa/{id}', [AgencyReleaseController::class, 'updateTSA'])->middleware(['role:2'])->name('agency-release-tsa.update');
     Route::get('/api/agency-release-tsa-list', [AgencyReleaseController::class, 'listTSA'])->middleware(['role:2'])->name('agency-release-tsa.list');
     Route::post('/api/agency-release-loa', [AgencyReleaseController::class, 'storeLOA'])->middleware(['role:2'])->name('agency-release-loa.store');
+    Route::put('/api/agency-release-loa/{id}', [AgencyReleaseController::class, 'updateLOA'])->middleware(['role:2'])->name('agency-release-loa.update');
     Route::get('/api/agency-release-loa-list', [AgencyReleaseController::class, 'listLOA'])->middleware(['role:2'])->name('agency-release-loa.list');
     Route::post('/api/agency-release-administrative-expenditure', [AgencyReleaseController::class, 'storeAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.store');
+    Route::put('/api/agency-release-administrative-expenditure/{id}', [AgencyReleaseController::class, 'updateAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.update');
     Route::get('/api/agency-release-administrative-expenditure-list', [AgencyReleaseController::class, 'listAdministrativeExpenditure'])->middleware(['role:2'])->name('agency-release-administrative-expenditure.list');
     Route::post('/api/agency-release/update-status', [AgencyReleaseController::class, 'updateStatus'])->middleware(['role:2'])->name('agency-release.updateStatus');
+    Route::post('/api/agency-release/delete', [AgencyReleaseController::class, 'softDelete'])->middleware(['role:2'])->name('agency-release.delete');
     Route::get('/api/balanced-fund-amount', [AgencyReleaseController::class, 'getBalancedFundAmount'])->middleware(['role:2'])->name('balanced-fund-amount');
     Route::get('/api/balanced-fund-amount-loa', [AgencyReleaseController::class, 'getBalancedFundAmountLOA'])->middleware(['role:2'])->name('balanced-fund-amount-loa');
     Route::get('/api/balanced-fund-amount-admin-exp', [AgencyReleaseController::class, 'getBalancedFundAmountAdminExp'])->middleware(['role:2'])->name('balanced-fund-amount-admin-exp');

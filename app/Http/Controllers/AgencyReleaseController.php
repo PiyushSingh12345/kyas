@@ -20,6 +20,79 @@ class AgencyReleaseController extends Controller
     private const SAFE_BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
 
     /**
+     * Sum active releases for a budget head + program division, optionally excluding one record.
+     */
+    private function sumReleasesForBudgetAndPd(
+        string $budgetHead,
+        int $programDivisionId,
+        ?string $excludeType = null,
+        ?int $excludeId = null
+    ): float {
+        $tsaQuery = AgencyReleaseTSA::where('budget_head', $budgetHead)
+            ->where('program_division_id', $programDivisionId)
+            ->where('status', 1);
+        if ($excludeType === 'tsa' && $excludeId) {
+            $tsaQuery->where('id', '!=', $excludeId);
+        }
+
+        $loaQuery = AgencyReleaseLOA::where('budget_head', $budgetHead)
+            ->where('program_division_id', $programDivisionId)
+            ->where('status', 1);
+        if ($excludeType === 'loa' && $excludeId) {
+            $loaQuery->where('id', '!=', $excludeId);
+        }
+
+        $adminExpQuery = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
+            ->where('program_division_id', $programDivisionId)
+            ->where('status', 1);
+        if ($excludeType === 'administrative-expenditure' && $excludeId) {
+            $adminExpQuery->where('id', '!=', $excludeId);
+        }
+
+        return $tsaQuery->sum('amount')
+            + $loaQuery->sum('amount')
+            + $adminExpQuery->sum('amount');
+    }
+
+    /**
+     * Validate amount against balanced fund; returns error message or null if valid.
+     */
+    private function validateAmountAgainstBalancedFund(
+        string $budgetHead,
+        int $programDivisionId,
+        float $amount,
+        ?string $excludeType = null,
+        ?int $excludeId = null
+    ): ?string {
+        $budgetHeadRecord = BudgetHead::where('budget', $budgetHead)->first();
+
+        if (!$budgetHeadRecord) {
+            return 'Invalid budget head';
+        }
+
+        $allocatedAmount = DB::table('pdwise_aap_allocation')
+            ->where('bh_id', $budgetHeadRecord->id)
+            ->where('pd_id', $programDivisionId)
+            ->where('status', 1)
+            ->sum('amount');
+
+        $totalReleases = $this->sumReleasesForBudgetAndPd(
+            $budgetHead,
+            $programDivisionId,
+            $excludeType,
+            $excludeId
+        );
+
+        $balancedFundAmount = $allocatedAmount - $totalReleases;
+
+        if ($amount > $balancedFundAmount) {
+            return "Amount (₹{$amount} lakhs) cannot exceed Balanced Fund Amount (₹{$balancedFundAmount} lakhs)";
+        }
+
+        return null;
+    }
+
+    /**
      * Store TSA form data
      */
     public function storeTSA(Request $request): JsonResponse
@@ -120,6 +193,81 @@ class AgencyReleaseController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to save TSA data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update TSA record
+     */
+    public function updateTSA(Request $request, int $id): JsonResponse
+    {
+        try {
+            $tsa = AgencyReleaseTSA::findOrFail($id);
+
+            $validated = $request->validate([
+                'sanctionNumber' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'date' => 'required|date',
+                'budgetHead' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
+                'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
+                'amount' => 'required|numeric|min:0',
+                'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            ], [
+                'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
+                'budgetHead.regex' => 'Budget head format is invalid.',
+                'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
+                'centralImplementingAgency.regex' => 'Agency name contains invalid special characters.',
+            ]);
+
+            $balanceError = $this->validateAmountAgainstBalancedFund(
+                $validated['budgetHead'],
+                (int) $validated['programDivision'],
+                (float) $validated['amount'],
+                'tsa',
+                $id
+            );
+
+            if ($balanceError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $balanceError,
+                ], 422);
+            }
+
+            $tsa->update([
+                'sanction_number' => $validated['sanctionNumber'],
+                'date' => $validated['date'],
+                'budget_head' => $validated['budgetHead'],
+                'purpose_of_grant' => $validated['purposeOfGrant'],
+                'program_division_id' => $validated['programDivision'],
+                'amount' => $validated['amount'],
+                'central_implementing_agency' => $validated['centralImplementingAgency'],
+            ]);
+
+            $this->saveAgencyReleaseHistory('tsa', $tsa, 'UPDATE', 'TSA record updated');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'TSA record updated successfully',
+                'data' => $tsa,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error updating TSA data', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update TSA data: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -230,6 +378,81 @@ class AgencyReleaseController extends Controller
     }
 
     /**
+     * Update LOA record
+     */
+    public function updateLOA(Request $request, int $id): JsonResponse
+    {
+        try {
+            $loa = AgencyReleaseLOA::findOrFail($id);
+
+            $validated = $request->validate([
+                'sanctionNumber' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'date' => 'required|date',
+                'budgetHead' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
+                'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
+                'amount' => 'required|numeric|min:0',
+                'ut' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            ], [
+                'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
+                'budgetHead.regex' => 'Budget head format is invalid.',
+                'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
+                'ut.regex' => 'UT contains invalid special characters.',
+            ]);
+
+            $balanceError = $this->validateAmountAgainstBalancedFund(
+                $validated['budgetHead'],
+                (int) $validated['programDivision'],
+                (float) $validated['amount'],
+                'loa',
+                $id
+            );
+
+            if ($balanceError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $balanceError,
+                ], 422);
+            }
+
+            $loa->update([
+                'sanction_number' => $validated['sanctionNumber'],
+                'date' => $validated['date'],
+                'budget_head' => $validated['budgetHead'],
+                'purpose_of_grant' => $validated['purposeOfGrant'],
+                'program_division_id' => $validated['programDivision'],
+                'amount' => $validated['amount'],
+                'ut' => $validated['ut'],
+            ]);
+
+            $this->saveAgencyReleaseHistory('loa', $loa, 'UPDATE', 'LOA record updated');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'LOA record updated successfully',
+                'data' => $loa,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error updating LOA data', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update LOA data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Store Administrative Expenditure form data
      */
     public function storeAdministrativeExpenditure(Request $request): JsonResponse
@@ -335,6 +558,81 @@ class AgencyReleaseController extends Controller
     }
 
     /**
+     * Update Administrative Expenditure record
+     */
+    public function updateAdministrativeExpenditure(Request $request, int $id): JsonResponse
+    {
+        try {
+            $adminExp = AgencyReleaseAdministrativeExpenditure::findOrFail($id);
+
+            $validated = $request->validate([
+                'sanctionNumber' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'date' => 'required|date',
+                'budgetHead' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
+                'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
+                'amount' => 'required|numeric|min:0',
+                'agencyVendor' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            ], [
+                'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
+                'budgetHead.regex' => 'Budget head format is invalid.',
+                'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
+                'agencyVendor.regex' => 'Agency/vendor contains invalid special characters.',
+            ]);
+
+            $balanceError = $this->validateAmountAgainstBalancedFund(
+                $validated['budgetHead'],
+                (int) $validated['programDivision'],
+                (float) $validated['amount'],
+                'administrative-expenditure',
+                $id
+            );
+
+            if ($balanceError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $balanceError,
+                ], 422);
+            }
+
+            $adminExp->update([
+                'sanction_number' => $validated['sanctionNumber'],
+                'date' => $validated['date'],
+                'budget_head' => $validated['budgetHead'],
+                'purpose_of_grant' => $validated['purposeOfGrant'],
+                'program_division_id' => $validated['programDivision'],
+                'amount' => $validated['amount'],
+                'agency_vendor' => $validated['agencyVendor'],
+            ]);
+
+            $this->saveAgencyReleaseHistory('administrative-expenditure', $adminExp, 'UPDATE', 'Administrative Expenditure record updated');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Administrative Expenditure record updated successfully',
+                'data' => $adminExp,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error updating Administrative Expenditure data', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update Administrative Expenditure data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get list of TSA records
      */
     public function listTSA(): JsonResponse
@@ -347,10 +645,11 @@ class AgencyReleaseController extends Controller
                     return [
                         'id' => $record->id,
                         'sanction_number' => $record->sanction_number,
-                        'date' => $record->date,
+                        'date' => $record->date?->format('Y-m-d') ?? $record->date,
                         'budget_head' => $record->budget_head,
                         'purpose_of_grant' => $record->purpose_of_grant,
                         'program_division' => $record->programDivision->division_name ?? '',
+                        'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
                         'central_implementing_agency' => $record->central_implementing_agency,
                         'status' => $record->status,
@@ -386,10 +685,11 @@ class AgencyReleaseController extends Controller
                     return [
                         'id' => $record->id,
                         'sanction_number' => $record->sanction_number,
-                        'date' => $record->date,
+                        'date' => $record->date?->format('Y-m-d') ?? $record->date,
                         'budget_head' => $record->budget_head,
                         'purpose_of_grant' => $record->purpose_of_grant,
                         'program_division' => $record->programDivision->division_name ?? '',
+                        'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
                         'ut' => $record->ut,
                         'status' => $record->status,
@@ -425,10 +725,11 @@ class AgencyReleaseController extends Controller
                     return [
                         'id' => $record->id,
                         'sanction_number' => $record->sanction_number,
-                        'date' => $record->date,
+                        'date' => $record->date?->format('Y-m-d') ?? $record->date,
                         'budget_head' => $record->budget_head,
                         'purpose_of_grant' => $record->purpose_of_grant,
                         'program_division' => $record->programDivision->division_name ?? '',
+                        'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
                         'agency_vendor' => $record->agency_vendor,
                         'status' => $record->status,
@@ -534,6 +835,52 @@ class AgencyReleaseController extends Controller
     }
 
     /**
+     * Soft delete Agency Release records
+     */
+    public function softDelete(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'id' => 'required|integer',
+                'type' => 'required|in:tsa,loa,administrative-expenditure',
+            ]);
+
+            $id = $validated['id'];
+            $type = $validated['type'];
+
+            if ($type === 'tsa') {
+                $record = AgencyReleaseTSA::findOrFail($id);
+            } elseif ($type === 'loa') {
+                $record = AgencyReleaseLOA::findOrFail($id);
+            } else {
+                $record = AgencyReleaseAdministrativeExpenditure::findOrFail($id);
+            }
+
+            $record->status = 0;
+            $record->save();
+
+            $this->saveAgencyReleaseHistory($type, $record, 'DELETE', 'Record soft deleted');
+
+            $record->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Record deleted successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error soft deleting Agency Release record', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete record: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get balanced fund amount for a budget head (TSA)
      * When both budget_head and program_division are provided:
      *   Returns: Amount allocated for that Budget head and Program Division - 
@@ -594,34 +941,24 @@ class AgencyReleaseController extends Controller
 
             // Calculate total releases from ALL THREE tables (TSA, LOA, Admin Exp)
             $totalReleases = 0;
+            $excludeType = $request->input('exclude_type');
+            $excludeId = $request->input('exclude_id') ? (int) $request->input('exclude_id') : null;
             
             if ($programDivisionId) {
-                // Sum releases from all three tables for specific budget head + program division
-                $tsaReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $loaReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
+                $totalReleases = $this->sumReleasesForBudgetAndPd(
+                    $budgetHead,
+                    (int) $programDivisionId,
+                    $excludeType,
+                    $excludeId
+                );
                 
                 Log::info('PD-specific releases calculated from all tables', [
                     'budget_head' => $budgetHead,
                     'program_division_id' => $programDivisionId,
-                    'tsa_releases' => $tsaReleases,
-                    'loa_releases' => $loaReleases,
-                    'admin_exp_releases' => $adminExpReleases,
                     'total_releases' => $totalReleases,
-                    'balanced_amount' => $allocatedAmount - $totalReleases
+                    'balanced_amount' => $allocatedAmount - $totalReleases,
+                    'exclude_type' => $excludeType,
+                    'exclude_id' => $excludeId,
                 ]);
             } else {
                 // Sum releases from TSA only for the budget head (backward compatibility)
@@ -701,25 +1038,16 @@ class AgencyReleaseController extends Controller
 
             // Calculate total releases from ALL THREE tables (TSA, LOA, Admin Exp)
             $totalReleases = 0;
+            $excludeType = $request->input('exclude_type');
+            $excludeId = $request->input('exclude_id') ? (int) $request->input('exclude_id') : null;
             
             if ($programDivisionId) {
-                // Sum releases from all three tables for specific budget head + program division
-                $tsaReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $loaReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
+                $totalReleases = $this->sumReleasesForBudgetAndPd(
+                    $budgetHead,
+                    (int) $programDivisionId,
+                    $excludeType,
+                    $excludeId
+                );
             } else {
                 // Sum releases from LOA only for the budget head (backward compatibility)
                 $totalReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
@@ -791,25 +1119,16 @@ class AgencyReleaseController extends Controller
 
             // Calculate total releases from ALL THREE tables (TSA, LOA, Admin Exp)
             $totalReleases = 0;
+            $excludeType = $request->input('exclude_type');
+            $excludeId = $request->input('exclude_id') ? (int) $request->input('exclude_id') : null;
             
             if ($programDivisionId) {
-                // Sum releases from all three tables for specific budget head + program division
-                $tsaReleases = AgencyReleaseTSA::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $loaReleases = AgencyReleaseLOA::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $adminExpReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)
-                    ->where('program_division_id', $programDivisionId)
-                    ->where('status', 1)
-                    ->sum('amount');
-                
-                $totalReleases = $tsaReleases + $loaReleases + $adminExpReleases;
+                $totalReleases = $this->sumReleasesForBudgetAndPd(
+                    $budgetHead,
+                    (int) $programDivisionId,
+                    $excludeType,
+                    $excludeId
+                );
             } else {
                 // Sum releases from Admin Exp only for the budget head (backward compatibility)
                 $totalReleases = AgencyReleaseAdministrativeExpenditure::where('budget_head', $budgetHead)

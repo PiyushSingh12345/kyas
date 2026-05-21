@@ -66,8 +66,7 @@
                             <th>Program Division</th>
                             <th>Amount/Release/Expenditure</th>
                             <th>UT</th>
-                            <!-- <th>Action</th> -->
-                            <!-- <th>Status</th> -->
+                            <th>Action</th>
                             <th>Created At</th>
                           </tr>
                         </thead>
@@ -80,36 +79,29 @@
                             <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
                             <td>{{ item.ut }}</td>
-                            <!-- <td class="text-center status-column">
-                              <div class="d-flex justify-content-center align-items-center gap-2">
-                                <button 
-                                  class="btn btn-sm btn-secondary"
-                                  @click="handleClose(item, index)"
-                                  title="Close"
-                                  :disabled="!item.status"
-                                >
-                                  Close
-                                </button>
-                                <button 
+                            <td class="text-center">
+                              <div class="d-flex justify-content-center gap-1">
+                                <button
                                   class="btn btn-sm btn-primary"
-                                  @click="handleRevise(item, index)"
-                                  title="Revise"
-                                  :disabled="!item.status"
+                                  @click="handleEdit(item)"
+                                  title="Edit"
                                 >
-                                  Revise
+                                  <i class="fas fa-edit"></i>
+                                </button>
+                                <button
+                                  class="btn btn-sm btn-danger"
+                                  @click="handleDelete(item)"
+                                  title="Delete"
+                                >
+                                  <i class="fas fa-trash"></i>
                                 </button>
                               </div>
-                            </td> -->
-                            <!-- <td class="text-center">
-                              <span :class="item.status ? 'badge bg-success' : 'badge bg-secondary'">
-                                {{ item.status ? 'Active' : 'Inactive' }}
-                              </span>
-                            </td> -->
+                            </td>
                             <td>{{ formatDateTime(item.created_at) }}</td>
                           </tr>
                           
                           <tr v-if="loaList.length === 0">
-                            <td colspan="8" class="text-center text-muted py-4">
+                            <td colspan="9" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No LOA data available
                             </td>
@@ -168,11 +160,131 @@
         </div>
       </div>
     </div>
+    <!-- Edit Modal -->
+    <div v-if="showEditDialog" class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1055;" @click="closeEditDialog">
+      <div class="modal-backdrop fade show" style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"></div>
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document" style="z-index: 1055; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; max-height: 90vh;" @click.stop>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit LOA Record</h5>
+            <button type="button" class="btn-close" @click="closeEditDialog"></button>
+          </div>
+          <form @submit.prevent="submitEdit">
+            <div class="modal-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editSanctionNumber">Sanction Number <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="editSanctionNumber" v-model="editForm.sanctionNumber" required>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editDate">Date <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="editDate" v-model="editForm.date" required>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editBudgetHead">Budget Head <span class="text-danger">*</span></label>
+                    <select class="form-select" id="editBudgetHead" v-model="editForm.budgetHead" required>
+                      <option value="">--- Select Budget Head ---</option>
+                      <option v-for="head in budgetHeads" :key="head.id" :value="head.budget">
+                        {{ head.budget }} - {{ head.description }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editProgramDivision">Program Division <span class="text-danger">*</span></label>
+                    <select class="form-select" id="editProgramDivision" v-model="editForm.programDivision" required>
+                      <option value="">--- Select Program Division ---</option>
+                      <option v-for="division in programDivisions" :key="division.division_id" :value="division.division_id">
+                        {{ division.division_name }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editPurposeOfGrant">Purpose Of Grant <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="editPurposeOfGrant" v-model="editForm.purposeOfGrant" required>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editBalancedFund">Balanced Fund Amount</label>
+                    <input type="number" class="form-control" id="editBalancedFund" :value="editBalancedFundAmount" disabled>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editAmount">Amount <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" :class="{ 'is-invalid': editAmountExceedsBalance }" id="editAmount" v-model="editForm.amount" step="0.01" min="0" required>
+                    <div v-if="editAmountExceedsBalance" class="invalid-feedback">
+                      Amount cannot exceed Balanced Fund Amount
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="editUt">UT <span class="text-danger">*</span></label>
+                    <select class="form-select" id="editUt" v-model="editForm.ut" required>
+                      <option value="">--- Select UT ---</option>
+                      <option value="Ladakh">Ladakh</option>
+                      <option value="Andaman and Nicobar">Andaman and Nicobar</option>
+                      <option value="Lakshadweep">Lakshadweep</option>
+                      <option value="Dadra & Nagar Haveli and Daman & Diu">Dadra & Nagar Haveli and Daman & Diu</option>
+                      <option value="Chandigarh">Chandigarh</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" @click="closeEditDialog">Cancel</button>
+              <button type="submit" class="btn btn-primary" :disabled="isSavingEdit || editAmountExceedsBalance">
+                <span v-if="isSavingEdit" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                Update
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <div v-if="showDeleteDialog" class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1055;" @click="closeDeleteDialog">
+      <div class="modal-backdrop fade show" style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"></div>
+      <div class="modal-dialog modal-dialog-centered" role="document" style="z-index: 1055; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0;" @click.stop>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Delete</h5>
+            <button type="button" class="btn-close" @click="closeDeleteDialog"></button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to delete this LOA record?</p>
+            <p v-if="deleteItem" class="text-muted small mt-2">
+              Sanction Number: <strong>{{ deleteItem.sanction_number }}</strong>
+            </p>
+            <p class="text-muted small">This record will be removed from the list. The deleted data can be recovered from the database if needed.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeDeleteDialog">Cancel</button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete" :disabled="isDeleting">
+              <span v-if="isDeleting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
@@ -186,6 +298,29 @@ const closeIndex = ref(null)
 const showReviseDialog = ref(false)
 const reviseItem = ref(null)
 const reviseIndex = ref(null)
+const showDeleteDialog = ref(false)
+const deleteItem = ref(null)
+const isDeleting = ref(false)
+const showEditDialog = ref(false)
+const isSavingEdit = ref(false)
+const budgetHeads = ref([])
+const programDivisions = ref([])
+const editBalancedFundAmount = ref(0)
+const editForm = ref({
+  id: null,
+  sanctionNumber: '',
+  date: '',
+  budgetHead: '',
+  purposeOfGrant: '',
+  programDivision: '',
+  amount: '',
+  ut: ''
+})
+
+const editAmountExceedsBalance = computed(() => {
+  const amount = parseFloat(editForm.value.amount)
+  return !isNaN(amount) && amount > 0 && editBalancedFundAmount.value > 0 && amount > editBalancedFundAmount.value
+})
 
 // Flash message state
 const flashMessage = ref({
@@ -214,6 +349,13 @@ const hideFlashMessage = () => {
 
 onMounted(async () => {
   await fetchLOAList()
+  await Promise.all([fetchBudgetHeads(), fetchProgramDivisions()])
+})
+
+watch(() => [editForm.value.budgetHead, editForm.value.programDivision], () => {
+  if (showEditDialog.value) {
+    fetchEditBalancedFundAmount()
+  }
 })
 
 const fetchLOAList = async () => {
@@ -377,6 +519,166 @@ const confirmRevise = async () => {
     console.error('Error revising record:', error);
     showFlashMessage('danger', 'An error occurred while revising the record. Please try again.', 'fas fa-exclamation-triangle');
     closeReviseDialog();
+  }
+};
+
+const fetchBudgetHeads = async () => {
+  try {
+    const response = await fetch('/api/budget-heads-by-major-head?major_head=2435')
+    if (response.ok) {
+      budgetHeads.value = await response.json()
+    }
+  } catch (err) {
+    console.error('Error fetching budget heads:', err)
+  }
+}
+
+const fetchProgramDivisions = async () => {
+  try {
+    const response = await fetch('/api/aap-program-divisions')
+    if (response.ok) {
+      programDivisions.value = await response.json()
+    }
+  } catch (err) {
+    console.error('Error fetching program divisions:', err)
+  }
+}
+
+const fetchEditBalancedFundAmount = async () => {
+  const budgetHead = editForm.value.budgetHead
+  const programDivisionId = editForm.value.programDivision
+
+  if (!budgetHead || !programDivisionId) {
+    editBalancedFundAmount.value = 0
+    return
+  }
+
+  try {
+    let url = `/api/balanced-fund-amount-loa?budget_head=${encodeURIComponent(budgetHead)}&program_division_id=${encodeURIComponent(programDivisionId)}`
+    if (editForm.value.id) {
+      url += `&exclude_type=loa&exclude_id=${editForm.value.id}`
+    }
+    const response = await fetch(url)
+    if (response.ok) {
+      const data = await response.json()
+      editBalancedFundAmount.value = parseFloat(data.allocated_amount || 0) - parseFloat(data.total_releases || 0)
+    } else {
+      editBalancedFundAmount.value = 0
+    }
+  } catch (err) {
+    console.error('Error fetching balanced fund amount:', err)
+    editBalancedFundAmount.value = 0
+  }
+}
+
+const handleEdit = async (item) => {
+  editForm.value = {
+    id: item.id,
+    sanctionNumber: item.sanction_number || '',
+    date: item.date || '',
+    budgetHead: item.budget_head || '',
+    purposeOfGrant: item.purpose_of_grant || '',
+    programDivision: item.program_division_id || '',
+    amount: item.amount ?? '',
+    ut: item.ut || ''
+  }
+  showEditDialog.value = true
+  await fetchEditBalancedFundAmount()
+}
+
+const closeEditDialog = () => {
+  showEditDialog.value = false
+  isSavingEdit.value = false
+  editBalancedFundAmount.value = 0
+}
+
+const submitEdit = async () => {
+  if (!editForm.value.id) return
+  if (editAmountExceedsBalance.value) {
+    showFlashMessage('danger', 'Amount cannot exceed Balanced Fund Amount.', 'fas fa-exclamation-triangle')
+    return
+  }
+
+  isSavingEdit.value = true
+
+  try {
+    const response = await fetch(`/api/agency-release-loa/${editForm.value.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+      },
+      body: JSON.stringify({
+        sanctionNumber: editForm.value.sanctionNumber,
+        date: editForm.value.date,
+        budgetHead: editForm.value.budgetHead,
+        purposeOfGrant: editForm.value.purposeOfGrant,
+        programDivision: parseInt(editForm.value.programDivision, 10),
+        amount: parseFloat(editForm.value.amount),
+        ut: editForm.value.ut
+      })
+    })
+
+    if (response.ok) {
+      await fetchLOAList()
+      showFlashMessage('success', 'LOA record updated successfully.', 'fas fa-check-circle')
+      closeEditDialog()
+    } else {
+      const errorData = await response.json().catch(() => ({}))
+      showFlashMessage('danger', errorData.message || 'Failed to update record. Please try again.', 'fas fa-exclamation-triangle')
+    }
+  } catch (err) {
+    console.error('Error updating record:', err)
+    showFlashMessage('danger', 'An error occurred while updating the record. Please try again.', 'fas fa-exclamation-triangle')
+  } finally {
+    isSavingEdit.value = false
+  }
+}
+
+const handleDelete = (item) => {
+  deleteItem.value = item;
+  showDeleteDialog.value = true;
+};
+
+const closeDeleteDialog = () => {
+  showDeleteDialog.value = false;
+  deleteItem.value = null;
+  isDeleting.value = false;
+};
+
+const confirmDelete = async () => {
+  if (!deleteItem.value) {
+    closeDeleteDialog();
+    return;
+  }
+
+  isDeleting.value = true;
+
+  try {
+    const response = await fetch('/api/agency-release/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+      },
+      body: JSON.stringify({
+        id: deleteItem.value.id,
+        type: 'loa'
+      })
+    });
+
+    if (response.ok) {
+      await fetchLOAList();
+      showFlashMessage('success', 'Record deleted successfully.', 'fas fa-check-circle');
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      showFlashMessage('danger', errorData.message || 'Failed to delete record. Please try again.', 'fas fa-exclamation-triangle');
+    }
+  } catch (error) {
+    console.error('Error deleting record:', error);
+    showFlashMessage('danger', 'An error occurred while deleting the record. Please try again.', 'fas fa-exclamation-triangle');
+  } finally {
+    closeDeleteDialog();
   }
 };
 </script>
