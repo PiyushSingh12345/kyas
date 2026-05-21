@@ -117,7 +117,7 @@
                           <!-- Buttons -->
                           <div class="col-12 d-flex justify-content-center">
                             <button class="btn btn-success me-1" @click="submit">Submit</button>
-                            <button class="btn btn-danger me-1">Reset</button>
+                            <button type="button" class="btn btn-danger me-1" @click="resetRegularForm">Reset</button>
                           </div>
                         </div>
                       </div>
@@ -463,25 +463,47 @@
 
 
 
-                                    <div
-                                     
-                                      class="checkbox-list"
-                                      style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px;"
-                                    >
-                                            <!-- {{ slsDataForDropdown }}                            -->
-                                       <!-- Show PDs when entityType is Agency -->
-                                      <div>
-                                        <div v-for="sls in slsDataForDropdown" :key="sls.id"  class="form-check">
-                                          <input
-                                            class="form-check-input"
-                                            type="checkbox"
-                                            :id="sls.id"
-                                            :value="sls.id"
-                                            v-model="selectedEntities"
-                                          />
-                                          <label class="form-check-label" :for="sls.id">
-                                            {{ sls.full_sls_name || sls.name }}
-                                          </label>
+                                    <div class="sls-list-panel">
+                                      <input
+                                        type="text"
+                                        class="form-control form-control-sm mb-2"
+                                        v-model="slsListSearchQuery"
+                                        placeholder="Search SLS by code, name, state..."
+                                        autocomplete="off"
+                                      />
+                                      <div
+                                        v-if="selectedEntities.length > 0"
+                                        class="small text-muted mb-1"
+                                      >
+                                        {{ selectedEntities.length }} selected
+                                      </div>
+                                      <div
+                                        class="checkbox-list"
+                                        style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px;"
+                                      >
+                                        <div
+                                          v-if="filteredSlsDataForDropdown.length === 0"
+                                          class="text-muted small py-2 text-center"
+                                        >
+                                          No SLS found matching your search.
+                                        </div>
+                                        <div v-else>
+                                          <div
+                                            v-for="sls in filteredSlsDataForDropdown"
+                                            :key="sls.id"
+                                            class="form-check"
+                                          >
+                                            <input
+                                              class="form-check-input"
+                                              type="checkbox"
+                                              :id="'sls-mapping-' + sls.id"
+                                              :value="sls.id"
+                                              v-model="selectedEntities"
+                                            />
+                                            <label class="form-check-label" :for="'sls-mapping-' + sls.id">
+                                              {{ sls.full_sls_name || sls.name }}
+                                            </label>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -506,7 +528,7 @@
                           <!-- Buttons -->
                           <div class="col-12 d-flex justify-content-center">
                             <button class="btn btn-success me-1" @click="submit">Submit</button>
-                            <button class="btn btn-danger me-1">Reset</button>
+                            <button type="button" class="btn btn-danger me-1" @click="resetPDSLSMappingForm">Reset</button>
                           </div>
                         </div>
                       </div>
@@ -607,8 +629,30 @@ const getFullSlsName = (row) => {
 const savedData = ref([]);
 const pdComponentsData = ref([]);
 const slsDataForDropdown = ref([]);
+const slsListSearchQuery = ref('');
 const programDivisions = ref([]);
 const selectedEntities = ref([]);
+
+const filteredSlsDataForDropdown = computed(() => {
+  const query = slsListSearchQuery.value.trim().toLowerCase();
+  if (!query) {
+    return slsDataForDropdown.value;
+  }
+  return slsDataForDropdown.value.filter((sls) => {
+    const code = (sls.sls_code || '').toLowerCase();
+    const name = (sls.name || '').toLowerCase();
+    const fullName = (sls.full_sls_name || '').toLowerCase();
+    const stateName = (sls.state?.name || '').toLowerCase();
+    const pdName = (sls.slsPD || '').toLowerCase();
+    return (
+      code.includes(query) ||
+      name.includes(query) ||
+      fullName.includes(query) ||
+      stateName.includes(query) ||
+      pdName.includes(query)
+    );
+  });
+});
 
 const selectedComponent = ref('')
 
@@ -1000,15 +1044,16 @@ const fetchProgramDivisions = async () => {
     console.error('Error loading program divisions:', err);
   }
 };
-const formRows = ref([
-  {
-    state: '',
-    pdComponent: '',
-    slsPD: '',
-    slsId: '',
-    slsList: ''
-  }
-])
+const getEmptyFormRow = () => ({
+  state: '',
+  pdComponent: '',
+  slsPD: '',
+  slsId: '',
+  slsName: '',
+  slsList: ''
+})
+
+const formRows = ref([getEmptyFormRow()])
 
 const states = ref([])
 const pdComponentsForDropdown = ref([])
@@ -1089,28 +1134,27 @@ onMounted(async () => {
 })
 
 const addRow = () => {
-  formRows.value.push({
-    state: '',
-    pdComponent: '',
-    slsPD: '',
-    slsId: '',
-    slsName: '',
-    slsList: ''
-  })
+  formRows.value.push(getEmptyFormRow())
+}
+
+const resetRegularForm = () => {
+  selectedComponent.value = ''
+  formRows.value = [getEmptyFormRow()]
+}
+
+const resetPDSLSMappingForm = () => {
+  if (formRows.value.length > 0) {
+    formRows.value[0].slsPD = ''
+  } else {
+    formRows.value = [getEmptyFormRow()]
+  }
+  selectedEntities.value = []
+  slsListSearchQuery.value = ''
 }
 
 watch(selectedComponent, (newValue, oldValue) => {
   if (newValue !== oldValue) {
-    formRows.value = [
-      {
-        state: '',
-        pdComponent: '',
-        slsPD: '',
-        slsId: '',
-        slsName: '',
-        slsList: ''
-      }
-    ]
+    formRows.value = [getEmptyFormRow()]
     
     // If SLS ID is selected, fetch PD components for dropdown
     if (newValue === 'SL') {
@@ -1200,9 +1244,7 @@ console.log( payload)
     if (data.success) {
       alert(`Successfully updated ${data.updatedCount} mappings!`)
       // Reset form
-      formRows.value = [
-        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '', slsList: '' }
-      ]
+      resetPDSLSMappingForm()
       fetchSavedData()
       fetchSLSDataForDropdown()
     } else {
@@ -1281,10 +1323,7 @@ const submitPDSLSMappinglist = () => {
   .then(data => {
     if (data.success) {
       alert(`Successfully updated ${data.updatedCount} mappings!`)
-      // Reset form
-      formRows.value = [
-        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '', slsList: '' }
-      ]
+      resetPDSLSMappingForm()
       fetchSavedData()
       fetchSLSDataForDropdown()
     } else {
@@ -1326,10 +1365,7 @@ const submitRegularForm = () => {
 
   router.post(route('pd-sls.store'), payload, {
     onSuccess: () => {
-      selectedComponent.value = ''
-      formRows.value = [
-        { state: '', pdComponent: '', slsId: '', slsPD: '', slsName: '', slsList: '' }
-      ]
+      resetRegularForm()
       fetchSavedData()
       fetchPDComponentsData() // Refresh PD components list as well
       alert('Saved successfully!')
