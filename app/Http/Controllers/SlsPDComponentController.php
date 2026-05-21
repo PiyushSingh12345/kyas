@@ -1,5 +1,6 @@
 <?php 
 namespace App\Http\Controllers;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\DB;
@@ -133,6 +134,7 @@ class SlsPDComponentController extends Controller
                     ProgramDivision::create([
                         'division_name' => $sanitizedName,
                         'is_active' => $validated['status'],
+                        'is_pd' => 1,
                         'created_at' => now()
                     ]);
                 } else {
@@ -743,6 +745,40 @@ class SlsPDComponentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error deleting record: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Soft delete a PD component (program division).
+     */
+    public function softDeletePDComponent(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'division_id' => 'required|integer',
+            ]);
+
+            $record = ProgramDivision::where('is_pd', 1)
+                ->findOrFail($validated['division_id']);
+
+            $record->is_active = 0;
+            $record->save();
+            $record->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'PD component deleted successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error soft deleting PD component', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete PD component: ' . $e->getMessage(),
             ], 500);
         }
     }

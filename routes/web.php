@@ -296,6 +296,9 @@ Route::middleware('auth')->group(function () {
 Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDComponentsForDropdown'])->name('pd-components.dropdown');
     Route::post('/pd-sls-store', [SlsPDComponentController::class, 'store'])->name('pd-sls.store');
     Route::delete('/pd-sls/{id}', [SlsPDComponentController::class, 'destroy'])->name('pd-sls.destroy');
+    Route::post('/api/pd-component/delete', [SlsPDComponentController::class, 'softDeletePDComponent'])
+        ->middleware(['role:2,3'])
+        ->name('pd-component.delete');
     Route::post('/pd-sls/upload-excel', [SlsPDComponentController::class, 'uploadExcel'])->name('pd-sls.upload-excel');
     Route::post('/pd-sls/save-sls-data', [SlsPDComponentController::class, 'saveSLSData'])->name('pd-sls.save-sls-data');
     Route::post('/pd-sls/update-mappings', [SlsPDComponentController::class, 'updatePDSLSMappings'])->name('pd-sls.update-mappings');

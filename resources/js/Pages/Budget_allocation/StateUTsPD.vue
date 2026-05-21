@@ -317,24 +317,34 @@
 
                  <!-- PD Table -->
                 <div class="table-responsive mt-4">
-                  <DataTable :columns="pdColumns" :data="pdData" class="table table-bordered table-striped"
-                    :options="{ responsive: true, pageLength: 10, lengthChange: false }">
-                                         <template #thead>
-                       <thead>
-                         <tr>
-                           <th>S. No.</th>
-                           <th>PD Name</th>
-                         </tr>
-                       </thead>
-                     </template>
-
-                     <template #row="{ row, rowIndex }">
-                       <tr>
-                          <td>{{ row.serial }}</td>
-                         <td>{{ row.division_name }}</td>
-                       </tr>
-                     </template>
-                  </DataTable>
+                  <table class="table table-bordered table-striped">
+                    <thead>
+                      <tr>
+                        <th style="width: 80px;">S. No.</th>
+                        <th>PD Name</th>
+                        <th class="text-center" style="width: 100px;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, index) in pdData" :key="row.division_id">
+                        <td>{{ index + 1 }}</td>
+                        <td>{{ row.division_name }}</td>
+                        <td class="text-center">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-danger"
+                            @click="handleDeletePdComponent(row)"
+                            title="Delete"
+                          >
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-if="pdData.length === 0">
+                        <td colspan="3" class="text-center text-muted py-4">No PD components found</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
                         </div>
                       </div>
@@ -513,6 +523,33 @@
       </div>
       <Footer />
     </div>
+
+    <!-- PD Component Delete Confirmation Dialog -->
+    <div v-if="showDeletePdDialog" class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1055;" @click="closeDeletePdDialog">
+      <div class="modal-backdrop fade show" style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"></div>
+      <div class="modal-dialog modal-dialog-centered" role="document" style="z-index: 1055; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0;" @click.stop>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Delete</h5>
+            <button type="button" class="btn-close" @click="closeDeletePdDialog"></button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to delete this PD component?</p>
+            <p v-if="deletePdItem" class="text-muted small mt-2">
+              PD Name: <strong>{{ deletePdItem.division_name }}</strong>
+            </p>
+            <p class="text-muted small">This record will be removed from the list. The deleted data can be recovered from the database if needed.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeDeletePdDialog">Cancel</button>
+            <button type="button" class="btn btn-danger" @click="confirmDeletePdComponent" :disabled="isDeletingPd">
+              <span v-if="isDeletingPd" class="spinner-border spinner-border-sm me-1" role="status"></span>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 <script setup>
@@ -541,11 +578,6 @@ const getEntityNames = (ids) => {
 };
 
 DataTable.use(DataTablesCore)
-const pdColumns = [
-  { title: 'S. No.', data: 'serial',width: '1%' },
-  { title: 'Division Name', data: 'division_name', render: DataTablesCore.render.text() }
-]
-
 const slColumns = [
   { title: 'SLS Code', data: 'sls_code', render: DataTablesCore.render.text() },
   { title: 'SLS Name', data: 'name', render: DataTablesCore.render.text() },
@@ -556,10 +588,7 @@ const slColumns = [
   { title: 'Sharing Pattern(State)', data: 'sharing_patter_state', render: DataTablesCore.render.text() }
 ]  
 
-const pdData = computed(() =>
-  pdComponentsData.value
-    .map((item, index) => ({ ...item, serial: index + 1 }))
-)
+const pdData = computed(() => pdComponentsData.value)
 
 const slData = computed(() =>
   savedData.value
@@ -983,6 +1012,62 @@ const formRows = ref([
 
 const states = ref([])
 const pdComponentsForDropdown = ref([])
+const showDeletePdDialog = ref(false)
+const deletePdItem = ref(null)
+const isDeletingPd = ref(false)
+
+const handleDeletePdComponent = (item) => {
+  deletePdItem.value = item
+  showDeletePdDialog.value = true
+}
+
+const closeDeletePdDialog = () => {
+  showDeletePdDialog.value = false
+  deletePdItem.value = null
+  isDeletingPd.value = false
+}
+
+const confirmDeletePdComponent = async () => {
+  if (!deletePdItem.value?.division_id) {
+    closeDeletePdDialog()
+    return
+  }
+
+  isDeletingPd.value = true
+
+  try {
+    const response = await fetch('/api/pd-component/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        division_id: deletePdItem.value.division_id
+      })
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (response.ok && data.success) {
+      await Promise.all([
+        fetchPDComponentsData(),
+        fetchPDComponentsForDropdown(),
+        fetchProgramDivisions()
+      ])
+      alert('PD component deleted successfully.')
+    } else {
+      alert(data.message || 'Failed to delete PD component. Please try again.')
+    }
+  } catch (err) {
+    console.error('Error deleting PD component:', err)
+    alert('An error occurred while deleting the PD component. Please try again.')
+  } finally {
+    closeDeletePdDialog()
+  }
+}
 
 onMounted(async () => {
   fetchSavedData();
