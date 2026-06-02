@@ -105,7 +105,9 @@ class AgencyReleaseController extends Controller
                 'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
+                'expenditure' => 'required|numeric|min:0',
                 'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'isNer' => 'sometimes|boolean',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -164,7 +166,9 @@ class AgencyReleaseController extends Controller
                 'purpose_of_grant' => $validated['purposeOfGrant'],
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
+                'expenditure' => $validated['expenditure'],
                 'central_implementing_agency' => $validated['centralImplementingAgency'],
+                'is_ner' => $request->boolean('isNer'),
                 'status' => 1
             ]);
 
@@ -212,7 +216,9 @@ class AgencyReleaseController extends Controller
                 'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
+                'expenditure' => 'required|numeric|min:0',
                 'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'isNer' => 'sometimes|boolean',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -242,7 +248,9 @@ class AgencyReleaseController extends Controller
                 'purpose_of_grant' => $validated['purposeOfGrant'],
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
+                'expenditure' => $validated['expenditure'],
                 'central_implementing_agency' => $validated['centralImplementingAgency'],
+                'is_ner' => $request->boolean('isNer'),
             ]);
 
             $this->saveAgencyReleaseHistory('tsa', $tsa, 'UPDATE', 'TSA record updated');
@@ -651,7 +659,9 @@ class AgencyReleaseController extends Controller
                         'program_division' => $record->programDivision->division_name ?? '',
                         'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
+                        'expenditure' => $record->expenditure,
                         'central_implementing_agency' => $record->central_implementing_agency,
+                        'is_ner' => $record->is_ner,
                         'status' => $record->status,
                         'created_at' => $record->created_at,
                         'updated_at' => $record->updated_at,
@@ -808,6 +818,8 @@ class AgencyReleaseController extends Controller
 
                 if ($type === 'tsa') {
                     $recordData['central_implementing_agency'] = $record->central_implementing_agency;
+                    $recordData['expenditure'] = $record->expenditure;
+                    $recordData['is_ner'] = $record->is_ner;
                 } elseif ($type === 'loa') {
                     $recordData['ut'] = $record->ut;
                 } else {

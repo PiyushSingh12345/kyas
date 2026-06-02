@@ -159,6 +159,23 @@
                         </div>
                       </div>
 
+                      <!-- Expenditure -->
+                      <div class="col-md-6 col-lg-4">
+                        <div class="form-group">
+                          <label for="expenditure">Expenditure <span class="text-danger">*</span></label>
+                          <input
+                            type="number"
+                            class="form-control"
+                            id="expenditure"
+                            v-model="formData.expenditure"
+                            step="0.01"
+                            min="0"
+                            placeholder="Enter Expenditure"
+                            required
+                          >
+                        </div>
+                      </div>
+
                       <!-- Central Implementing Agency -->
                       <div class="col-md-6 col-lg-4">
                         <div class="form-group">
@@ -172,6 +189,24 @@
                             placeholder="Enter Central Implementing Agency"
                             required
                           >
+                        </div>
+                      </div>
+
+                      <!-- NER -->
+                      <div class="col-md-6 col-lg-4">
+                        <div class="form-group">
+                          <label class="d-block mb-2">NER</label>
+                          <div class="form-check">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              id="isNer"
+                              v-model="formData.isNer"
+                            >
+                            <label class="form-check-label" for="isNer">
+                              North Eastern Region (NER)
+                            </label>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -213,7 +248,9 @@ const formData = ref({
   purposeOfGrant: '',
   programDivision: '',
   amount: '',
-  centralImplementingAgency: ''
+  expenditure: '',
+  centralImplementingAgency: '',
+  isNer: false
 })
 
 const budgetHeads = ref([])
@@ -353,7 +390,9 @@ const resetForm = (hideMessage = true) => {
     purposeOfGrant: '',
     programDivision: '',
     amount: '',
-    centralImplementingAgency: ''
+    expenditure: '',
+    centralImplementingAgency: '',
+    isNer: false
   }
   
   // Reset balanced fund amount
@@ -374,7 +413,7 @@ const submitForm = async () => {
   // Validation
   if (!formData.value.sanctionNumber || !formData.value.date || !formData.value.budgetHead || 
       !formData.value.purposeOfGrant || !formData.value.programDivision || 
-      !formData.value.amount || !formData.value.centralImplementingAgency) {
+      !formData.value.amount || !formData.value.expenditure || !formData.value.centralImplementingAgency) {
     showFlashMessage('danger', 'Please fill in all required fields', 'fas fa-exclamation-triangle')
     return
   }
@@ -397,7 +436,9 @@ const submitForm = async () => {
       purposeOfGrant: formData.value.purposeOfGrant,
       programDivision: parseInt(formData.value.programDivision),
       amount: parseFloat(formData.value.amount),
-      centralImplementingAgency: formData.value.centralImplementingAgency
+      expenditure: parseFloat(formData.value.expenditure),
+      centralImplementingAgency: formData.value.centralImplementingAgency,
+      isNer: Boolean(formData.value.isNer)
     }
 
     const response = await fetch('/api/agency-release-tsa', {
@@ -456,8 +497,14 @@ const prefillFormFromURL = async () => {
     if (urlParams.get('amount')) {
       formData.value.amount = urlParams.get('amount');
     }
+    if (urlParams.get('expenditure')) {
+      formData.value.expenditure = urlParams.get('expenditure');
+    }
     if (urlParams.get('centralImplementingAgency')) {
       formData.value.centralImplementingAgency = urlParams.get('centralImplementingAgency');
+    }
+    if (urlParams.get('isNer')) {
+      formData.value.isNer = urlParams.get('isNer') === 'true' || urlParams.get('isNer') === '1';
     }
   }
 }

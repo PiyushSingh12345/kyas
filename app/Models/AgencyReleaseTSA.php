@@ -19,13 +19,17 @@ class AgencyReleaseTSA extends Model
         'purpose_of_grant',
         'program_division_id',
         'amount',
+        'expenditure',
         'central_implementing_agency',
+        'is_ner',
         'status'
     ];
 
     protected $casts = [
         'date' => 'date',
         'amount' => 'decimal:2',
+        'expenditure' => 'decimal:2',
+        'is_ner' => 'boolean',
         'status' => 'boolean'
     ];
 

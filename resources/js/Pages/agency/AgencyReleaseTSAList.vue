@@ -64,7 +64,8 @@
                             <th>Budget Head</th>
                             <th>Purpose of Grant</th>
                             <th>Program Division</th>
-                            <th>Amount/Release/Expenditure</th>
+                            <th>Amount</th>
+                            <th>Expenditure</th>
                             <th>Central Implementing Agency</th>
                             <th>Action</th>
                             <th>Created At</th>
@@ -78,6 +79,7 @@
                             <td>{{ item.purpose_of_grant }}</td>
                             <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
+                            <td class="currency-cell">{{ formatCurrency(item.expenditure) }}</td>
                             <td>{{ item.central_implementing_agency }}</td>
                             <td class="text-center">
                               <div class="d-flex justify-content-center gap-1">
@@ -101,7 +103,7 @@
                           </tr>
                           
                           <tr v-if="tsaList.length === 0">
-                            <td colspan="9" class="text-center text-muted py-4">
+                            <td colspan="10" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No TSA data available
                             </td>
@@ -229,8 +231,30 @@
                 </div>
                 <div class="col-md-6">
                   <div class="form-group mb-3">
+                    <label for="editExpenditure">Expenditure <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="editExpenditure" v-model="editForm.expenditure" step="0.01" min="0" required>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
                     <label for="editCentralAgency">Central Implementing Agency <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="editCentralAgency" v-model="editForm.centralImplementingAgency" required>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label class="d-block mb-2">NER</label>
+                    <div class="form-check">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="editIsNer"
+                        v-model="editForm.isNer"
+                      >
+                      <label class="form-check-label" for="editIsNer">
+                        North Eastern Region (NER)
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -307,7 +331,9 @@ const editForm = ref({
   purposeOfGrant: '',
   programDivision: '',
   amount: '',
-  centralImplementingAgency: ''
+  expenditure: '',
+  centralImplementingAgency: '',
+  isNer: false
 })
 
 const editAmountExceedsBalance = computed(() => {
@@ -498,7 +524,9 @@ const confirmRevise = async () => {
         purposeOfGrant: result.data.purpose_of_grant || '',
         programDivision: result.data.program_division_id || '',
         amount: result.data.amount || '',
-        centralImplementingAgency: result.data.central_implementing_agency || ''
+        expenditure: result.data.expenditure || '',
+        centralImplementingAgency: result.data.central_implementing_agency || '',
+        isNer: result.data.is_ner ? 'true' : 'false'
       });
       
       // Redirect to the TSA form with prefilled data
@@ -573,7 +601,9 @@ const handleEdit = async (item) => {
     purposeOfGrant: item.purpose_of_grant || '',
     programDivision: item.program_division_id || '',
     amount: item.amount ?? '',
-    centralImplementingAgency: item.central_implementing_agency || ''
+    expenditure: item.expenditure ?? '',
+    centralImplementingAgency: item.central_implementing_agency || '',
+    isNer: Boolean(item.is_ner)
   }
   showEditDialog.value = true
   await fetchEditBalancedFundAmount()
@@ -608,7 +638,9 @@ const submitEdit = async () => {
         purposeOfGrant: editForm.value.purposeOfGrant,
         programDivision: parseInt(editForm.value.programDivision, 10),
         amount: parseFloat(editForm.value.amount),
-        centralImplementingAgency: editForm.value.centralImplementingAgency
+        expenditure: parseFloat(editForm.value.expenditure),
+        centralImplementingAgency: editForm.value.centralImplementingAgency,
+        isNer: Boolean(editForm.value.isNer)
       })
     })
 
