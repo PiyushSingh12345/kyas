@@ -227,7 +227,7 @@ import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
 import { ref, onMounted, watch } from 'vue'
-import { useAmountIn } from '../../composables/useAmountIn'
+import { useAmountIn } from '../../Composables/useAmountIn'
 
 export default {
   name: 'BudgetPhaseReport',

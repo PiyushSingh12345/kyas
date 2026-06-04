@@ -453,7 +453,7 @@ import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 import { AMOUNT_IN_OPTIONS } from '../../utils/amountFormat'
-import { useAmountIn } from '../../composables/useAmountIn'
+import { useAmountIn } from '../../Composables/useAmountIn'
 
 const showFilters = ref(false)
 const selectedMetrics = ref(['Center Share Amount', 'Mother Sanction Amount', 'Available Amount'])

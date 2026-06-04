@@ -253,7 +253,7 @@ import { ref, reactive, computed } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
 import * as XLSX from 'xlsx'
 import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
-import { useAmountIn } from '../../composables/useAmountIn'
+import { useAmountIn } from '../../Composables/useAmountIn'
 
 export default {
   name: 'BudgetPhase',

@@ -295,7 +295,7 @@ import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
-import { useAmountIn } from '../../composables/useAmountIn'
+import { useAmountIn } from '../../Composables/useAmountIn'
 
 const motherSanctions = ref([])
 const allMotherSanctions = ref([])

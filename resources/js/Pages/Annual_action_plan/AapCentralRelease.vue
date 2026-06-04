@@ -741,7 +741,7 @@
   import Sidebar from '../Common/Sidebar.vue'
   import Footer from '../Common/Footer.vue'
   import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
-  import { useAmountIn } from '../../composables/useAmountIn'
+  import { useAmountIn } from '../../Composables/useAmountIn'
   
   // Amount In (base values in Lakhs)
   const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
