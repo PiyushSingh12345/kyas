@@ -12,12 +12,18 @@ use Illuminate\Support\Facades\Log;
 
 class SlsPDComponentController extends Controller
 {
-    private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
+    private const FORBIDDEN_TEXT_CHARS_PATTERN = '/[<>"\\\\`\x00-\x1F\x7F]/u';
     private const SAFE_SLS_CODE_PATTERN = '/^[A-Za-z0-9\-_\/.]+$/';
 
     private function sanitizeText(?string $value): string
     {
         $clean = trim(strip_tags((string) $value));
+        $clean = str_replace(
+            ["\u{2013}", "\u{2014}", "\u{2212}", "\u{2010}", "\u{00A0}", "\u{2018}", "\u{2019}", "\u{201C}", "\u{201D}"],
+            ['-', '-', '-', '-', ' ', "'", "'", '"', '"'],
+            $clean
+        );
+
         return preg_replace('/[\x00-\x1F\x7F]/u', '', $clean) ?? '';
     }
 
@@ -101,18 +107,18 @@ class SlsPDComponentController extends Controller
             'component' => 'required|in:PD,SL',
             'comValue' => 'required|array',
             'comValue.*.state' => 'nullable|integer',
-            'comValue.*.name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-            'comValue.*.slsPD' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'comValue.*.name' => ['required', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
+            'comValue.*.slsPD' => ['nullable', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
             'comValue.*.slsCode' => ['nullable', 'string', 'max:100', 'regex:' . self::SAFE_SLS_CODE_PATTERN],
-            'comValue.*.slsName' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-            'comValue.*.fullSlsName' => ['nullable', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'comValue.*.slsName' => ['nullable', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
+            'comValue.*.fullSlsName' => ['nullable', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
             'status' => 'required|in:0,1'
         ], [
-            'comValue.*.name.regex' => 'Component name contains invalid special characters.',
-            'comValue.*.slsPD.regex' => 'PD/SLS mapping contains invalid special characters.',
+            'comValue.*.name.not_regex' => 'Component name contains invalid special characters.',
+            'comValue.*.slsPD.not_regex' => 'PD/SLS mapping contains invalid special characters.',
             'comValue.*.slsCode.regex' => 'SLS code contains invalid special characters.',
-            'comValue.*.slsName.regex' => 'SLS name contains invalid special characters.',
-            'comValue.*.fullSlsName.regex' => 'Full SLS name contains invalid special characters.',
+            'comValue.*.slsName.not_regex' => 'SLS name contains invalid special characters.',
+            'comValue.*.fullSlsName.not_regex' => 'Full SLS name contains invalid special characters.',
         ]);
 
         try {
@@ -555,15 +561,15 @@ class SlsPDComponentController extends Controller
         $request->validate([
             'data' => 'required|array',
             'data.*.slsCode' => ['required', 'string', 'max:100', 'regex:' . self::SAFE_SLS_CODE_PATTERN],
-            'data.*.slsName' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-            'data.*.stateName' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'data.*.slsName' => ['required', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
+            'data.*.stateName' => ['required', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
             'data.*.sgAccount' => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9\-\/\s]*$/'],
             'data.*.sharingPatternCentre' => 'nullable|string|max:50',
             'data.*.sharingPatternState' => 'nullable|string|max:50'
         ], [
             'data.*.slsCode.regex' => 'SLS code contains invalid special characters.',
-            'data.*.slsName.regex' => 'SLS name contains invalid special characters.',
-            'data.*.stateName.regex' => 'State name contains invalid special characters.',
+            'data.*.slsName.not_regex' => 'SLS name contains invalid special characters.',
+            'data.*.stateName.not_regex' => 'State name contains invalid special characters.',
             'data.*.sgAccount.regex' => 'SG account contains invalid special characters.',
         ]);
 
@@ -787,10 +793,10 @@ class SlsPDComponentController extends Controller
     {
         $request->validate([
             'mappings' => 'required|array',
-            'mappings.*.pd_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'mappings.*.pd_name' => ['required', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
             'mappings.*.sls_id' => 'required|integer'
         ], [
-            'mappings.*.pd_name.regex' => 'PD name contains invalid special characters.',
+            'mappings.*.pd_name.not_regex' => 'PD name contains invalid special characters.',
         ]);
 // var_dump($request->mappings);
 // die;
