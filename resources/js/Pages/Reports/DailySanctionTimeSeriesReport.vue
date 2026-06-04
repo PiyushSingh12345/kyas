@@ -48,7 +48,7 @@
           <div class="info-notes mb-3">
             <small class="text-muted">
               <span class="me-3">Source: KYAS System</span>
-              <span class="me-3">Amount in Lakh Rupees</span>
+              <span class="me-3">Amount in {{ amountInText }}</span>
               <span class="me-3">Data updated as of latest entries</span>
             </small>
           </div>
@@ -86,11 +86,11 @@
               </div>
 
               <div class="filter-group">
-                <label class="filter-label">UOM</label>
-                <select v-model="uom" class="form-select form-select-sm">
-                  <option value="Lakh">Lakh</option>
-                  <option value="Crore">Crore</option>
-                  <option value="Thousand">Thousand</option>
+                <label class="filter-label">Amount In</label>
+                <select v-model="amountIn" class="form-select form-select-sm">
+                  <option v-for="opt in AMOUNT_IN_OPTIONS" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
                 </select>
               </div>
 
@@ -452,11 +452,13 @@ import { ref, computed, onMounted } from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import { AMOUNT_IN_OPTIONS } from '../../utils/amountFormat'
+import { useAmountIn } from '../../composables/useAmountIn'
 
 const showFilters = ref(false)
 const selectedMetrics = ref(['Center Share Amount', 'Mother Sanction Amount', 'Available Amount'])
 const tempMetric = ref('')
-const uom = ref('Lakh')
+const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
 const groupBy = ref('state')
 const selectedState = ref('')
 const selectedYear = ref('')
@@ -474,19 +476,7 @@ const groupedData = computed(() => {
 })
 
 function formatValue(value) {
-  let num = parseFloat(value) || 0
-  
-  // Apply UOM conversion
-  if (uom.value === 'Crore') {
-    num = num / 100
-  } else if (uom.value === 'Thousand') {
-    num = num * 10
-  }
-  
-  return num.toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
+  return formatAmount(value)
 }
 
 function getMetricClass(metric) {

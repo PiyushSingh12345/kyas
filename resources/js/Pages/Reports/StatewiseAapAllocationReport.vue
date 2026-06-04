@@ -27,7 +27,7 @@
                 <div class="card">
 					<div class="card-header">
 						<div class="card-title d-flex justify-content-between align-items-center">
-							<span>Statewise AAP Allocation Report for FY {{ selectedFinancialYear }} (₹ In Lakhs)</span>
+							<span>Statewise AAP Allocation Report for FY {{ selectedFinancialYear }} (₹ In {{ amountInText }})</span>
 						</div>
 					</div>
 
@@ -69,6 +69,9 @@
 														<option value="2022-23">2022-23</option>
 													</select>
 												</div>
+												
+												<!-- Amount In Filter -->
+												<AmountInFilter v-model="amountIn" col-class="col-md-3" input-id="amountInSelect" />
 
 												<!-- State Filter (Multiselect) -->
 												<div class="col-md-4">
@@ -259,29 +262,29 @@
 											<td class="fw-bold fw-sticky">{{ state.state_name }}</td>
 											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<td class="text-center">
-													{{ getTentativeAllocation(state.state_id, pd.division_id) }}
+													{{ formatCell(getTentativeAllocation(state.state_id, pd.division_id)) }}
 												</td>
 												<td class="text-center">
-													{{ getFinalAllocation(state.state_id, pd.division_id) }}
+													{{ formatCell(getFinalAllocation(state.state_id, pd.division_id)) }}
 												</td>
 												<td class="text-center">
-													{{ getRelease(state.state_id, pd.division_id) }}
+													{{ formatCell(getRelease(state.state_id, pd.division_id)) }}
 												</td>
 												<td class="text-center">
-													{{ getExpenditure(state.state_id, pd.division_id) }}
+													{{ formatCell(getExpenditure(state.state_id, pd.division_id)) }}
 												</td>
 											</template>
 											<td class="text-center fw-bold bg-info-subtle">
-												{{ calculateStateTentativeTotal(state.state_id) }}
+												{{ formatCell(calculateStateTentativeTotal(state.state_id)) }}
 											</td>
 											<td class="text-center fw-bold bg-info-subtle">
-												{{ calculateStateFinalTotal(state.state_id) }}
+												{{ formatCell(calculateStateFinalTotal(state.state_id)) }}
 											</td>
 											<td class="text-center fw-bold bg-success-subtle">
-												{{ calculateStateReleaseTotal(state.state_id) }}
+												{{ formatCell(calculateStateReleaseTotal(state.state_id)) }}
 											</td>
 											<td class="text-center fw-bold bg-success-subtle">
-												{{ calculateStateExpenditureTotal(state.state_id) }}
+												{{ formatCell(calculateStateExpenditureTotal(state.state_id)) }}
 											</td>
 										</tr>
 										
@@ -290,29 +293,29 @@
 											<td class="fw-sticky">Total</td>
 											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<td class="text-center">
-													{{ calculateTentativeColumnTotal(pd.division_id) }}
+													{{ formatCell(calculateTentativeColumnTotal(pd.division_id)) }}
 												</td>
 												<td class="text-center">
-													{{ calculateFinalColumnTotal(pd.division_id) }}
+													{{ formatCell(calculateFinalColumnTotal(pd.division_id)) }}
 												</td>
 												<td class="text-center">
-													{{ calculateReleaseColumnTotal(pd.division_id) }}
+													{{ formatCell(calculateReleaseColumnTotal(pd.division_id)) }}
 												</td>
 												<td class="text-center">
-													{{ calculateExpenditureColumnTotal(pd.division_id) }}
+													{{ formatCell(calculateExpenditureColumnTotal(pd.division_id)) }}
 												</td>
 											</template>
 											<td class="text-center bg-info-subtle">
-												{{ calculateGrandTentativeTotal() }}
+												{{ formatCell(calculateGrandTentativeTotal()) }}
 											</td>
 											<td class="text-center bg-info-subtle">
-												{{ calculateGrandFinalTotal() }}
+												{{ formatCell(calculateGrandFinalTotal()) }}
 											</td>
 											<td class="text-center bg-success-subtle">
-												{{ calculateGrandReleaseTotal() }}
+												{{ formatCell(calculateGrandReleaseTotal()) }}
 											</td>
 											<td class="text-center bg-success-subtle">
-												{{ calculateGrandExpenditureTotal() }}
+												{{ formatCell(calculateGrandExpenditureTotal()) }}
 											</td>
 										</tr>
 									</tbody>
@@ -337,6 +340,8 @@ import * as XLSX from 'xlsx'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+import { useAmountIn } from '../../composables/useAmountIn'
 
 // Reactive data
 const states = ref([])
@@ -357,6 +362,11 @@ const showStateDropdown = ref(false)
 const showPdDropdown = ref(false)
 const highlightedStateIndex = ref(-1)
 const highlightedPdIndex = ref(-1)
+
+// Amount In (base values in this report are Lakhs)
+const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
+const amountFractionDigits = computed(() => (amountIn.value === 'Rupees' ? 2 : 5))
+const formatCell = (value) => formatAmount(value, { fractionDigits: amountFractionDigits.value })
 
 // Fetch states from API
 const fetchStates = async () => {
@@ -741,19 +751,19 @@ const prepareTableData = () => {
     // Add PD columns
     filteredProgramDivisions.value.forEach(pd => {
       row.push(
-        getTentativeAllocation(state.state_id, pd.division_id),
-        getFinalAllocation(state.state_id, pd.division_id),
-        getRelease(state.state_id, pd.division_id),
-        getExpenditure(state.state_id, pd.division_id)
+        formatCell(getTentativeAllocation(state.state_id, pd.division_id)),
+        formatCell(getFinalAllocation(state.state_id, pd.division_id)),
+        formatCell(getRelease(state.state_id, pd.division_id)),
+        formatCell(getExpenditure(state.state_id, pd.division_id))
       )
     })
     
     // Add summary columns
     row.push(
-      calculateStateTentativeTotal(state.state_id),
-      calculateStateFinalTotal(state.state_id),
-      calculateStateReleaseTotal(state.state_id),
-      calculateStateExpenditureTotal(state.state_id)
+      formatCell(calculateStateTentativeTotal(state.state_id)),
+      formatCell(calculateStateFinalTotal(state.state_id)),
+      formatCell(calculateStateReleaseTotal(state.state_id)),
+      formatCell(calculateStateExpenditureTotal(state.state_id))
     )
     
     data.push(row)
@@ -763,17 +773,17 @@ const prepareTableData = () => {
   const totalRow = ['Total']
   filteredProgramDivisions.value.forEach(pd => {
     totalRow.push(
-      calculateTentativeColumnTotal(pd.division_id),
-      calculateFinalColumnTotal(pd.division_id),
-      calculateReleaseColumnTotal(pd.division_id),
-      calculateExpenditureColumnTotal(pd.division_id)
+      formatCell(calculateTentativeColumnTotal(pd.division_id)),
+      formatCell(calculateFinalColumnTotal(pd.division_id)),
+      formatCell(calculateReleaseColumnTotal(pd.division_id)),
+      formatCell(calculateExpenditureColumnTotal(pd.division_id))
     )
   })
   totalRow.push(
-    calculateGrandTentativeTotal(),
-    calculateGrandFinalTotal(),
-    calculateGrandReleaseTotal(),
-    calculateGrandExpenditureTotal()
+    formatCell(calculateGrandTentativeTotal()),
+    formatCell(calculateGrandFinalTotal()),
+    formatCell(calculateGrandReleaseTotal()),
+    formatCell(calculateGrandExpenditureTotal())
   )
   data.push(totalRow)
   

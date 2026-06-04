@@ -58,6 +58,12 @@
 												</div>
 											</div>
 
+                      <AmountInFilter
+                        v-model="amountIn"
+                        col-class="col-md-4 col-lg-4"
+                        input-id="amountInSelect"
+                      />
+
 
 <div class="col-md-4 col-lg-4">
 												<div class="form-group">
@@ -109,7 +115,7 @@
 														<tr>
 															<td></td>
 															<td width="20%">
-																<label class="highlight_textbox">Amount Avail in {{ budgetPhase }}</label>
+																<label class="highlight_textbox">Amount Avail in {{ budgetPhase }} ({{ amountInText }})</label>
 															</td>
 															<td v-for="(component, index) in availableComponents" :key="'pd-label-' + index">
 																<label class="highlight_textbox">{{ component.name }}</label>
@@ -118,10 +124,10 @@
 														<tr>
 															<td></td>
 															<td>
-																<input type="text" class="form-control" :value="budgetData.reduce((total, category) => total + category.budgetArray.reduce((sum, item) => sum + item.amount, 0), 0).toLocaleString()" disabled />
+																<input type="text" class="form-control text-end" :value="formatAmount(budgetData.reduce((total, category) => total + category.budgetArray.reduce((sum, item) => sum + item.amount, 0), 0))" disabled />
 															</td>
 															<td v-for="(component, pdIndex) in availableComponents" :key="'total-pd-' + pdIndex">
-																<input type="text" class="form-control" :value="budgetData.reduce((categorySum, category) => categorySum + category.budgetArray.reduce((budgetSum, item) => budgetSum + (item.sls_pd && item.sls_pd[component.name] ? item.sls_pd[component.name] : 0), 0), 0)" disabled />
+																<input type="text" class="form-control text-end" :value="formatAmount(budgetData.reduce((categorySum, category) => categorySum + category.budgetArray.reduce((budgetSum, item) => budgetSum + (item.sls_pd && item.sls_pd[component.name] ? item.sls_pd[component.name] : 0), 0), 0))" disabled />
 															</td>
 														</tr>
 														<template v-for="(category, cIdx) in budgetData" :key="'category-' + cIdx">
@@ -133,10 +139,10 @@
 																	<input style="width: 135px;" type="text" class="form-control tableform-control-withoutbg" :placeholder="budget.budget" disabled />
 																</td>
 																<td>
-																	<input type="text" class="form-control tableform-control-withoutbg" :value="budget.amount" disabled />
+																	<input type="text" class="form-control tableform-control-withoutbg text-end" :value="formatAmount(budget.amount)" disabled />
 																</td>
 																<td v-for="(component, pdIndex) in availableComponents" :key="'pd-input-' + cIdx + '-' + bIdx + '-' + pdIndex">
-																	<input type="text" class="form-control tableform-control-withoutbg" :value="budget.sls_pd && budget.sls_pd[component.name] ? budget.sls_pd[component.name] : 0" disabled />
+																	<input type="text" class="form-control tableform-control-withoutbg text-end" :value="formatAmount(budget.sls_pd && budget.sls_pd[component.name] ? budget.sls_pd[component.name] : 0)" disabled />
 																</td>
 															</tr>
 														</template>
@@ -286,11 +292,14 @@ import { ref, reactive, computed, watch, onMounted } from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+import { useAmountIn } from '../../composables/useAmountIn'
 
 const fundAllocationFor = ref('2435')
 const financialYear = ref('')
 const budgetPhase = ref('')
 const selectedState = ref('')
+const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
 const states = ref([])
 const availableComponents = ref([])
 const budgetData = ref([])
@@ -365,4 +374,5 @@ onMounted(() => {
 const canShowTable = computed(() => {
   return fundAllocationFor.value && financialYear.value && budgetPhase.value && (['2435'].includes(fundAllocationFor.value) || selectedState.value)
 })
+
 </script>

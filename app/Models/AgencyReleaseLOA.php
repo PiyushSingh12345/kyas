@@ -20,6 +20,7 @@ class AgencyReleaseLOA extends Model
         'program_division_id',
         'amount',
         'ut',
+        'remark',
         'status'
     ];
 

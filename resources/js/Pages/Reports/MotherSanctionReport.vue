@@ -254,7 +254,7 @@
                     <h6 class="fw-bold text-primary">
                       Total Sanction Amount: 
                       <span class="text-success">
-                        {{ totalSanctionAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                        {{ formatIndianNumber(totalSanctionAmount, { fractionDigits: 2 }) }}
                       </span>
                     </h6>
                   </div>
@@ -327,6 +327,7 @@ import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 import { router } from '@inertiajs/vue3'
+import { formatIndianNumber } from '../../utils/amountFormat'
 
 // State and form data
 const motherSanctions = ref([])

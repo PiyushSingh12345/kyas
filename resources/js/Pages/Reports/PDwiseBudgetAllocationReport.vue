@@ -100,6 +100,9 @@
 														  <option value="FE">FE</option>
 													  </select>
 												  </div>
+												  
+												  <!-- Amount In Filter -->
+												  <AmountInFilter v-model="amountIn" col-class="col-md-3" input-id="amountInSelect" />
 
 												  <!-- Program Division Filter -->
 												  <div class="col-md-3">
@@ -293,6 +296,17 @@
 																  Include 3601 Head under 2552 Major Head
 															  </label>
 														  </div>
+														  <div class="form-check">
+															  <input 
+																  class="form-check-input" 
+																  type="checkbox" 
+																  id="include2552In2435"
+																  v-model="include2552In2435"
+															  >
+															  <label class="form-check-label" for="include2552In2435">
+																  Include 2552 Head under 2435 Major Head
+															  </label>
+														  </div>
 													  </div>
 												  </div>
 											  </div>
@@ -396,9 +410,9 @@
 										  <tr>
 											  <th class="align-middle">Unified HoA-KY</th>
 											  <th v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												 ₹ In Lakhs
+												 ₹ In {{ amountInText }}
 											  </th>
-											  <th class="align-middle">₹ In Lakhs</th>
+											  <th class="align-middle">₹ In {{ amountInText }}</th>
 										  </tr>
 									  </thead>
 									  <tbody>
@@ -411,10 +425,10 @@
 											  </td>
 											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id" class="text-center fw-bold total-cell" 
 												   :title="`Total for ${pd.division_name} under ${category.label}`">
-												{{ calculateMajorHeadTotalForPD(category.label, pd.division_id) }}
+												{{ formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id)) }}
 											  </td>
 											  <td class="text-center fw-bold grand-total-cell" title="Grand total for all program divisions">
-												{{ calculateMajorHeadTotal(category.label) }}
+												{{ formatCell(calculateMajorHeadTotal(category.label)) }}
 											  </td>
 											</tr>
 											
@@ -428,10 +442,10 @@
 											  </td>
 											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id" class="text-center fw-bold total-cell"
 												   :title="`Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
-												{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead) }}
+												{{ formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead)) }}
 											  </td>
 											  <td class="text-center fw-bold grand-total-cell" title="Grand total for all program divisions">
-												{{ calculateSubcategoryTotal(category.label, category.parentMajorHead) }}
+												{{ formatCell(calculateSubcategoryTotal(category.label, category.parentMajorHead)) }}
 											  </td>
 											</tr>
 											
@@ -443,10 +457,10 @@
 												{{ bh.budget_code }} - {{ bh.budget_name }}
 											  </td>
 											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id" class="text-center">
-												{{ allocationData[bh.bh_id]?.[pd.division_id] || '0.00000' }}
+												{{ formatCell(getDisplayAllocation(bh, pd.division_id)) }}
 											  </td>
 											  <td class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotal(bh.bh_id) }}
+												{{ formatCell(calculateRowTotal(bh.bh_id)) }}
 											  </td>
 											</tr>
 										  </template>
@@ -455,10 +469,10 @@
 										  <tr class="table-warning fw-bold">
 											  <td>Total</td>
 											  <td v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												  {{ calculateColumnTotal(pd.division_id) }}
+												  {{ formatCell(calculateColumnTotal(pd.division_id)) }}
 											  </td>
 											  <td class="text-center grand-total">
-												  {{ calculateGrandTotal() }}
+												  {{ formatCell(calculateGrandTotal()) }}
 											  </td>
 										  </tr>
 										</tbody>
@@ -498,6 +512,8 @@
   import Header from '../Common/Header.vue'
   import Sidebar from '../Common/Sidebar.vue'
   import Footer from '../Common/Footer.vue'
+  import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+  import { useAmountIn } from '../../composables/useAmountIn'
   
   // Reactive data
   const budgetHeads = ref([])
@@ -525,10 +541,35 @@
   
   // Major head options
   const include3601In2552 = ref(false)
+  const include2552In2435 = ref(false)
+
+  // Mapping: 2552 budget heads → 2435 detail heads (Re-appropriated from 2552 to 2435 for NE states)
+  const MAPPING_2552_TO_2435 = {
+    '2552.00.342.03.00.31': '2435.60.103.04.00.31',   // GIA General- Gen
+    '2552.00.789.51.00.31': '2435.60.789.02.00.31',   // GIA General- SCSP
+    '2552.00.796.59.00.31': '2435.60.796.02.00.31',   // GIA General- DAPST
+  }
+  const buildReverse2552Mapping = (forwardMapping) => {
+    const reverse = {}
+    Object.keys(forwardMapping).forEach(code2552 => {
+      const codeTarget = forwardMapping[code2552]
+      reverse[codeTarget] = code2552
+      const digitsTarget = codeTarget.replace(/[^0-9]/g, '')
+      if (digitsTarget) reverse[digitsTarget] = code2552
+    })
+    return reverse
+  }
+  const MAPPING_2435_FROM_2552 = buildReverse2552Mapping(MAPPING_2552_TO_2435)
+
   const showBudgetHeadDropdown = ref(false)
   const highlightedPdIndex = ref(-1)
   const highlightedMajorHeadIndex = ref(-1)
   const highlightedBudgetHeadIndex = ref(-1)
+  
+  // Amount In (base values in Lakhs)
+  const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
+  const amountFractionDigits = computed(() => (amountIn.value === 'Rupees' ? 2 : 5))
+  const formatCell = (value) => formatAmount(value, { fractionDigits: amountFractionDigits.value })
 
   // Function to categorize budget heads based on the logic provided
   const categorizeBudgetHeads = (budgetHeadsList, includeHeads3601In2552 = false) => {
@@ -1054,24 +1095,71 @@
 	
 	console.log('Final allocation data structure:', allocationData.value)
   }
+
+  const getBhByBudgetCode = (code) => {
+	if (!code) return null
+	const list = budgetHeads.value || []
+	const c = String(code).trim()
+	const cDig = c.replace(/[^0-9]/g, '')
+	for (let i = 0; i < list.length; i++) {
+	  const bh = list[i]
+	  const bc = bh.budget_code ? String(bh.budget_code).trim() : ''
+	  if (bc === c) return bh
+	  if (bc.replace(/[^0-9]/g, '') === cDig) return bh
+	}
+	return null
+  }
+
+  const addMapped2552Amount = (baseValue, bh, pdId, majorHead, includeFlag, reverseMapping) => {
+	let v = baseValue
+	if (!includeFlag || !bh?.budget_code) return v
+	const code = String(bh.budget_code).trim()
+	const codeDig = code.replace(/[^0-9]/g, '')
+	const majorPrefix = codeDig.substring(0, 4) || code.substring(0, 4)
+	if (majorPrefix !== majorHead) return v
+	const code2552 = reverseMapping[code] || reverseMapping[codeDig]
+	if (!code2552) return v
+	const bh2552 = getBhByBudgetCode(code2552)
+	if (!bh2552) return v
+	return v + (parseFloat(allocationData.value[bh2552.bh_id]?.[pdId]) || 0)
+  }
+
+  const getDisplayAllocation = (bh, pdId) => {
+	let v = parseFloat(allocationData.value[bh?.bh_id]?.[pdId]) || 0
+	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552)
+	return v
+  }
   
   // Calculate column total
   const calculateColumnTotal = (pdId) => {
 	let total = 0
 	const allBudgetHeads = getAllBudgetHeads()
 	allBudgetHeads.forEach(bh => {
-	  const value = parseFloat(allocationData.value[bh.bh_id][pdId]) || 0
-	  total += value
+	  total += getDisplayAllocation(bh, pdId)
 	})
 	return total.toFixed(5)
   }
 
-  // Calculate row total for a specific budget head
-  const calculateRowTotal = (bhId) => {
+  const resolveBudgetHead = (bhOrId) => {
+	if (bhOrId && typeof bhOrId === 'object') return bhOrId
+	return getAllBudgetHeads().find(bh => bh.bh_id === bhOrId) || budgetHeads.value.find(bh => bh.bh_id === bhOrId) || null
+  }
+
+  // Calculate row total for a specific budget head (includes mapped 2552 amounts when enabled)
+  const calculateRowTotal = (bhOrId) => {
+	const bh = resolveBudgetHead(bhOrId)
+	if (!bh) return '0.00000'
 	let total = 0
 	programDivisions.value.forEach(pd => {
-	  const value = parseFloat(allocationData.value[bhId][pd.division_id]) || 0
-	  total += value
+	  total += getDisplayAllocation(bh, pd.division_id)
+	})
+	return total.toFixed(5)
+  }
+
+  const calculateRowTotalRaw = (bhId) => {
+	let total = 0
+	programDivisions.value.forEach(pd => {
+	  total += parseFloat(allocationData.value[bhId]?.[pd.division_id]) || 0
 	})
 	return total.toFixed(5)
   }
@@ -1082,8 +1170,7 @@
 	const allBudgetHeads = getAllBudgetHeads()
 	allBudgetHeads.forEach(bh => {
 	  programDivisions.value.forEach(pd => {
-		const value = parseFloat(allocationData.value[bh.bh_id][pd.division_id]) || 0
-		total += value
+		total += getDisplayAllocation(bh, pd.division_id)
 	  })
 	})
 	return total.toFixed(5)
@@ -1131,7 +1218,7 @@
 	  budgetHeadsInSubcategory.forEach(bh => {
 		const budgetCode = bh.budget_code
 		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
-		  total += parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+		  total += getDisplayAllocation(bh, pdId)
 		}
 	  })
 	  
@@ -1139,8 +1226,7 @@
 	  // show the same value as the individual budget head row
 	  if (budgetHeadsInSubcategory.length === 1) {
 		const singleBh = budgetHeadsInSubcategory[0]
-		const singleBhTotal = parseFloat(allocationData.value[singleBh.bh_id]?.[pdId]) || 0
-		return formatTotal(singleBhTotal)
+		return formatTotal(getDisplayAllocation(singleBh, pdId))
 	  }
 	}
 	
@@ -1170,7 +1256,7 @@
 		const budgetCode = bh.budget_code
 		if (budgetCode && budgetCode.substring(0, 4) === targetMajorHead) {
 		  programDivisions.value.forEach(pd => {
-			total += parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+			total += getDisplayAllocation(bh, pd.division_id)
 		  })
 		}
 	  })
@@ -1181,7 +1267,7 @@
 		const singleBh = budgetHeadsInSubcategory[0]
 		let singleBhRowTotal = 0
 		programDivisions.value.forEach(pd => {
-		  singleBhRowTotal += parseFloat(allocationData.value[singleBh.bh_id]?.[pd.division_id]) || 0
+		  singleBhRowTotal += getDisplayAllocation(singleBh, pd.division_id)
 		})
 		return formatTotal(singleBhRowTotal)
 	  }
@@ -1511,10 +1597,9 @@
 		category.budgetHeads.forEach(bh => {
 		  const bhRow = [`${bh.budget_code} - ${bh.budget_name}`]
 		  filteredProgramDivisions.value.forEach(pd => {
-			const value = allocationData.value[bh.bh_id]?.[pd.division_id] || ''
-			bhRow.push(value)
+			bhRow.push(formatTotal(getDisplayAllocation(bh, pd.division_id)))
 		  })
-		  bhRow.push(calculateRowTotal(bh.bh_id))
+		  bhRow.push(calculateRowTotal(bh))
 		  data.push(bhRow)
 		})
 	  }
@@ -1845,7 +1930,7 @@
 	allBudgetHeads.forEach(bh => {
 	  programDivisions.value.forEach(pd => {
 		const currentValue = parseFloat(allocationData.value[bh.bh_id][pd.division_id]) || 0
-		const newTotal = calculateRowTotal(bh.bh_id)
+		const newTotal = calculateRowTotalRaw(bh.bh_id)
 		if (currentValue !== parseFloat(newTotal)) {
 		  allocationData.value[bh.bh_id][pd.division_id] = newTotal
 		  console.log(`Updated allocation for ${bh.budget_code} - ${bh.budget_name}, PD ${pd.division_name}: ${newTotal}`)

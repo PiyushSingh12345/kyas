@@ -64,6 +64,9 @@
                             <option value="FE">FE</option>
                           </select>
                             </div>
+                            
+                            <!-- Amount In Filter -->
+                            <AmountInFilter v-model="amountIn" col-class="col-md-4" input-id="amountInSelect" />
 
                             <!-- Search Filter -->
                             <div class="col-md-4">
@@ -136,7 +139,7 @@
                   <div v-if="computedFilteredBudgetHeads.length !== 0" class="table-responsive mt-3" id="reportTable">
                     <div class="d-flex justify-content-between align-items-center mb-2 float-end">
                       <div class="alert alert-info py-2 px-3 mb-0">
-                        <strong>(₹ In Lakhs)</strong> 
+                        <strong>(₹ In {{ amountInText }})</strong> 
                       </div>
                     </div>
                     
@@ -145,7 +148,7 @@
                         <tr>
                           <th>Budget Head</th>
                           <th>Head Description</th>
-                          <th>Budget Amount <small class="text-capitalize">(₹ In Lakhs)</small></th>
+                          <th>Budget Amount <small class="text-capitalize">(₹ In {{ amountInText }})</small></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -176,9 +179,9 @@
                                 placeholder="Enter amount"
                               /> -->
                               <input
-                                type="number"
-                                :value="item.amount??0"
-                                class="form-control tableform-control-withoutbg fw-bold text-success"
+                                type="text"
+                                :value="formatCell(item.amount ?? 0)"
+                                class="form-control tableform-control-withoutbg fw-bold text-success text-end"
                                 readonly
                               />
                               <!-- <span v-if="item.amount && item.amount > 0" class="ms-2 badge bg-success">
@@ -249,13 +252,16 @@ import Footer from '../Common/Footer.vue'
 import { ref, reactive, computed } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
 import * as XLSX from 'xlsx'
+import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+import { useAmountIn } from '../../composables/useAmountIn'
 
 export default {
   name: 'BudgetPhase',
   components: {
     Header,
     Sidebar,
-    Footer
+    Footer,
+    AmountInFilter,
   },
   setup() {
     const selectedPhase = ref('0')
@@ -266,6 +272,8 @@ export default {
     const isProcessing = ref(false)
     const message = ref('')
     const messageType = ref('success')
+    const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
+    const formatCell = (v) => formatAmount(v, { fractionDigits: amountIn.value === 'Rupees' ? 2 : 2 })
 
     const clearMessage = () => {
       message.value = ''
@@ -455,58 +463,9 @@ export default {
       return totalBudgetHeads - budgetHeadsWithAmount
     })
 
-    // Function to format numbers in Indian numbering format
-    const formatIndianNumber = (num) => {
-      if (num === null || num === undefined || num === '') return '0'
-      
-      const number = parseFloat(num)
-      if (isNaN(number)) return '0'
-      
-      // Convert to string and split by decimal point
-      const parts = number.toString().split('.')
-      const integerPart = parts[0]
-      const decimalPart = parts[1] || ''
-      
-      // Format integer part with Indian numbering
-      let formattedInteger = ''
-      const length = integerPart.length
-      
-      // Indian numbering: last 3 digits, then groups of 2
-      if (length <= 3) {
-        formattedInteger = integerPart
-      } else {
-        // Get the last 3 digits
-        const lastThree = integerPart.slice(-3)
-        // Get the remaining digits
-        const remaining = integerPart.slice(0, -3)
-        
-        // Format remaining digits in groups of 2 from right to left
-        let formattedRemaining = ''
-        for (let i = remaining.length - 1; i >= 0; i -= 2) {
-          const start = Math.max(0, i - 1)
-          const group = remaining.slice(start, i + 1)
-          formattedRemaining = group + (formattedRemaining ? ',' + formattedRemaining : '')
-        }
-        
-        formattedInteger = formattedRemaining + ',' + lastThree
-      }
-      
-      // Add decimal part if exists
-      if (decimalPart) {
-        return formattedInteger + '.' + decimalPart
-      }
-      
-      return formattedInteger
-    }
-
     // Computed properties for formatted amounts
-    const formattedTotalBudget = computed(() => {
-      return formatIndianNumber(totalBudgetAmount.value)
-    })
-
-    const formattedAllocatedAmount = computed(() => {
-      return formatIndianNumber(allocatedAmount.value)
-    })
+    const formattedTotalBudget = computed(() => formatCell(totalBudgetAmount.value))
+    const formattedAllocatedAmount = computed(() => formatCell(allocatedAmount.value))
 
     const viewHistory = () => {
       window.open('/budget-phase-history', '_blank')
@@ -535,14 +494,14 @@ export default {
       const data = []
       
       // Add header row
-      data.push(['Budget Head', 'Head Description', 'Budget Amount (₹ In Lakhs)'])
+      data.push(['Budget Head', 'Head Description', `Budget Amount (₹ In ${amountInText.value})`])
       
       // Add data rows
       computedFilteredBudgetHeads.value.forEach(item => {
         data.push([
           item.budget || '',
           item.description || '',
-          item.amount || '0.00'
+          formatCell(item.amount || 0)
         ])
       })
       
@@ -659,6 +618,9 @@ export default {
       isProcessing,
       message,
       messageType,
+      amountIn,
+      amountInText,
+      formatCell,
       totalBudgetAmount,
       allocatedAmount,
       remainingAmount,
@@ -667,7 +629,6 @@ export default {
       submit,
       reset,
       clearMessage,
-      formatIndianNumber,
       formattedTotalBudget,
       formattedAllocatedAmount,
       viewHistory,

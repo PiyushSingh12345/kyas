@@ -20,6 +20,7 @@ class AgencyReleaseAdministrativeExpenditure extends Model
         'program_division_id',
         'amount',
         'agency_vendor',
+        'remark',
         'status'
     ];
 

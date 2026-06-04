@@ -69,6 +69,13 @@
                           <!-- Add more years if needed -->
                         </select>
                       </div>
+                      <AmountInFilter
+                        v-model="amountIn"
+                        col-class="col-md-6 col-lg-4"
+                        select-class="shadow-sm"
+                        label-class="fw-semibold"
+                        input-id="amountInSelect"
+                      />
                     </div>
 
                     <!-- Loading Spinner -->
@@ -78,7 +85,7 @@
 
                     <!-- Budget Summary Table -->
                     <div v-if="filteredBudgetHeads.length" class="table-responsive shadow-sm rounded">
-                      <span class="text-muted fst-italic small mb-2 d-block">(In Lakhs)</span>
+                      <span class="text-muted fst-italic small mb-2 d-block">(Amount in {{ amountInText }})</span>
                       <table class="table table-hover table-bordered align-middle">
                         <thead class="table-primary text-primary sticky-header">
                           <tr>
@@ -93,9 +100,9 @@
                           <tr v-for="item in filteredBudgetHeads" :key="item.id" class="align-middle">
                             <td>{{ item.budget }}</td>
                             <td>{{ item.description }}</td>
-                            <td class="text-end">{{ item.be ?? '—' }}</td>
-                            <td class="text-end">{{ item.re ?? '—' }}</td>
-                            <td class="text-end">{{ item.fe ?? '—' }}</td>
+                            <td class="text-end">{{ item.be == null ? '—' : formatAmount(item.be) }}</td>
+                            <td class="text-end">{{ item.re == null ? '—' : formatAmount(item.re) }}</td>
+                            <td class="text-end">{{ item.fe == null ? '—' : formatAmount(item.fe) }}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -218,19 +225,23 @@
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
 import { ref, onMounted, watch } from 'vue'
+import { useAmountIn } from '../../composables/useAmountIn'
 
 export default {
   name: 'BudgetPhaseReport',
   components: {
     Header,
     Sidebar,
-    Footer
+    Footer,
+    AmountInFilter,
   },
   setup() {
     const financialYear = ref('2024-2025')
     const filteredBudgetHeads = ref([])
     const isLoading = ref(false)
+    const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
 
     const fetchBudgetSummary = async () => {
       if (!financialYear.value) return
@@ -253,7 +264,10 @@ export default {
     return {
       financialYear,
       filteredBudgetHeads,
-      isLoading
+      isLoading,
+      amountIn,
+      amountInText,
+      formatAmount,
     }
   }
 }

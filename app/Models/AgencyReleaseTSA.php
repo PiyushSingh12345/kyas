@@ -21,6 +21,7 @@ class AgencyReleaseTSA extends Model
         'amount',
         'expenditure',
         'central_implementing_agency',
+        'remark',
         'is_ner',
         'status'
     ];

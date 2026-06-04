@@ -60,6 +60,9 @@
                                 </select>
                               </div>
 
+                              <!-- Amount In Filter -->
+                              <AmountInFilter v-model="amountIn" col-class="col-md-3" input-id="amountInSelect" />
+
                               <!-- State Filter -->
                               <div class="col-md-3">
                                 <label for="stateFilter" class="form-label fw-bold">State</label>
@@ -291,6 +294,8 @@ import * as XLSX from 'xlsx'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+import { useAmountIn } from '../../composables/useAmountIn'
 
 const motherSanctions = ref([])
 const allMotherSanctions = ref([])
@@ -301,6 +306,7 @@ const dateTo = ref('')
 const searchTerm = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
+const { amountIn, amountInText, formatAmount } = useAmountIn('Rupees', 'Rupees')
 
 // Function to format date to dd-mm-yyyy format
 const formatDate = (dateString) => {
@@ -323,11 +329,7 @@ const formatDate = (dateString) => {
 
 // Function to format currency
 const formatCurrency = (amount) => {
-  if (!amount) return '0.00';
-  return parseFloat(amount).toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return formatAmount(amount || 0, { fractionDigits: 2 })
 }
 
 // Computed property for unique states

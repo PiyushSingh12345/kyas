@@ -48,7 +48,7 @@
           <div class="info-notes mb-3">
             <small class="text-muted">
               <span class="me-3">Source: KYAS System</span>
-              <span class="me-3">Amount in Lakh Rupees</span>
+              <span class="me-3">Amount in {{ uomText }}</span>
               <span class="me-3">Data updated as of latest entries</span>
             </small>
           </div>
@@ -86,11 +86,11 @@
               </div>
 
               <div class="filter-group">
-                <label class="filter-label">UOM</label>
+                <label class="filter-label">Unit</label>
                 <select v-model="uom" class="form-select form-select-sm">
-                  <option value="Lakh">Lakh</option>
-                  <option value="Crore">Crore</option>
-                  <option value="Thousand">Thousand</option>
+                  <option value="Rupees">Actual Rupees</option>
+                  <option value="Lakh">Lakh Rupees</option>
+                  <option value="Crore">Crore Rupees</option>
                 </select>
               </div>
 
@@ -450,6 +450,7 @@ import { ref, computed, onMounted } from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import { formatAmountFromLakh, unitLabel } from '../../utils/amountFormat'
 
 const showFilters = ref(false)
 const selectedMetrics = ref(['Mother Sanction Amount', 'Available Fund', 'Total Mother Sanction Amount'])
@@ -465,6 +466,7 @@ const years = ref([])
 const sortDirection = ref('asc')
 
 const displayMetrics = computed(() => selectedMetrics.value)
+const uomText = computed(() => unitLabel(uom.value))
 
 const groupedData = computed(() => {
   if (!reportData.value.length || !years.value.length) return []
@@ -472,19 +474,8 @@ const groupedData = computed(() => {
 })
 
 function formatValue(value) {
-  let num = parseFloat(value) || 0
-  
-  // Apply UOM conversion
-  if (uom.value === 'Crore') {
-    num = num / 100
-  } else if (uom.value === 'Thousand') {
-    num = num * 10
-  }
-  
-  return num.toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
+  // Base in this report is Lakhs.
+  return formatAmountFromLakh(value, uom.value, { fractionDigits: 2 })
 }
 
 function getMetricClass(metric) {

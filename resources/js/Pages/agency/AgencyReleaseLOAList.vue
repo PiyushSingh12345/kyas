@@ -66,6 +66,7 @@
                             <th>Program Division</th>
                             <th>Amount/Release/Expenditure</th>
                             <th>UT</th>
+                            <th>Remark</th>
                             <th>Action</th>
                             <th>Created At</th>
                           </tr>
@@ -79,6 +80,7 @@
                             <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
                             <td>{{ item.ut }}</td>
+                            <td>{{ item.remark }}</td>
                             <td class="text-center">
                               <div class="d-flex justify-content-center gap-1">
                                 <button
@@ -101,7 +103,7 @@
                           </tr>
                           
                           <tr v-if="loaList.length === 0">
-                            <td colspan="9" class="text-center text-muted py-4">
+                            <td colspan="10" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No LOA data available
                             </td>
@@ -212,6 +214,18 @@
                     <input type="text" class="form-control" id="editPurposeOfGrant" v-model="editForm.purposeOfGrant" required>
                   </div>
                 </div>
+                <div class="col-md-12">
+                  <div class="form-group mb-3">
+                    <label for="editRemark">Remark</label>
+                    <textarea
+                      class="form-control"
+                      id="editRemark"
+                      v-model="editForm.remark"
+                      placeholder="Enter Remark"
+                      rows="3"
+                    ></textarea>
+                  </div>
+                </div>
                 <div class="col-md-6">
                   <div class="form-group mb-3">
                     <label for="editBalancedFund">Balanced Fund Amount</label>
@@ -314,7 +328,8 @@ const editForm = ref({
   purposeOfGrant: '',
   programDivision: '',
   amount: '',
-  ut: ''
+  ut: '',
+  remark: ''
 })
 
 const editAmountExceedsBalance = computed(() => {
@@ -505,7 +520,8 @@ const confirmRevise = async () => {
         purposeOfGrant: result.data.purpose_of_grant || '',
         programDivision: result.data.program_division_id || '',
         amount: result.data.amount || '',
-        ut: result.data.ut || ''
+        ut: result.data.ut || '',
+        remark: result.data.remark || ''
       });
       
       // Redirect to the LOA form with prefilled data
@@ -580,7 +596,8 @@ const handleEdit = async (item) => {
     purposeOfGrant: item.purpose_of_grant || '',
     programDivision: item.program_division_id || '',
     amount: item.amount ?? '',
-    ut: item.ut || ''
+    ut: item.ut || '',
+    remark: item.remark || ''
   }
   showEditDialog.value = true
   await fetchEditBalancedFundAmount()
@@ -615,7 +632,8 @@ const submitEdit = async () => {
         purposeOfGrant: editForm.value.purposeOfGrant,
         programDivision: parseInt(editForm.value.programDivision, 10),
         amount: parseFloat(editForm.value.amount),
-        ut: editForm.value.ut
+        ut: editForm.value.ut,
+        remark: editForm.value.remark
       })
     })
 

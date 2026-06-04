@@ -108,6 +108,7 @@ class AgencyReleaseController extends Controller
                 'expenditure' => 'required|numeric|min:0',
                 'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'isNer' => 'sometimes|boolean',
+                'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -169,6 +170,7 @@ class AgencyReleaseController extends Controller
                 'expenditure' => $validated['expenditure'],
                 'central_implementing_agency' => $validated['centralImplementingAgency'],
                 'is_ner' => $request->boolean('isNer'),
+                'remark' => $validated['remark'] ?? null,
                 'status' => 1
             ]);
 
@@ -219,6 +221,7 @@ class AgencyReleaseController extends Controller
                 'expenditure' => 'required|numeric|min:0',
                 'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'isNer' => 'sometimes|boolean',
+                'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -251,6 +254,7 @@ class AgencyReleaseController extends Controller
                 'expenditure' => $validated['expenditure'],
                 'central_implementing_agency' => $validated['centralImplementingAgency'],
                 'is_ner' => $request->boolean('isNer'),
+                'remark' => $validated['remark'] ?? null,
             ]);
 
             $this->saveAgencyReleaseHistory('tsa', $tsa, 'UPDATE', 'TSA record updated');
@@ -294,6 +298,7 @@ class AgencyReleaseController extends Controller
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
                 'ut' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -353,6 +358,7 @@ class AgencyReleaseController extends Controller
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
                 'ut' => $validated['ut'],
+                'remark' => $validated['remark'] ?? null,
                 'status' => 1
             ]);
 
@@ -401,6 +407,7 @@ class AgencyReleaseController extends Controller
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
                 'ut' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -431,6 +438,7 @@ class AgencyReleaseController extends Controller
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
                 'ut' => $validated['ut'],
+                'remark' => $validated['remark'] ?? null,
             ]);
 
             $this->saveAgencyReleaseHistory('loa', $loa, 'UPDATE', 'LOA record updated');
@@ -474,6 +482,7 @@ class AgencyReleaseController extends Controller
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
                 'agencyVendor' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -533,6 +542,7 @@ class AgencyReleaseController extends Controller
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
                 'agency_vendor' => $validated['agencyVendor'],
+                'remark' => $validated['remark'] ?? null,
                 'status' => 1
             ]);
 
@@ -581,6 +591,7 @@ class AgencyReleaseController extends Controller
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
                 'agencyVendor' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
                 'budgetHead.regex' => 'Budget head format is invalid.',
@@ -611,6 +622,7 @@ class AgencyReleaseController extends Controller
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
                 'agency_vendor' => $validated['agencyVendor'],
+                'remark' => $validated['remark'] ?? null,
             ]);
 
             $this->saveAgencyReleaseHistory('administrative-expenditure', $adminExp, 'UPDATE', 'Administrative Expenditure record updated');
@@ -662,6 +674,7 @@ class AgencyReleaseController extends Controller
                         'expenditure' => $record->expenditure,
                         'central_implementing_agency' => $record->central_implementing_agency,
                         'is_ner' => $record->is_ner,
+                        'remark' => $record->remark,
                         'status' => $record->status,
                         'created_at' => $record->created_at,
                         'updated_at' => $record->updated_at,
@@ -702,6 +715,7 @@ class AgencyReleaseController extends Controller
                         'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
                         'ut' => $record->ut,
+                        'remark' => $record->remark,
                         'status' => $record->status,
                         'created_at' => $record->created_at,
                         'updated_at' => $record->updated_at,
@@ -742,6 +756,7 @@ class AgencyReleaseController extends Controller
                         'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
                         'agency_vendor' => $record->agency_vendor,
+                        'remark' => $record->remark,
                         'status' => $record->status,
                         'created_at' => $record->created_at,
                         'updated_at' => $record->updated_at,
@@ -820,10 +835,13 @@ class AgencyReleaseController extends Controller
                     $recordData['central_implementing_agency'] = $record->central_implementing_agency;
                     $recordData['expenditure'] = $record->expenditure;
                     $recordData['is_ner'] = $record->is_ner;
+                    $recordData['remark'] = $record->remark;
                 } elseif ($type === 'loa') {
                     $recordData['ut'] = $record->ut;
+                    $recordData['remark'] = $record->remark;
                 } else {
                     $recordData['agency_vendor'] = $record->agency_vendor;
+                    $recordData['remark'] = $record->remark;
                 }
 
                 return response()->json([

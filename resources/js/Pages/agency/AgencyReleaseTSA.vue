@@ -209,6 +209,20 @@
                           </div>
                         </div>
                       </div>
+
+                      <!-- Remark -->
+                      <div class="col-md-12">
+                        <div class="form-group">
+                          <label for="remark">Remark</label>
+                          <textarea
+                            class="form-control"
+                            id="remark"
+                            v-model="formData.remark"
+                            placeholder="Enter Remark"
+                            rows="3"
+                          ></textarea>
+                        </div>
+                      </div>
                     </div>
 
                     <!-- Footer Buttons -->
@@ -250,7 +264,8 @@ const formData = ref({
   amount: '',
   expenditure: '',
   centralImplementingAgency: '',
-  isNer: false
+  isNer: false,
+  remark: ''
 })
 
 const budgetHeads = ref([])
@@ -392,7 +407,8 @@ const resetForm = (hideMessage = true) => {
     amount: '',
     expenditure: '',
     centralImplementingAgency: '',
-    isNer: false
+    isNer: false,
+    remark: ''
   }
   
   // Reset balanced fund amount
@@ -438,7 +454,8 @@ const submitForm = async () => {
       amount: parseFloat(formData.value.amount),
       expenditure: parseFloat(formData.value.expenditure),
       centralImplementingAgency: formData.value.centralImplementingAgency,
-      isNer: Boolean(formData.value.isNer)
+      isNer: Boolean(formData.value.isNer),
+      remark: formData.value.remark
     }
 
     const response = await fetch('/api/agency-release-tsa', {
@@ -505,6 +522,9 @@ const prefillFormFromURL = async () => {
     }
     if (urlParams.get('isNer')) {
       formData.value.isNer = urlParams.get('isNer') === 'true' || urlParams.get('isNer') === '1';
+    }
+    if (urlParams.get('remark')) {
+      formData.value.remark = urlParams.get('remark');
     }
   }
 }

@@ -67,6 +67,7 @@
                             <th>Amount</th>
                             <th>Expenditure</th>
                             <th>Central Implementing Agency</th>
+                            <th>Remark</th>
                             <th>Action</th>
                             <th>Created At</th>
                           </tr>
@@ -81,6 +82,7 @@
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.expenditure) }}</td>
                             <td>{{ item.central_implementing_agency }}</td>
+                            <td>{{ item.remark }}</td>
                             <td class="text-center">
                               <div class="d-flex justify-content-center gap-1">
                                 <button
@@ -103,7 +105,7 @@
                           </tr>
                           
                           <tr v-if="tsaList.length === 0">
-                            <td colspan="10" class="text-center text-muted py-4">
+                            <td colspan="11" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No TSA data available
                             </td>
@@ -241,6 +243,18 @@
                     <input type="text" class="form-control" id="editCentralAgency" v-model="editForm.centralImplementingAgency" required>
                   </div>
                 </div>
+                <div class="col-md-12">
+                  <div class="form-group mb-3">
+                    <label for="editRemark">Remark</label>
+                    <textarea
+                      class="form-control"
+                      id="editRemark"
+                      v-model="editForm.remark"
+                      placeholder="Enter Remark"
+                      rows="3"
+                    ></textarea>
+                  </div>
+                </div>
                 <div class="col-md-6">
                   <div class="form-group mb-3">
                     <label class="d-block mb-2">NER</label>
@@ -333,7 +347,8 @@ const editForm = ref({
   amount: '',
   expenditure: '',
   centralImplementingAgency: '',
-  isNer: false
+  isNer: false,
+  remark: ''
 })
 
 const editAmountExceedsBalance = computed(() => {
@@ -526,7 +541,8 @@ const confirmRevise = async () => {
         amount: result.data.amount || '',
         expenditure: result.data.expenditure || '',
         centralImplementingAgency: result.data.central_implementing_agency || '',
-        isNer: result.data.is_ner ? 'true' : 'false'
+        isNer: result.data.is_ner ? 'true' : 'false',
+        remark: result.data.remark || ''
       });
       
       // Redirect to the TSA form with prefilled data
@@ -603,7 +619,8 @@ const handleEdit = async (item) => {
     amount: item.amount ?? '',
     expenditure: item.expenditure ?? '',
     centralImplementingAgency: item.central_implementing_agency || '',
-    isNer: Boolean(item.is_ner)
+    isNer: Boolean(item.is_ner),
+    remark: item.remark || ''
   }
   showEditDialog.value = true
   await fetchEditBalancedFundAmount()
@@ -640,7 +657,8 @@ const submitEdit = async () => {
         amount: parseFloat(editForm.value.amount),
         expenditure: parseFloat(editForm.value.expenditure),
         centralImplementingAgency: editForm.value.centralImplementingAgency,
-        isNer: Boolean(editForm.value.isNer)
+        isNer: Boolean(editForm.value.isNer),
+        remark: editForm.value.remark
       })
     })
 

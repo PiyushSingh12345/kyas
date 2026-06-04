@@ -28,7 +28,7 @@
 				  <div class="card">
 					  <div class="card-header">
 						  <div class="card-title d-flex justify-content-between align-items-center">
-							  <span>PD wise Budget Allocation (AAP) with release - Budget Heads for FY 2025-26 (₹ In Lakhs)</span>
+							  <span>PD wise Budget Allocation (AAP) with release - Budget Heads for FY {{ selectedFinancialYear }} (₹ In {{ amountInText }})</span>
 							  <!-- <button 
 								  class="btn btn-outline-info btn-sm d-flex align-items-center" 
 								  @click="viewHistory"
@@ -85,6 +85,9 @@
 														  <option value="2022-23">2022-23</option>
 													  </select>
 												  </div>
+
+												  <!-- Amount In Filter -->
+												  <AmountInFilter v-model="amountIn" col-class="col-md-3" input-id="amountInSelect" />
 
 												  <!-- Program Division Filter -->
 												  <div class="col-md-3">
@@ -347,6 +350,18 @@
 																  Include 2552 Head under 3601 Major Head
 															  </label>
 														  </div>
+														  <div class="form-check">
+															  <input 
+																  class="form-check-input" 
+																  type="checkbox" 
+																  id="include2552In2435"
+																  v-model="include2552In2435"
+																  @change="recategorizeWithInclude2552"
+															  >
+															  <label class="form-check-label" for="include2552In2435">
+																  Include 2552 Head under 2435 Major Head
+															  </label>
+														  </div>
 														  <small class="text-muted">(For 8 North-East States: 7 sister states + Sikkim)</small>
 													  </div>
 												  </div>
@@ -462,11 +477,11 @@
 										  </tr>
 										  <tr>
 											  <template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												  <th v-if="showAllocation">₹ In Lakhs</th>
-												  <th v-if="showReAllocation">₹ In Lakhs</th>
-												  <th v-if="showFeAllocation">₹ In Lakhs</th>
-												  <th v-if="showRelease">₹ In Lakhs</th>
-												  <th v-if="showExpenditure">₹ In Lakhs</th>
+												  <th v-if="showAllocation">₹ In {{ amountInText }}</th>
+												  <th v-if="showReAllocation">₹ In {{ amountInText }}</th>
+												  <th v-if="showFeAllocation">₹ In {{ amountInText }}</th>
+												  <th v-if="showRelease">₹ In {{ amountInText }}</th>
+												  <th v-if="showExpenditure">₹ In {{ amountInText }}</th>
 											  </template>
 										  </tr>
 									  </thead>
@@ -481,39 +496,39 @@
 											  <template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												  <td v-if="showAllocation" class="text-center fw-bold total-cell" 
 													   :title="`BE Allocation Total for ${pd.division_name} under ${category.label}`">
-													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'allocation') }}
+													{{ formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'allocation')) }}
 												  </td>
 												  <td v-if="showReAllocation" class="text-center fw-bold total-cell" 
 													   :title="`RE Allocation Total for ${pd.division_name} under ${category.label}`">
-													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'reAllocation') }}
+													{{ formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'reAllocation')) }}
 												  </td>
 												  <td v-if="showFeAllocation" class="text-center fw-bold total-cell" 
 													   :title="`FE Allocation Total for ${pd.division_name} under ${category.label}`">
-													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'feAllocation') }}
+													{{ formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'feAllocation')) }}
 												  </td>
 												  <td v-if="showRelease" class="text-center fw-bold total-cell" 
 													   :title="`Release Total for ${pd.division_name} under ${category.label}`">
-													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'release') }}
+													{{ formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'release')) }}
 												  </td>
 												  <td v-if="showExpenditure" class="text-center fw-bold total-cell" 
 													   :title="`Expenditure Total for ${pd.division_name} under ${category.label}`">
-													{{ calculateMajorHeadTotalForPD(category.label, pd.division_id, 'expenditure') }}
+													{{ formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'expenditure')) }}
 												  </td>
 											  </template>
 											  <td v-if="showAllocation" class="text-center fw-bold grand-total-cell" title="Grand total BE allocation for all program divisions">
-												{{ calculateMajorHeadTotal(category.label) }}
+												{{ formatCell(calculateMajorHeadTotal(category.label)) }}
 											  </td>
 											  <td v-if="showReAllocation" class="text-center fw-bold grand-total-cell" title="Grand total RE allocation for all program divisions">
-												{{ calculateMajorHeadTotalRe(category.label) }}
+												{{ formatCell(calculateMajorHeadTotalRe(category.label)) }}
 											  </td>
 											  <td v-if="showFeAllocation" class="text-center fw-bold grand-total-cell" title="Grand total FE allocation for all program divisions">
-												{{ calculateMajorHeadTotalFe(category.label) }}
+												{{ formatCell(calculateMajorHeadTotalFe(category.label)) }}
 											  </td>
 											  <td v-if="showRelease" class="text-center fw-bold bg-success-subtle" title="Total Release for all program divisions">
-												{{ calculateMajorHeadTotalRelease(category.label) }}
+												{{ formatCell(calculateMajorHeadTotalRelease(category.label)) }}
 											  </td>
 											  <td v-if="showExpenditure" class="text-center fw-bold bg-success-subtle" title="Total Expenditure for all program divisions">
-												{{ calculateMajorHeadTotalExpenditure(category.label) }}
+												{{ formatCell(calculateMajorHeadTotalExpenditure(category.label)) }}
 											  </td>
 											</tr>
 											
@@ -528,39 +543,39 @@
 											  <template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												  <td v-if="showAllocation" class="text-center fw-bold total-cell"
 													   :title="`BE Allocation Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
-													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'allocation') }}
+													{{ formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'allocation')) }}
 												  </td>
 												  <td v-if="showReAllocation" class="text-center fw-bold total-cell"
 													   :title="`RE Allocation Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
-													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'reAllocation') }}
+													{{ formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'reAllocation')) }}
 												  </td>
 												  <td v-if="showFeAllocation" class="text-center fw-bold total-cell"
 													   :title="`FE Allocation Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
-													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'feAllocation') }}
+													{{ formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'feAllocation')) }}
 												  </td>
 												  <td v-if="showRelease" class="text-center fw-bold total-cell"
 													   :title="`Release Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
-													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'release') }}
+													{{ formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'release')) }}
 												  </td>
 												  <td v-if="showExpenditure" class="text-center fw-bold total-cell"
 													   :title="`Expenditure Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
-													{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'expenditure') }}
+													{{ formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'expenditure')) }}
 												  </td>
 											  </template>
 											  <td v-if="showAllocation" class="text-center fw-bold grand-total-cell" title="Grand total BE allocation for all program divisions">
-												{{ calculateSubcategoryTotal(category.label, category.parentMajorHead) }}
+												{{ formatCell(calculateSubcategoryTotal(category.label, category.parentMajorHead)) }}
 											  </td>
 											  <td v-if="showReAllocation" class="text-center fw-bold grand-total-cell" title="Grand total RE allocation for all program divisions">
-												{{ calculateSubcategoryTotalRe(category.label, category.parentMajorHead) }}
+												{{ formatCell(calculateSubcategoryTotalRe(category.label, category.parentMajorHead)) }}
 											  </td>
 											  <td v-if="showFeAllocation" class="text-center fw-bold grand-total-cell" title="Grand total FE allocation for all program divisions">
-												{{ calculateSubcategoryTotalFe(category.label, category.parentMajorHead) }}
+												{{ formatCell(calculateSubcategoryTotalFe(category.label, category.parentMajorHead)) }}
 											  </td>
 											  <td v-if="showRelease" class="text-center fw-bold bg-success-subtle" title="Total Release for all program divisions">
-												{{ calculateSubcategoryTotalRelease(category.label, category.parentMajorHead) }}
+												{{ formatCell(calculateSubcategoryTotalRelease(category.label, category.parentMajorHead)) }}
 											  </td>
 											  <td v-if="showExpenditure" class="text-center fw-bold bg-success-subtle" title="Total Expenditure for all program divisions">
-												{{ calculateSubcategoryTotalExpenditure(category.label, category.parentMajorHead) }}
+												{{ formatCell(calculateSubcategoryTotalExpenditure(category.label, category.parentMajorHead)) }}
 											  </td>
 											</tr>
 											
@@ -573,35 +588,35 @@
 											  </td>
 											  <template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												  <td v-if="showAllocation" class="text-center">
-													{{ formatToFiveDecimals(getDisplayAllocation(bh, pd.division_id)) }}
+													{{ formatCell(getDisplayAllocation(bh, pd.division_id)) }}
 												  </td>
 												  <td v-if="showReAllocation" class="text-center">
-													{{ formatToFiveDecimals(getDisplayReAllocation(bh, pd.division_id)) }}
+													{{ formatCell(getDisplayReAllocation(bh, pd.division_id)) }}
 												  </td>
 												  <td v-if="showFeAllocation" class="text-center">
-													{{ formatToFiveDecimals(getDisplayFeAllocation(bh, pd.division_id)) }}
+													{{ formatCell(getDisplayFeAllocation(bh, pd.division_id)) }}
 												  </td>
 												  <td v-if="showRelease" class="text-center">
-													{{ getDisplayRelease(bh, pd.division_id) }}
+													{{ formatCell(getDisplayReleaseRaw(bh, pd.division_id)) }}
 												  </td>
 												  <td v-if="showExpenditure" class="text-center">
-													{{ getDisplayExpenditure(bh, pd.division_id) }}
+													{{ formatCell(getDisplayExpenditureRaw(bh, pd.division_id)) }}
 												  </td>
 											  </template>
 											  <td v-if="showAllocation" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotal(bh) }}
+												{{ formatCell(calculateRowTotal(bh)) }}
 											  </td>
 											  <td v-if="showReAllocation" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalRe(bh) }}
+												{{ formatCell(calculateRowTotalRe(bh)) }}
 											  </td>
 											  <td v-if="showFeAllocation" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalFe(bh) }}
+												{{ formatCell(calculateRowTotalFe(bh)) }}
 											  </td>
 											  <td v-if="showRelease" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalRelease(bh) }}
+												{{ formatCell(calculateRowTotalRelease(bh)) }}
 											  </td>
 											  <td v-if="showExpenditure" class="text-center fw-bold bg-success-subtle">
-												{{ calculateRowTotalExpenditure(bh) }}
+												{{ formatCell(calculateRowTotalExpenditure(bh)) }}
 											  </td>
 											</tr>
 										  </template>
@@ -611,35 +626,35 @@
 											  <td class="fw-sticky">Total</td>
 											  <template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												  <td v-if="showAllocation" class="text-center">
-													  {{ calculateColumnTotal(pd.division_id, 'allocation') }}
+													  {{ formatCell(calculateColumnTotal(pd.division_id, 'allocation')) }}
 												  </td>
 												  <td v-if="showReAllocation" class="text-center">
-													  {{ calculateColumnTotal(pd.division_id, 'reAllocation') }}
+													  {{ formatCell(calculateColumnTotal(pd.division_id, 'reAllocation')) }}
 												  </td>
 												  <td v-if="showFeAllocation" class="text-center">
-													  {{ calculateColumnTotal(pd.division_id, 'feAllocation') }}
+													  {{ formatCell(calculateColumnTotal(pd.division_id, 'feAllocation')) }}
 												  </td>
 												  <td v-if="showRelease" class="text-center">
-													  {{ calculateColumnTotal(pd.division_id, 'release') }}
+													  {{ formatCell(calculateColumnTotal(pd.division_id, 'release')) }}
 												  </td>
 												  <td v-if="showExpenditure" class="text-center">
-													  {{ calculateColumnTotal(pd.division_id, 'expenditure') }}
+													  {{ formatCell(calculateColumnTotal(pd.division_id, 'expenditure')) }}
 												  </td>
 											  </template>
 											  <td v-if="showAllocation" class="text-center grand-total">
-												  {{ calculateGrandTotal() }}
+												  {{ formatCell(calculateGrandTotal()) }}
 											  </td>
 											  <td v-if="showReAllocation" class="text-center grand-total">
-												  {{ calculateGrandTotalRe() }}
+												  {{ formatCell(calculateGrandTotalRe()) }}
 											  </td>
 											  <td v-if="showFeAllocation" class="text-center grand-total">
-												  {{ calculateGrandTotalFe() }}
+												  {{ formatCell(calculateGrandTotalFe()) }}
 											  </td>
 											  <td v-if="showRelease" class="text-center fw-bold bg-success-subtle">
-												  {{ calculateGrandTotalRelease() }}
+												  {{ formatCell(calculateGrandTotalRelease()) }}
 											  </td>
 											  <td v-if="showExpenditure" class="text-center fw-bold bg-success-subtle">
-												  {{ calculateGrandTotalExpenditure() }}
+												  {{ formatCell(calculateGrandTotalExpenditure()) }}
 											  </td>
 										  </tr>
 									  </tbody>
@@ -725,6 +740,14 @@
   import Header from '../Common/Header.vue'
   import Sidebar from '../Common/Sidebar.vue'
   import Footer from '../Common/Footer.vue'
+  import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+  import { useAmountIn } from '../../composables/useAmountIn'
+  
+  // Amount In (base values in Lakhs)
+  const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
+  const amountFractionDigits = computed(() => (amountIn.value === 'Rupees' ? 2 : 5))
+  const toNumeric = (value) => parseFloat(String(value).replace(/,/g, '')) || 0
+  const formatCell = (value) => formatAmount(toNumeric(value), { fractionDigits: amountFractionDigits.value })
   
   // Reactive data
   const budgetHeads = ref([])
@@ -770,8 +793,9 @@
   const showFixedScrollBar = ref(false)
   let scrollSyncLock = false
   
-  // Major head options: Include 2552 under 3601 (for North-East States: 7 sisters + Sikkim)
+  // Major head options: Include 2552 under 3601 / 2435 (for North-East States: 7 sisters + Sikkim)
   const include2552In3601 = ref(false)
+  const include2552In2435 = ref(false)
   
   // Mapping: 2552 budget heads → 3601 detail heads (Re-appropriated from 2552 to 3601 for NE states)
   const MAPPING_2552_TO_3601 = {
@@ -783,14 +807,24 @@
     '2552.00.796.59.00.35': '3601.06.796.41.00.35',   // GIA(Capital-ST)
     '2552.00.796.59.03.31': '3601.06.796.41.01.31'    // Dharti Jan Abha
   }
-  // Reverse: 3601 → 2552 (for adding 2552 amounts into 3601 row when "Include 2552 head" is on)
-  const MAPPING_3601_FROM_2552 = {}
-  Object.keys(MAPPING_2552_TO_3601).forEach(code2552 => {
-    const code3601 = MAPPING_2552_TO_3601[code2552]
-    MAPPING_3601_FROM_2552[code3601] = code2552
-    const digits3601 = code3601.replace(/[^0-9]/g, '')
-    if (digits3601) MAPPING_3601_FROM_2552[digits3601] = code2552
-  })
+  // Mapping: 2552 budget heads → 2435 detail heads (Re-appropriated from 2552 to 2435 for NE states)
+  const MAPPING_2552_TO_2435 = {
+    '2552.00.342.03.00.31': '2435.60.103.04.00.31',   // GIA General- Gen
+    '2552.00.789.51.00.31': '2435.60.789.02.00.31',   // GIA General- SCSP
+    '2552.00.796.59.00.31': '2435.60.796.02.00.31',   // GIA General- DAPST
+  }
+  const buildReverse2552Mapping = (forwardMapping) => {
+    const reverse = {}
+    Object.keys(forwardMapping).forEach(code2552 => {
+      const codeTarget = forwardMapping[code2552]
+      reverse[codeTarget] = code2552
+      const digitsTarget = codeTarget.replace(/[^0-9]/g, '')
+      if (digitsTarget) reverse[digitsTarget] = code2552
+    })
+    return reverse
+  }
+  const MAPPING_3601_FROM_2552 = buildReverse2552Mapping(MAPPING_2552_TO_3601)
+  const MAPPING_2435_FROM_2552 = buildReverse2552Mapping(MAPPING_2552_TO_2435)
 
   // Watch column visibility to ensure at least one column is always visible
   watch([showAllocation, showReAllocation, showFeAllocation, showRelease, showExpenditure], 
@@ -900,10 +934,9 @@
     return categories
   }
   
-  // Function to recategorize when include2552In3601 changes (display amounts update reactively; no re-categorization needed)
+  // Function to recategorize when include2552 options change (display amounts update reactively; no re-categorization needed)
   const recategorizeWithInclude2552 = () => {
-    // No structural change; only display amounts change via display helpers when include2552In3601 toggles
-    console.log('Include 2552 in 3601 toggled:', include2552In3601.value)
+    console.log('Include 2552 in 3601 toggled:', include2552In3601.value, 'Include 2552 in 2435 toggled:', include2552In2435.value)
   }
   
   // Fetch budget heads from API
@@ -1160,70 +1193,48 @@
 	return null
   }
 
-  // When "Include 2552 Head" is on: for 3601 rows, add amounts from mapped 2552 head. Returns raw number.
-  const getDisplayAllocation = (bh, pdId) => {
-	let v = parseFloat(allocationData.value[bh?.bh_id]?.[pdId]) || 0
-	if (!include2552In3601.value || !bh?.budget_code) return v
+  // When "Include 2552 Head" is on: for 3601/2435 rows, add amounts from mapped 2552 head. Returns raw number.
+  const addMapped2552Amount = (baseValue, bh, pdId, majorHead, includeFlag, reverseMapping, getAmount) => {
+	let v = baseValue
+	if (!includeFlag || !bh?.budget_code) return v
 	const code = String(bh.budget_code).trim()
 	const codeDig = code.replace(/[^0-9]/g, '')
-	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
-	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
+	const majorPrefix = codeDig.substring(0, 4) || code.substring(0, 4)
+	if (majorPrefix !== majorHead) return v
+	const code2552 = reverseMapping[code] || reverseMapping[codeDig]
 	if (!code2552) return v
 	const bh2552 = getBhByBudgetCode(code2552)
 	if (!bh2552) return v
-	v += parseFloat(allocationData.value[bh2552.bh_id]?.[pdId]) || 0
+	return v + (parseFloat(getAmount(bh2552, pdId)) || 0)
+  }
+  const getDisplayAllocation = (bh, pdId) => {
+	let v = parseFloat(allocationData.value[bh?.bh_id]?.[pdId]) || 0
+	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => allocationData.value[b?.bh_id]?.[p])
+	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => allocationData.value[b?.bh_id]?.[p])
 	return v
   }
   const getDisplayReAllocation = (bh, pdId) => {
 	let v = parseFloat(reAllocationData.value[bh?.bh_id]?.[pdId]) || 0
-	if (!include2552In3601.value || !bh?.budget_code) return v
-	const code = String(bh.budget_code).trim()
-	const codeDig = code.replace(/[^0-9]/g, '')
-	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
-	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
-	if (!code2552) return v
-	const bh2552 = getBhByBudgetCode(code2552)
-	if (!bh2552) return v
-	v += parseFloat(reAllocationData.value[bh2552.bh_id]?.[pdId]) || 0
+	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => reAllocationData.value[b?.bh_id]?.[p])
+	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => reAllocationData.value[b?.bh_id]?.[p])
 	return v
   }
   const getDisplayFeAllocation = (bh, pdId) => {
 	let v = parseFloat(feAllocationData.value[bh?.bh_id]?.[pdId]) || 0
-	if (!include2552In3601.value || !bh?.budget_code) return v
-	const code = String(bh.budget_code).trim()
-	const codeDig = code.replace(/[^0-9]/g, '')
-	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
-	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
-	if (!code2552) return v
-	const bh2552 = getBhByBudgetCode(code2552)
-	if (!bh2552) return v
-	v += parseFloat(feAllocationData.value[bh2552.bh_id]?.[pdId]) || 0
+	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => feAllocationData.value[b?.bh_id]?.[p])
+	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => feAllocationData.value[b?.bh_id]?.[p])
 	return v
   }
   const getDisplayReleaseRaw = (bh, pdId) => {
 	let v = parseFloat(getReleaseAmount(bh?.bh_id, pdId)) || 0
-	if (!include2552In3601.value || !bh?.budget_code) return v
-	const code = String(bh.budget_code).trim()
-	const codeDig = code.replace(/[^0-9]/g, '')
-	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
-	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
-	if (!code2552) return v
-	const bh2552 = getBhByBudgetCode(code2552)
-	if (!bh2552) return v
-	v += parseFloat(getReleaseAmount(bh2552.bh_id, pdId)) || 0
+	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => getReleaseAmount(b?.bh_id, p))
+	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => getReleaseAmount(b?.bh_id, p))
 	return v
   }
   const getDisplayExpenditureRaw = (bh, pdId) => {
 	let v = parseFloat(getExpenditureAmount(bh?.bh_id, pdId)) || 0
-	if (!include2552In3601.value || !bh?.budget_code) return v
-	const code = String(bh.budget_code).trim()
-	const codeDig = code.replace(/[^0-9]/g, '')
-	if (code.substring(0, 4) !== '3601' && codeDig.substring(0, 4) !== '3601') return v
-	const code2552 = MAPPING_3601_FROM_2552[code] || MAPPING_3601_FROM_2552[codeDig]
-	if (!code2552) return v
-	const bh2552 = getBhByBudgetCode(code2552)
-	if (!bh2552) return v
-	v += parseFloat(getExpenditureAmount(bh2552.bh_id, pdId)) || 0
+	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => getExpenditureAmount(b?.bh_id, p))
+	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => getExpenditureAmount(b?.bh_id, p))
 	return v
   }
   const getDisplayRelease = (bh, pdId) => formatToFiveDecimals(getDisplayReleaseRaw(bh, pdId))
@@ -2635,20 +2646,21 @@
 	if (showRelease.value) headerRow2.push('Total Release')
 	if (showExpenditure.value) headerRow2.push('Total Expenditure')
 	data.push(headerRow2)
-	// Third header row - ₹ In Lakhs
+	// Third header row - unit label
+	const unitHeader = `₹ In ${amountInText.value}`
 	const headerRow3 = ['']
 	filteredProgramDivisions.value.forEach(() => {
-	  if (showAllocation.value) headerRow3.push('₹ In Lakhs')
-	  if (showReAllocation.value) headerRow3.push('₹ In Lakhs')
-	  if (showFeAllocation.value) headerRow3.push('₹ In Lakhs')
-	  if (showRelease.value) headerRow3.push('₹ In Lakhs')
-	  if (showExpenditure.value) headerRow3.push('₹ In Lakhs')
+	  if (showAllocation.value) headerRow3.push(unitHeader)
+	  if (showReAllocation.value) headerRow3.push(unitHeader)
+	  if (showFeAllocation.value) headerRow3.push(unitHeader)
+	  if (showRelease.value) headerRow3.push(unitHeader)
+	  if (showExpenditure.value) headerRow3.push(unitHeader)
 	})
-	if (showAllocation.value) headerRow3.push('₹ In Lakhs')
-	if (showReAllocation.value) headerRow3.push('₹ In Lakhs')
-	if (showFeAllocation.value) headerRow3.push('₹ In Lakhs')
-	if (showRelease.value) headerRow3.push('₹ In Lakhs')
-	if (showExpenditure.value) headerRow3.push('₹ In Lakhs')
+	if (showAllocation.value) headerRow3.push(unitHeader)
+	if (showReAllocation.value) headerRow3.push(unitHeader)
+	if (showFeAllocation.value) headerRow3.push(unitHeader)
+	if (showRelease.value) headerRow3.push(unitHeader)
+	if (showExpenditure.value) headerRow3.push(unitHeader)
 	data.push(headerRow3)
 	
 	// Data rows from filtered categories
@@ -2657,52 +2669,52 @@
 		const row = [category.label]
 		filteredProgramDivisions.value.forEach(pd => {
 		  if (showAllocation.value) {
-			row.push(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'allocation'))
+			row.push(formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'allocation')))
 		  }
 		  if (showReAllocation.value) {
-			row.push(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'reAllocation'))
+			row.push(formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'reAllocation')))
 		  }
 		  if (showFeAllocation.value) {
-			row.push(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'feAllocation'))
+			row.push(formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'feAllocation')))
 		  }
 		  if (showRelease.value) {
-			row.push(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'release'))
+			row.push(formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'release')))
 		  }
 		  if (showExpenditure.value) {
-			row.push(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'expenditure'))
+			row.push(formatCell(calculateMajorHeadTotalForPD(category.label, pd.division_id, 'expenditure')))
 		  }
 		})
-		if (showAllocation.value) row.push(calculateMajorHeadTotal(category.label))
-		if (showReAllocation.value) row.push(calculateMajorHeadTotalRe(category.label))
-		if (showFeAllocation.value) row.push(calculateMajorHeadTotalFe(category.label))
-		if (showRelease.value) row.push(calculateMajorHeadTotalRelease(category.label))
-		if (showExpenditure.value) row.push(calculateMajorHeadTotalExpenditure(category.label))
+		if (showAllocation.value) row.push(formatCell(calculateMajorHeadTotal(category.label)))
+		if (showReAllocation.value) row.push(formatCell(calculateMajorHeadTotalRe(category.label)))
+		if (showFeAllocation.value) row.push(formatCell(calculateMajorHeadTotalFe(category.label)))
+		if (showRelease.value) row.push(formatCell(calculateMajorHeadTotalRelease(category.label)))
+		if (showExpenditure.value) row.push(formatCell(calculateMajorHeadTotalExpenditure(category.label)))
 		data.push(row)
 	  } else if (category.type === 'subcategory') {
 		// Subcategory row
 		const subcategoryRow = [category.label]
 		filteredProgramDivisions.value.forEach(pd => {
 		  if (showAllocation.value) {
-			subcategoryRow.push(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'allocation'))
+			subcategoryRow.push(formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'allocation')))
 		  }
 		  if (showReAllocation.value) {
-			subcategoryRow.push(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'reAllocation'))
+			subcategoryRow.push(formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'reAllocation')))
 		  }
 		  if (showFeAllocation.value) {
-			subcategoryRow.push(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'feAllocation'))
+			subcategoryRow.push(formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'feAllocation')))
 		  }
 		  if (showRelease.value) {
-			subcategoryRow.push(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'release'))
+			subcategoryRow.push(formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'release')))
 		  }
 		  if (showExpenditure.value) {
-			subcategoryRow.push(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'expenditure'))
+			subcategoryRow.push(formatCell(calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead, 'expenditure')))
 		  }
 		})
-		if (showAllocation.value) subcategoryRow.push(calculateSubcategoryTotal(category.label, category.parentMajorHead))
-		if (showReAllocation.value) subcategoryRow.push(calculateSubcategoryTotalRe(category.label, category.parentMajorHead))
-		if (showFeAllocation.value) subcategoryRow.push(calculateSubcategoryTotalFe(category.label, category.parentMajorHead))
-		if (showRelease.value) subcategoryRow.push(calculateSubcategoryTotalRelease(category.label, category.parentMajorHead))
-		if (showExpenditure.value) subcategoryRow.push(calculateSubcategoryTotalExpenditure(category.label, category.parentMajorHead))
+		if (showAllocation.value) subcategoryRow.push(formatCell(calculateSubcategoryTotal(category.label, category.parentMajorHead)))
+		if (showReAllocation.value) subcategoryRow.push(formatCell(calculateSubcategoryTotalRe(category.label, category.parentMajorHead)))
+		if (showFeAllocation.value) subcategoryRow.push(formatCell(calculateSubcategoryTotalFe(category.label, category.parentMajorHead)))
+		if (showRelease.value) subcategoryRow.push(formatCell(calculateSubcategoryTotalRelease(category.label, category.parentMajorHead)))
+		if (showExpenditure.value) subcategoryRow.push(formatCell(calculateSubcategoryTotalExpenditure(category.label, category.parentMajorHead)))
 		data.push(subcategoryRow)
 		
 		// Individual budget head rows (use same display helpers as frontend)
@@ -2710,26 +2722,26 @@
 		  const bhRow = [`${bh.budget_code} - ${bh.budget_name}`]
 		  filteredProgramDivisions.value.forEach(pd => {
 			if (showAllocation.value) {
-			  bhRow.push(formatToFiveDecimals(getDisplayAllocation(bh, pd.division_id)))
+			  bhRow.push(formatCell(getDisplayAllocation(bh, pd.division_id)))
 			}
 			if (showReAllocation.value) {
-			  bhRow.push(formatToFiveDecimals(getDisplayReAllocation(bh, pd.division_id)))
+			  bhRow.push(formatCell(getDisplayReAllocation(bh, pd.division_id)))
 			}
 			if (showFeAllocation.value) {
-			  bhRow.push(formatToFiveDecimals(getDisplayFeAllocation(bh, pd.division_id)))
+			  bhRow.push(formatCell(getDisplayFeAllocation(bh, pd.division_id)))
 			}
 			if (showRelease.value) {
-			  bhRow.push(getDisplayRelease(bh, pd.division_id))
+			  bhRow.push(formatCell(getDisplayReleaseRaw(bh, pd.division_id)))
 			}
 			if (showExpenditure.value) {
-			  bhRow.push(getDisplayExpenditure(bh, pd.division_id))
+			  bhRow.push(formatCell(getDisplayExpenditureRaw(bh, pd.division_id)))
 			}
 		  })
-		  if (showAllocation.value) bhRow.push(calculateRowTotal(bh))
-		  if (showReAllocation.value) bhRow.push(calculateRowTotalRe(bh))
-		  if (showFeAllocation.value) bhRow.push(calculateRowTotalFe(bh))
-		  if (showRelease.value) bhRow.push(calculateRowTotalRelease(bh))
-		  if (showExpenditure.value) bhRow.push(calculateRowTotalExpenditure(bh))
+		  if (showAllocation.value) bhRow.push(formatCell(calculateRowTotal(bh)))
+		  if (showReAllocation.value) bhRow.push(formatCell(calculateRowTotalRe(bh)))
+		  if (showFeAllocation.value) bhRow.push(formatCell(calculateRowTotalFe(bh)))
+		  if (showRelease.value) bhRow.push(formatCell(calculateRowTotalRelease(bh)))
+		  if (showExpenditure.value) bhRow.push(formatCell(calculateRowTotalExpenditure(bh)))
 		  data.push(bhRow)
 		})
 	  }
@@ -2738,17 +2750,17 @@
 	// Total row (same column order as frontend)
 	const totalRow = ['Total']
 	filteredProgramDivisions.value.forEach(pd => {
-	  if (showAllocation.value) totalRow.push(calculateColumnTotal(pd.division_id, 'allocation'))
-	  if (showReAllocation.value) totalRow.push(calculateColumnTotal(pd.division_id, 'reAllocation'))
-	  if (showFeAllocation.value) totalRow.push(calculateColumnTotal(pd.division_id, 'feAllocation'))
-	  if (showRelease.value) totalRow.push(calculateColumnTotal(pd.division_id, 'release'))
-	  if (showExpenditure.value) totalRow.push(calculateColumnTotal(pd.division_id, 'expenditure'))
+	  if (showAllocation.value) totalRow.push(formatCell(calculateColumnTotal(pd.division_id, 'allocation')))
+	  if (showReAllocation.value) totalRow.push(formatCell(calculateColumnTotal(pd.division_id, 'reAllocation')))
+	  if (showFeAllocation.value) totalRow.push(formatCell(calculateColumnTotal(pd.division_id, 'feAllocation')))
+	  if (showRelease.value) totalRow.push(formatCell(calculateColumnTotal(pd.division_id, 'release')))
+	  if (showExpenditure.value) totalRow.push(formatCell(calculateColumnTotal(pd.division_id, 'expenditure')))
 	})
-	if (showAllocation.value) totalRow.push(calculateGrandTotal())
-	if (showReAllocation.value) totalRow.push(calculateGrandTotalRe())
-	if (showFeAllocation.value) totalRow.push(calculateGrandTotalFe())
-	if (showRelease.value) totalRow.push(calculateGrandTotalRelease())
-	if (showExpenditure.value) totalRow.push(calculateGrandTotalExpenditure())
+	if (showAllocation.value) totalRow.push(formatCell(calculateGrandTotal()))
+	if (showReAllocation.value) totalRow.push(formatCell(calculateGrandTotalRe()))
+	if (showFeAllocation.value) totalRow.push(formatCell(calculateGrandTotalFe()))
+	if (showRelease.value) totalRow.push(formatCell(calculateGrandTotalRelease()))
+	if (showExpenditure.value) totalRow.push(formatCell(calculateGrandTotalExpenditure()))
 	data.push(totalRow)
 	
 	return data

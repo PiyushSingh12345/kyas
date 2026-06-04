@@ -179,6 +179,20 @@
                           </select>
                         </div>
                       </div>
+
+                      <!-- Remark -->
+                      <div class="col-md-12">
+                        <div class="form-group">
+                          <label for="remark">Remark</label>
+                          <textarea
+                            class="form-control"
+                            id="remark"
+                            v-model="formData.remark"
+                            placeholder="Enter Remark"
+                            rows="3"
+                          ></textarea>
+                        </div>
+                      </div>
                     </div>
 
                     <!-- Footer Buttons -->
@@ -218,7 +232,8 @@ const formData = ref({
   purposeOfGrant: '',
   programDivision: '',
   amount: '',
-  ut: ''
+  ut: '',
+  remark: ''
 })
 
 const budgetHeads = ref([])
@@ -358,7 +373,8 @@ const resetForm = (hideMessage = true) => {
     purposeOfGrant: '',
     programDivision: '',
     amount: '',
-    ut: ''
+    ut: '',
+    remark: ''
   }
   
   // Reset balanced fund amount
@@ -402,7 +418,8 @@ const submitForm = async () => {
       purposeOfGrant: formData.value.purposeOfGrant,
       programDivision: parseInt(formData.value.programDivision),
       amount: parseFloat(formData.value.amount),
-      ut: formData.value.ut
+      ut: formData.value.ut,
+      remark: formData.value.remark
     }
 
     const response = await fetch('/api/agency-release-loa', {
@@ -463,6 +480,9 @@ const prefillFormFromURL = async () => {
     }
     if (urlParams.get('ut')) {
       formData.value.ut = urlParams.get('ut');
+    }
+    if (urlParams.get('remark')) {
+      formData.value.remark = urlParams.get('remark');
     }
   }
 }

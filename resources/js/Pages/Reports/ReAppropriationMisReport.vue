@@ -56,6 +56,12 @@
                        
                       </div>
 
+                      <AmountInFilter
+                        v-model="amountIn"
+                        col-class="col-md-6 col-lg-4"
+                        input-id="amountInSelect"
+                      />
+
                       
 
 
@@ -89,7 +95,7 @@
                             <th>Re-appropriation to Head</th>
                             <th>Re-appropriation to Entity Type</th>
                             <th>Re-appropriation to Entity Name</th>
-                            <th>Amount (Rs. in Lakh)</th>
+                            <th>Amount ({{ amountInText }})</th>
                             <th>RO Date</th>
                           </tr>
                         </thead>
@@ -300,19 +306,23 @@
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
 import { ref, onMounted, watch } from 'vue'
+import { useAmountIn } from '../../composables/useAmountIn'
 
 export default {
   name: 'BudgetPhaseReport',
   components: {
     Header,
     Sidebar,
-    Footer
+    Footer,
+    AmountInFilter,
   },
   setup() {
     const financialYear = ref('2024-2025')
     const filteredBudgetHeads = ref([])
     const isLoading = ref(false)
+    const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
 
     const fetchBudgetSummary = async () => {
       if (!financialYear.value) return
@@ -335,7 +345,10 @@ export default {
     return {
       financialYear,
       filteredBudgetHeads,
-      isLoading
+      isLoading,
+      amountIn,
+      amountInText,
+      formatAmount,
     }
   }
 }

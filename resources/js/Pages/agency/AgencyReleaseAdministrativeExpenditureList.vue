@@ -66,6 +66,7 @@
                             <th>Program Division</th>
                             <th>Amount/Release/Expenditure</th>
                             <th>Agency/Vendor</th>
+                            <th>Remark</th>
                             <th>Action</th>
                             <th>Created At</th>
                           </tr>
@@ -79,6 +80,7 @@
                             <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
                             <td>{{ item.agency_vendor }}</td>
+                            <td>{{ item.remark }}</td>
                             <td class="text-center">
                               <div class="d-flex justify-content-center gap-1">
                                 <button
@@ -101,7 +103,7 @@
                           </tr>
                           
                           <tr v-if="adminExpList.length === 0">
-                            <td colspan="9" class="text-center text-muted py-4">
+                            <td colspan="10" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No Administrative Expenditure data available
                             </td>
@@ -233,6 +235,18 @@
                     <input type="text" class="form-control" id="editAgencyVendor" v-model="editForm.agencyVendor" required>
                   </div>
                 </div>
+                <div class="col-md-12">
+                  <div class="form-group mb-3">
+                    <label for="editRemark">Remark</label>
+                    <textarea
+                      class="form-control"
+                      id="editRemark"
+                      v-model="editForm.remark"
+                      placeholder="Enter Remark"
+                      rows="3"
+                    ></textarea>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="modal-footer">
@@ -307,7 +321,8 @@ const editForm = ref({
   purposeOfGrant: '',
   programDivision: '',
   amount: '',
-  agencyVendor: ''
+  agencyVendor: '',
+  remark: ''
 })
 
 const editAmountExceedsBalance = computed(() => {
@@ -498,7 +513,8 @@ const confirmRevise = async () => {
         purposeOfGrant: result.data.purpose_of_grant || '',
         programDivision: result.data.program_division_id || '',
         amount: result.data.amount || '',
-        agencyVendor: result.data.agency_vendor || ''
+        agencyVendor: result.data.agency_vendor || '',
+        remark: result.data.remark || ''
       });
       
       // Redirect to the Administrative Expenditure form with prefilled data
@@ -573,7 +589,8 @@ const handleEdit = async (item) => {
     purposeOfGrant: item.purpose_of_grant || '',
     programDivision: item.program_division_id || '',
     amount: item.amount ?? '',
-    agencyVendor: item.agency_vendor || ''
+    agencyVendor: item.agency_vendor || '',
+    remark: item.remark || ''
   }
   showEditDialog.value = true
   await fetchEditBalancedFundAmount()
@@ -608,7 +625,8 @@ const submitEdit = async () => {
         purposeOfGrant: editForm.value.purposeOfGrant,
         programDivision: parseInt(editForm.value.programDivision, 10),
         amount: parseFloat(editForm.value.amount),
-        agencyVendor: editForm.value.agencyVendor
+        agencyVendor: editForm.value.agencyVendor,
+        remark: editForm.value.remark
       })
     })
 
