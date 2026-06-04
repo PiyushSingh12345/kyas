@@ -264,6 +264,17 @@
 												  </div>
 											  </div>
 
+											  <div class="row g-3 mt-0">
+												  <DateTimeRangeFilter
+													  v-model:date-from="dateFrom"
+													  v-model:time-from="timeFrom"
+													  v-model:date-to="dateTo"
+													  v-model:time-to="timeTo"
+													  col-class="col-md-3"
+													  id-prefix="pdRelease"
+												  />
+											  </div>
+
 											  <!-- Column Visibility Filters -->
 											  <div class="row mt-3">
 												  <div class="col-12">
@@ -370,6 +381,13 @@
 											  <!-- Filter Actions -->
 											  <div class="row mt-3">
 												  <div class="col-12">
+													  <button
+														  class="btn btn-primary btn-sm me-2"
+														  @click="applyDateTimeRangeFilter"
+														  :disabled="loading"
+													  >
+														  <i class="fas fa-search me-1"></i>Apply Date/Time Filter
+													  </button>
 													  <button 
 														  class="btn btn-secondary btn-sm me-2" 
 														  @click="clearFilters"
@@ -378,6 +396,7 @@
 													  </button>
 													  <span class="text-muted ms-2">
 														  Showing {{ filteredCategorizedBudgetHeads.length }} categories
+														  <span v-if="hasDateTimeFilter()"> · Date/Time: {{ filterSummary() }}</span>
 													  </span>
 												  </div>
 											  </div>
@@ -741,7 +760,20 @@
   import Sidebar from '../Common/Sidebar.vue'
   import Footer from '../Common/Footer.vue'
   import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+  import DateTimeRangeFilter from '../../Components/Reports/DateTimeRangeFilter.vue'
   import { useAmountIn } from '../../Composables/useAmountIn'
+  import { useDateTimeRangeFilter } from '../../Composables/useDateTimeRangeFilter'
+
+  const {
+    dateFrom,
+    timeFrom,
+    dateTo,
+    timeTo,
+    appendToUrl,
+    clearDateTimeRange,
+    hasDateTimeFilter,
+    filterSummary,
+  } = useDateTimeRangeFilter()
   
   // Amount In (base values in Lakhs)
   const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
@@ -983,7 +1015,10 @@
   // Fetch BE allocations
   const fetchExistingAllocations = async () => {
 	try {
-	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}&budget_phase=BE`)
+	  const response = await fetch(appendToUrl('/api/pdwise-aap-allocation', {
+		financial_year: selectedFinancialYear.value,
+		budget_phase: 'BE',
+	  }))
 	  if (!response.ok) throw new Error('Failed to fetch existing allocations')
 	  const result = await response.json()
 	  
@@ -1033,7 +1068,10 @@
   // Fetch RE allocations
   const fetchReAllocations = async () => {
 	try {
-	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}&budget_phase=RE`)
+	  const response = await fetch(appendToUrl('/api/pdwise-aap-allocation', {
+		financial_year: selectedFinancialYear.value,
+		budget_phase: 'RE',
+	  }))
 	  if (!response.ok) throw new Error('Failed to fetch RE allocations')
 	  const result = await response.json()
 	  
@@ -1060,7 +1098,10 @@
   // Fetch FE allocations
   const fetchFeAllocations = async () => {
 	try {
-	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}&budget_phase=FE`)
+	  const response = await fetch(appendToUrl('/api/pdwise-aap-allocation', {
+		financial_year: selectedFinancialYear.value,
+		budget_phase: 'FE',
+	  }))
 	  if (!response.ok) throw new Error('Failed to fetch FE allocations')
 	  const result = await response.json()
 	  
@@ -1087,7 +1128,9 @@
   // Fetch mother sanction release data
   const fetchReleaseData = async () => {
 	try {
-	  const response = await fetch(`/api/mother-sanction-release-data?financial_year=${selectedFinancialYear.value}`)
+	  const response = await fetch(appendToUrl('/api/mother-sanction-release-data', {
+		financial_year: selectedFinancialYear.value,
+	  }))
 	  if (!response.ok) {
 		const errorText = await response.text()
 		console.error('Failed to fetch release data:', response.status, errorText)
@@ -1118,7 +1161,9 @@
   // Fetch daily sanction expenditure data
   const fetchExpenditureData = async () => {
 	try {
-	  const response = await fetch(`/api/daily-sanction-expenditure-data?financial_year=${selectedFinancialYear.value}`)
+	  const response = await fetch(appendToUrl('/api/daily-sanction-expenditure-data', {
+		financial_year: selectedFinancialYear.value,
+	  }))
 	  if (!response.ok) {
 		const errorText = await response.text()
 		console.error('Failed to fetch expenditure data:', response.status, errorText)
@@ -1542,7 +1587,24 @@
 	scrollSyncLock = false
   }
 
-  const clearFilters = () => {
+  const reloadAllReportData = async () => {
+	allocationData.value = {}
+	reAllocationData.value = {}
+	feAllocationData.value = {}
+	releaseData.value = {}
+	expenditureData.value = {}
+	remarksData.value = {}
+	initializeAllocationData()
+	await Promise.all([
+	  fetchExistingAllocations(),
+	  fetchReAllocations(),
+	  fetchFeAllocations(),
+	  fetchReleaseData(),
+	  fetchExpenditureData(),
+	])
+  }
+
+  const clearFilters = async () => {
 	selectedProgramDivisions.value = []
 	selectedMajorHeads.value = []
 	selectedBudgetHeads.value = []
@@ -1555,12 +1617,31 @@
 	highlightedPdIndex.value = -1
 	highlightedMajorHeadIndex.value = -1
 	highlightedBudgetHeadIndex.value = -1
+	clearDateTimeRange()
 	// Reset column visibility to show all
 	showAllocation.value = true
 	showReAllocation.value = true
 	showFeAllocation.value = true
 	showRelease.value = true
 	showExpenditure.value = true
+	loading.value = true
+	try {
+	  await reloadAllReportData()
+	} finally {
+	  loading.value = false
+	}
+  }
+
+  const applyDateTimeRangeFilter = async () => {
+	loading.value = true
+	try {
+	  await reloadAllReportData()
+	} catch (err) {
+	  console.error('Error applying date/time filter:', err)
+	  error.value = 'Failed to apply date/time filter'
+	} finally {
+	  loading.value = false
+	}
   }
 
   const onFinancialYearChange = () => {
@@ -1569,9 +1650,7 @@
 	Promise.all([
 	  fetchBudgetHeads(),
 	  fetchProgramDivisions(),
-	  fetchExistingAllocations(),
-	  fetchReleaseData(),
-	  fetchExpenditureData()
+	  reloadAllReportData(),
 	]).finally(() => {
 	  loading.value = false
 	})
@@ -2855,6 +2934,9 @@
 	const metaInfoStart = '<div class="meta-info">'
 	const financialYearP = '<p><strong>Financial Year:</strong> ' + selectedFinancialYear.value + '</p>'
 	const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'
+	const dateTimeP = hasDateTimeFilter()
+	  ? '<p><strong>Date/Time Range:</strong> ' + filterSummary() + '</p>'
+	  : ''
 	const programDivisionsP = selectedProgramDivisions.value.length > 0 
 	  ? '<p><strong>Program Divisions:</strong> ' + selectedProgramDivisions.value.map(id => getProgramDivisionName(id)).join(', ') + '</p>' 
 	  : '<p><strong>Program Divisions:</strong> All Program Divisions</p>'
@@ -2930,7 +3012,7 @@
 	const htmlContent = '<!DOCTYPE html><html>' +
 	  headStart + titleTag + styleStart + styles + styleEnd + headEnd +
 	  bodyStart + printOuterStart + pdfWrapperStart +
-	  h2Tag + metaInfoStart + financialYearP + generatedP + programDivisionsP + majorHeadP + budgetHeadP + columnsP + metaInfoEnd +
+	  h2Tag + metaInfoStart + financialYearP + generatedP + dateTimeP + programDivisionsP + majorHeadP + budgetHeadP + columnsP + metaInfoEnd +
 	  tableHTML + pdfWrapperEnd + printOuterEnd + scriptTag + bodyEnd + htmlEnd
 	
 	printWindow.document.write(htmlContent)

@@ -220,6 +220,18 @@
 													  </div>
 												  </div>
 
+												  <!-- Date/Time Range -->
+												  <DateTimeRangeFilter
+													  v-model:date-from="dateFrom"
+													  v-model:time-from="timeFrom"
+													  v-model:date-to="dateTo"
+													  v-model:time-to="timeTo"
+													  col-class="col-md-3"
+													  id-prefix="pdReport"
+												  />
+											  </div>
+
+											  <div class="row g-3 mt-0">
 												  <!-- Budget Head Filter -->
 												  <div class="col-md-3">
 													  <label class="form-label fw-bold">Budget Head <span class="text-danger">*</span></label>
@@ -314,6 +326,13 @@
 											  <!-- Filter Actions -->
 											  <div class="row mt-3">
 												  <div class="col-12">
+													  <button
+														  class="btn btn-primary btn-sm me-2"
+														  @click="applyDateTimeRangeFilter"
+														  :disabled="loading"
+													  >
+														  <i class="fas fa-search me-1"></i>Apply Date/Time Filter
+													  </button>
 													  <button 
 														  class="btn btn-secondary btn-sm me-2" 
 														  @click="clearFilters"
@@ -322,6 +341,7 @@
 													  </button>
 													  <span class="text-muted ms-2">
 														  Showing {{ filteredCategorizedBudgetHeads.length }} categories
+														  <span v-if="hasDateTimeFilter()"> · Date/Time: {{ filterSummary() }}</span>
 													  </span>
 												  </div>
 											  </div>
@@ -513,7 +533,9 @@
   import Sidebar from '../Common/Sidebar.vue'
   import Footer from '../Common/Footer.vue'
   import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
+  import DateTimeRangeFilter from '../../Components/Reports/DateTimeRangeFilter.vue'
   import { useAmountIn } from '../../Composables/useAmountIn'
+  import { useDateTimeRangeFilter } from '../../Composables/useDateTimeRangeFilter'
   
   // Reactive data
   const budgetHeads = ref([])
@@ -566,6 +588,18 @@
   const highlightedMajorHeadIndex = ref(-1)
   const highlightedBudgetHeadIndex = ref(-1)
   
+  // Date/time range filter
+  const {
+    dateFrom,
+    timeFrom,
+    dateTo,
+    timeTo,
+    appendToUrl,
+    clearDateTimeRange,
+    hasDateTimeFilter,
+    filterSummary,
+  } = useDateTimeRangeFilter()
+
   // Amount In (base values in Lakhs)
   const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
   const amountFractionDigits = computed(() => (amountIn.value === 'Rupees' ? 2 : 5))
@@ -752,7 +786,10 @@
   // Fetch existing allocation data
   const fetchExistingAllocations = async () => {
 	try {
-	  const response = await fetch(`/api/pdwise-aap-allocation?financial_year=${selectedFinancialYear.value}&budget_phase=${selectedBudgetPhase.value}`)
+	  const response = await fetch(appendToUrl('/api/pdwise-aap-allocation', {
+		financial_year: selectedFinancialYear.value,
+		budget_phase: selectedBudgetPhase.value,
+	  }))
 	  if (!response.ok) throw new Error('Failed to fetch existing allocations')
 	  const result = await response.json()
 	  
@@ -1547,7 +1584,7 @@
   })
 
   // Function to clear all filters
-  const clearFilters = () => {
+  const clearFilters = async () => {
 	selectedProgramDivisions.value = []
 	tempProgramDivision.value = ''
 	selectedMajorHeads.value = []
@@ -1561,6 +1598,26 @@
 	highlightedPdIndex.value = -1
 	highlightedMajorHeadIndex.value = -1
 	highlightedBudgetHeadIndex.value = -1
+	clearDateTimeRange()
+	allocationData.value = {}
+	remarksData.value = {}
+	initializeAllocationData()
+	await fetchExistingAllocations()
+  }
+
+  const applyDateTimeRangeFilter = async () => {
+	loading.value = true
+	try {
+	  allocationData.value = {}
+	  remarksData.value = {}
+	  initializeAllocationData()
+	  await fetchExistingAllocations()
+	} catch (err) {
+	  console.error('Error applying date/time filter:', err)
+	  error.value = 'Failed to apply date/time filter'
+	} finally {
+	  loading.value = false
+	}
   }
 
   // Function to prepare table data for export
@@ -1710,6 +1767,9 @@
 	const budgetHeadP = selectedBudgetHeads.value.length > 0 
 	  ? '<p><strong>Budget Heads:</strong> ' + selectedBudgetHeads.value.map(id => getBudgetHeadDisplay(id)).join(', ') + '</p>' 
 	  : ''
+	const dateTimeP = hasDateTimeFilter()
+	  ? '<p><strong>Date/Time Range:</strong> ' + filterSummary() + '</p>'
+	  : ''
 	const metaInfoEnd = '</div>'
 	const scriptStart = '<' + 'script' + '>'
 	const scriptContent = 'window.onload = function() { window.print(); }'
@@ -1720,7 +1780,7 @@
 	
 	const htmlContent = '<!DOCTYPE html><html>' +
 	  headStart + titleTag + styleStart + styles + styleEnd + headEnd +
-	  bodyStart + h2Tag + metaInfoStart + financialYearP + budgetPhaseP + generatedP + programDivisionsP + majorHeadP + budgetHeadP + metaInfoEnd +
+	  bodyStart + h2Tag + metaInfoStart + financialYearP + budgetPhaseP + generatedP + dateTimeP + programDivisionsP + majorHeadP + budgetHeadP + metaInfoEnd +
 	  tableHTML + scriptTag + bodyEnd + htmlEnd
 	
 	printWindow.document.write(htmlContent)

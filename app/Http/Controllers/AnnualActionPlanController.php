@@ -14,6 +14,7 @@ use App\Models\StatewiseAapAllocation;
 use App\Models\PdwiseAapAllocation;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB as DBFacade;
+use Carbon\Carbon;
 
 class AnnualActionPlanController extends Controller
 {
@@ -569,6 +570,8 @@ class AnnualActionPlanController extends Controller
                 $query->where('budget_phase', $budgetPhase);
             }
 
+            $this->applyDateTimeRangeToQuery($query, $request, 'updated_at');
+
             $allocations = $query->get()
                 ->groupBy('bh_id')
                 ->map(function ($bhAllocations) {
@@ -599,6 +602,7 @@ class AnnualActionPlanController extends Controller
             if ($budgetPhase && $budgetPhase !== '0') {
                 $remarksQuery->where('budget_phase', $budgetPhase);
             }
+            $this->applyDateTimeRangeToQuery($remarksQuery, $request, 'updated_at');
             $remarks = $remarksQuery->whereNotNull('remark')
                 ->pluck('remark', 'bh_id')
                 ->toArray();
@@ -746,13 +750,106 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
+     * Parse optional date/time range from request (date_from, time_from, date_to, time_to).
+     *
+     * @return array{0: ?Carbon, 1: ?Carbon}|null
+     */
+    private function resolveDateTimeRangeFromRequest(Request $request): ?array
+    {
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+
+        if (!$dateFrom && !$dateTo) {
+            return null;
+        }
+
+        $start = null;
+        $end = null;
+
+        if ($dateFrom) {
+            $timeFrom = $request->get('time_from', '00:00');
+            $start = Carbon::parse(trim($dateFrom . ' ' . $this->normalizeTimeForParse($timeFrom, false)));
+        }
+
+        if ($dateTo) {
+            $timeTo = $request->get('time_to', '23:59');
+            $end = Carbon::parse(trim($dateTo . ' ' . $this->normalizeTimeForParse($timeTo, true)));
+        }
+
+        return [$start, $end];
+    }
+
+    private function normalizeTimeForParse(?string $time, bool $isEnd): string
+    {
+        $time = trim((string) $time);
+        if ($time === '') {
+            return $isEnd ? '23:59:59' : '00:00:00';
+        }
+        if (preg_match('/^\d{2}:\d{2}$/', $time)) {
+            return $isEnd ? $time . ':59' : $time . ':00';
+        }
+        return $time;
+    }
+
+    private function applyDateTimeRangeToQuery($query, Request $request, string $column): void
+    {
+        $range = $this->resolveDateTimeRangeFromRequest($request);
+        if ($range === null) {
+            return;
+        }
+
+        [$start, $end] = $range;
+        if ($start) {
+            $query->where($column, '>=', $start);
+        }
+        if ($end) {
+            $query->where($column, '<=', $end);
+        }
+    }
+
+    private function applyDateRangeToQuery($query, Request $request, string $column): void
+    {
+        $range = $this->resolveDateTimeRangeFromRequest($request);
+        if ($range === null) {
+            return;
+        }
+
+        [$start, $end] = $range;
+        if ($start) {
+            $query->whereDate($column, '>=', $start->toDateString());
+        }
+        if ($end) {
+            $query->whereDate($column, '<=', $end->toDateString());
+        }
+    }
+
+    /**
+     * Resolve [startDate, endDate] strings for date-only columns (e.g. agency release date).
+     */
+    private function resolveDateOnlyRangeBounds(Request $request, string $financialYear): array
+    {
+        $range = $this->resolveDateTimeRangeFromRequest($request);
+        if ($range !== null) {
+            [$start, $end] = $range;
+            return [
+                $start ? $start->toDateString() : '1970-01-01',
+                $end ? $end->toDateString() : '2099-12-31',
+            ];
+        }
+
+        return $this->getFinancialYearDateRange($financialYear);
+    }
+
+    /**
      * Get release/expenditure data for budget head 2435 only: sum of agency_release_tsa,
      * agency_release_loa, and agency_release_administrative_expenditure, grouped by budget_head and program_division_id.
      * Returns [ bh_id => [ pd_id => amount ] ] so each budget head row shows only its corresponding agency sum.
      */
-    private function getAgencyReleaseSumForBudgetHead2435(string $financialYear): array
+    private function getAgencyReleaseSumForBudgetHead2435(string $financialYear, ?Request $request = null): array
     {
-        [$startDate, $endDate] = $this->getFinancialYearDateRange($financialYear);
+        [$startDate, $endDate] = $request
+            ? $this->resolveDateOnlyRangeBounds($request, $financialYear)
+            : $this->getFinancialYearDateRange($financialYear);
 
         $budgetHead2435Condition = '(TRIM(budget_head) = ? OR TRIM(budget_head) LIKE ?)';
 
@@ -852,8 +949,11 @@ class AnnualActionPlanController extends Controller
                 ->whereNotNull('ms.budget_head')
                 ->whereNotNull('ms.pd_component')
                 ->whereNotNull('ms.mother_sanction_amount')
-                ->where('ms.mother_sanction_amount', '>', 0)
-                ->select(
+                ->where('ms.mother_sanction_amount', '>', 0);
+
+            $this->applyDateRangeToQuery($releaseData, $request, 'ms.sanction_date');
+
+            $releaseData = $releaseData->select(
                     'bh.id as bh_id',
                     'pd.division_id as pd_id',
                     'ms.budget_head',
@@ -895,7 +995,7 @@ class AnnualActionPlanController extends Controller
             ]);
 
             // For budget head 2435 only: replace release with agency sum per corresponding budget head (not every row)
-            $agency2435 = $this->getAgencyReleaseSumForBudgetHead2435($financialYear);
+            $agency2435 = $this->getAgencyReleaseSumForBudgetHead2435($financialYear, $request);
             foreach ($agency2435['by_bh'] as $bhId => $byPd) {
                 $formattedData[$bhId] = $byPd;
             }
@@ -969,8 +1069,11 @@ class AnnualActionPlanController extends Controller
                 ->whereNotNull('ds.budget_head')
                 ->whereNotNull('ds.center_share_amount')
                 ->whereNotNull('ds.state_id')
-                ->where('ds.center_share_amount', '>', 0)
-                ->select(
+                ->where('ds.center_share_amount', '>', 0);
+
+            $this->applyDateRangeToQuery($expenditureData, $request, 'ds.ds_date');
+
+            $expenditureData = $expenditureData->select(
                     'bh.id as bh_id',
                     'ds.budget_head',
                     'ds.state_id',
@@ -1012,7 +1115,7 @@ class AnnualActionPlanController extends Controller
             $formattedData = $groupedData;
 
             // For budget head 2435 only: set expenditure = agency sum per corresponding budget head (same as release, not every row)
-            $agency2435 = $this->getAgencyReleaseSumForBudgetHead2435($financialYear);
+            $agency2435 = $this->getAgencyReleaseSumForBudgetHead2435($financialYear, $request);
             foreach ($agency2435['by_bh'] as $bhId => $byPd) {
                 $formattedData[$bhId] = $byPd;
             }
