@@ -31,6 +31,7 @@ class DailySanctionController extends Controller
     }
 
     private const SAFE_TEXT_PATTERN = "/^[A-Za-z0-9\s\-\.,&()\/:'_]+$/";
+    private const FORBIDDEN_TEXT_CHARS_PATTERN = '/[<>"\\\\`\x00-\x1F\x7F]/u';
     private const SAFE_BUDGET_HEAD_PATTERN = '/^(\d{15}|\d{4}\.\d{2}\.\d{3}\.\d{2}\.\d{2}\.\d{2})$/';
     
     public function getMotherSanctions(Request $request)
@@ -159,7 +160,7 @@ public function store(Request $request)
             'daily_sanction_no' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN, 'unique:daily_sanction,daily_sanction_no'],
             'mother_sanction' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
             'ifd_no' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
-            'sls_name' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+            'sls_name' => ['required', 'string', 'max:255', 'not_regex:' . self::FORBIDDEN_TEXT_CHARS_PATTERN],
             'entries' => 'required|array|min:1',
             'entries.*.budget_head' => ['required', 'string', 'regex:' . self::SAFE_BUDGET_HEAD_PATTERN],
             'entries.*.mother_sanction_amount' => 'required|numeric',
@@ -171,7 +172,7 @@ public function store(Request $request)
             'daily_sanction_no.regex' => 'Daily sanction number contains invalid special characters.',
             'mother_sanction.regex' => 'Mother sanction no contains invalid special characters.',
             'ifd_no.regex' => 'IFD no contains invalid special characters.',
-            'sls_name.regex' => 'SLS name contains invalid special characters.',
+            'sls_name.not_regex' => 'SLS name contains invalid special characters.',
             'entries.*.budget_head.regex' => 'Budget head format is invalid.',
             'remark.regex' => 'Remark contains invalid special characters.',
         ]);
