@@ -63,10 +63,10 @@
 														v-model="selectedFinancialYear"
 														@change="onFinancialYearChange"
 													>
-														<option value="2025-26">2025-26</option>
-														<option value="2024-25">2024-25</option>
-														<option value="2023-24">2023-24</option>
-														<option value="2022-23">2022-23</option>
+														<option value="2025-26">2025-2026</option>
+														<option value="2024-25">2024–2025</option>
+														<option value="2023-24">2023–2024</option>
+														<option value="2022-23">2022–2023</option>
 													</select>
 												</div>
 												

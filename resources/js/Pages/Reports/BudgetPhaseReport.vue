@@ -65,7 +65,10 @@
                           class="form-select shadow-sm"
                           aria-label="Select Financial Year"
                         >
+                          <option value="2025-2026">2025–2026</option>
                           <option value="2024-2025">2024–2025</option>
+                          <option value="2023-2024">2023–2024</option>
+                          <option value="2022-2023">2022–2023</option>
                           <!-- Add more years if needed -->
                         </select>
                       </div>
