@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import warnings
@@ -105,6 +106,22 @@ def group_ocr_rows(results: list, page_width: int) -> list[tuple[str, str]]:
     return parsed_rows
 
 
+def create_ocr_reader():
+    import easyocr
+
+    model_dir = os.environ.get("BUDGET_HEAD_OCR_MODEL_DIR")
+    if model_dir:
+        os.makedirs(model_dir, exist_ok=True)
+        return easyocr.Reader(
+            ["en"],
+            gpu=False,
+            verbose=False,
+            model_storage_directory=model_dir,
+        )
+
+    return easyocr.Reader(["en"], gpu=False, verbose=False)
+
+
 def extract_structured_rows(pdf_path: str) -> list[dict]:
     doc = fitz.open(pdf_path)
     structured_rows: list[dict] = []
@@ -175,9 +192,7 @@ def extract_structured_rows(pdf_path: str) -> list[dict]:
 
         try:
             if ocr_reader is None:
-                import easyocr
-
-                ocr_reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+                ocr_reader = create_ocr_reader()
 
             import cv2
             import numpy as np
@@ -191,8 +206,8 @@ def extract_structured_rows(pdf_path: str) -> list[dict]:
             for left, right in page_rows:
                 if process_row(left, right):
                     break
-        except Exception:
-            continue
+        except Exception as exc:
+            raise RuntimeError(f"OCR failed while processing a PDF page: {exc}") from exc
 
     doc.close()
 
