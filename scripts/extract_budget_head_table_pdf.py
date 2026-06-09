@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
+import io
 import json
-import os
 import re
 import sys
 import warnings
@@ -71,64 +71,69 @@ def parse_left_cell(text: str) -> dict | None:
     return None
 
 
-def group_ocr_rows(results: list, page_width: int) -> list[tuple[str, str]]:
-    rows: dict[int, list[tuple[float, str]]] = {}
-    split_x = page_width * 0.62
+def group_spatial_rows(items: list[tuple[int, int, str]], page_width: int) -> list[tuple[str, str]]:
+    rows: dict[int, list[tuple[int, str]]] = {}
+    split_x = int(page_width * 0.62)
 
-    for bbox, text, _confidence in results:
-        text = text.strip()
-        if not text:
-            continue
-
-        y_center = (bbox[0][1] + bbox[2][1]) / 2
-        x_center = (bbox[0][0] + bbox[2][0]) / 2
-
+    for left, top, text in items:
         row_key = None
         for key in rows:
-            if abs(key - y_center) <= 18:
+            if abs(key - top) <= 18:
                 row_key = key
                 break
         if row_key is None:
-            row_key = int(y_center)
+            row_key = top
             rows[row_key] = []
 
-        rows[row_key].append((x_center, text))
+        rows[row_key].append((left, text))
 
     parsed_rows: list[tuple[str, str]] = []
-    for y in sorted(rows.keys()):
-        cells = sorted(rows[y], key=lambda item: item[0])
-        left_parts = [text for x, text in cells if x < split_x]
-        right_parts = [text for x, text in cells if x >= split_x]
+    for top in sorted(rows.keys()):
+        cells = sorted(rows[top], key=lambda item: item[0])
+        left_parts = [text for left, text in cells if left < split_x]
+        right_parts = [text for left, text in cells if left >= split_x]
         left = " ".join(left_parts).strip()
         right = " ".join(right_parts).strip()
-        parsed_rows.append((left, right))
+        if left or right:
+            parsed_rows.append((left, right))
 
     return parsed_rows
 
 
-def create_ocr_reader():
-    import easyocr
+def ocr_page_with_tesseract(pix) -> list[tuple[str, str]]:
+    from PIL import Image
+    import pytesseract
+    from pytesseract import Output
 
-    model_dir = os.environ.get("BUDGET_HEAD_OCR_MODEL_DIR")
-    if model_dir:
-        os.makedirs(model_dir, exist_ok=True)
-        return easyocr.Reader(
-            ["en"],
-            gpu=False,
-            verbose=False,
-            model_storage_directory=model_dir,
-        )
+    img = Image.open(io.BytesIO(pix.tobytes("png")))
+    data = pytesseract.image_to_data(img, output_type=Output.DICT)
+    items: list[tuple[int, int, str]] = []
 
-    return easyocr.Reader(["en"], gpu=False, verbose=False)
+    for index, text in enumerate(data["text"]):
+        text = text.strip()
+        if not text:
+            continue
+
+        try:
+            confidence = int(float(data["conf"][index]))
+        except ValueError:
+            confidence = -1
+
+        if confidence >= 0 and confidence < 20:
+            continue
+
+        items.append((data["left"][index], data["top"][index], text))
+
+    return group_spatial_rows(items, img.width)
 
 
 def extract_structured_rows(pdf_path: str) -> list[dict]:
     doc = fitz.open(pdf_path)
     structured_rows: list[dict] = []
-    ocr_reader = None
     current_financial_year: str | None = None
     in_section = False
     detected_years: list[str] = []
+    ocr_errors: list[str] = []
 
     def register_year(year: str) -> None:
         nonlocal current_financial_year
@@ -191,25 +196,26 @@ def extract_structured_rows(pdf_path: str) -> list[dict]:
             continue
 
         try:
-            if ocr_reader is None:
-                ocr_reader = create_ocr_reader()
-
-            import cv2
-            import numpy as np
-
             pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-            img_array = np.frombuffer(pix.tobytes("png"), dtype=np.uint8)
-            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-            results = ocr_reader.readtext(img, detail=1)
-            page_rows = group_ocr_rows(results, img.shape[1])
-
+            page_rows = ocr_page_with_tesseract(pix)
             for left, right in page_rows:
                 if process_row(left, right):
                     break
         except Exception as exc:
-            raise RuntimeError(f"OCR failed while processing a PDF page: {exc}") from exc
+            ocr_errors.append(str(exc))
+            continue
 
     doc.close()
+
+    if not structured_rows and ocr_errors:
+        unique_errors = list(dict.fromkeys(ocr_errors))
+        hint = unique_errors[0]
+        if "tesseract" in hint.lower():
+            hint = (
+                "Tesseract OCR is not installed. Run: sudo apt install -y tesseract-ocr "
+                "and pip install -r scripts/requirements-budget-head-ocr.txt"
+            )
+        raise RuntimeError(hint)
 
     if len(detected_years) == 1:
         only_year = detected_years[0]

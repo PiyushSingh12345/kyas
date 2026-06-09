@@ -8,11 +8,9 @@ use App\Services\SafePdfValidator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Smalot\PdfParser\Parser;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\Process\Exception\ProcessTimedOutException;
-use Symfony\Component\Process\Process;
 
 class BudgetHeadController extends Controller
 {
@@ -865,38 +863,47 @@ class BudgetHeadController extends Controller
                 'stderr' => substr($processResult['stderr'] ?? '', 0, 500),
             ]);
 
+            $stderr = trim($processResult['stderr'] ?? '');
+
             return array_merge($emptyResult, [
-                'error' => 'OCR processing failed to return valid data. Please verify Python OCR dependencies are installed on the server.',
+                'error' => $stderr !== ''
+                    ? 'OCR processing failed: '.$stderr
+                    : 'OCR processing failed to return valid data. Please verify Python OCR dependencies are installed on the server.',
             ]);
         }
 
         if (! empty($decoded['error'])) {
             return array_merge($emptyResult, [
-                'error' => 'OCR processing failed: ' . $decoded['error'],
+                'error' => 'OCR processing failed: '.$decoded['error'],
+            ]);
+        }
+
+        $totalItems = $decoded['total_items'] ?? count($decoded['structured_data'] ?? []);
+        if ($totalItems === 0) {
+            return array_merge($emptyResult, [
+                'error' => 'OCR completed but no budget head rows were detected in the PDF.',
             ]);
         }
 
         return [
             'structured_data' => $decoded['structured_data'] ?? [],
             'financial_years' => $decoded['financial_years'] ?? [],
-            'total_items' => $decoded['total_items'] ?? count($decoded['structured_data'] ?? []),
+            'total_items' => $totalItems,
         ];
     }
 
     private function resolvePythonBinary(): ?string
     {
-        $candidates = array_values(array_filter(array_unique([
+        $candidates = array_values(array_filter([
             config('budget_head_pdf.python_binary'),
             base_path('.venv-budget-head-ocr/bin/python3'),
-            base_path('.venv-budget-head-ocr/bin/python'),
             '/usr/bin/python3',
-            '/usr/local/bin/python3',
             'python3',
             'python',
-        ])));
+        ]));
 
         foreach ($candidates as $candidate) {
-            if (is_string($candidate) && $candidate !== '' && $this->canRunPythonBinary($candidate)) {
+            if ($this->pythonBinaryIsRunnable($candidate)) {
                 return $candidate;
             }
         }
@@ -904,85 +911,134 @@ class BudgetHeadController extends Controller
         return null;
     }
 
-    private function canRunPythonBinary(string $binary): bool
+    private function pythonBinaryIsRunnable(string $binary): bool
     {
-        if ((str_contains($binary, '/') || str_contains($binary, '\\')) && ! is_file($binary)) {
+        if (! $this->pythonBinaryExists($binary)) {
             return false;
         }
 
-        try {
-            $process = new Process([$binary, '--version'], base_path(), null, null, 15);
-            $process->run();
-
-            return $process->isSuccessful();
-        } catch (\Throwable $exception) {
-            Log::debug('Unable to execute Python binary candidate.', [
-                'binary' => $binary,
-                'message' => $exception->getMessage(),
-            ]);
-
-            return false;
+        if (! function_exists('proc_open') && ! function_exists('shell_exec')) {
+            return true;
         }
+
+        $result = $this->runSimpleCommand([$binary, '--version']);
+
+        return ($result['exit_code'] ?? 1) === 0 && trim($result['stdout'] ?? '') !== '';
     }
 
-    private function ensureOcrWritableDirectories(): array
+    private function pythonBinaryExists(string $binary): bool
     {
-        $ocrHome = storage_path('app/budget-head-ocr-home');
-        $modelDir = $ocrHome . DIRECTORY_SEPARATOR . 'easyocr';
-        $cacheDir = $ocrHome . DIRECTORY_SEPARATOR . 'cache';
-
-        foreach ([$ocrHome, $modelDir, $cacheDir] as $directory) {
-            if (! is_dir($directory)) {
-                mkdir($directory, 0775, true);
-            }
+        if (str_contains($binary, DIRECTORY_SEPARATOR) || str_contains($binary, '/')) {
+            return is_file($binary) && is_executable($binary);
         }
 
-        return [
-            'HOME' => $ocrHome,
-            'XDG_CACHE_HOME' => $cacheDir,
-            'TORCH_HOME' => $ocrHome . DIRECTORY_SEPARATOR . 'torch',
-            'BUDGET_HEAD_OCR_MODEL_DIR' => $modelDir,
-            'PYTHONIOENCODING' => 'utf-8',
-            'PYTHONWARNINGS' => 'ignore',
-            'OMP_NUM_THREADS' => '1',
-        ];
+        $command = PHP_OS_FAMILY === 'Windows'
+            ? 'where ' . escapeshellarg($binary)
+            : 'command -v ' . escapeshellarg($binary);
+
+        if (! function_exists('shell_exec')) {
+            return false;
+        }
+
+        $result = trim((string) shell_exec($command . ' 2>/dev/null'));
+
+        return $result !== '';
     }
 
     private function runOcrScript(string $filePath, string $pythonBinary, string $scriptPath): array
     {
+        $wrapperScript = base_path('scripts/run-budget-head-ocr.sh');
+        if (is_file($wrapperScript) && is_readable($wrapperScript)) {
+            putenv('BUDGET_HEAD_PDF_PYTHON='.$pythonBinary);
+
+            if (PHP_OS_FAMILY !== 'Windows') {
+                $wrapperResult = $this->runSimpleCommand(['/bin/bash', $wrapperScript, $filePath]);
+                if (($wrapperResult['stdout'] ?? '') !== '' || ($wrapperResult['stderr'] ?? '') !== '') {
+                    return $wrapperResult;
+                }
+            }
+        }
+
         $timeoutSeconds = (int) config('budget_head_pdf.ocr_timeout_seconds', 300);
-        $environment = $this->ensureOcrWritableDirectories();
+        $command = [$pythonBinary, $scriptPath, $filePath];
 
-        try {
-            $process = new Process(
-                [$pythonBinary, $scriptPath, $filePath],
-                base_path(),
-                $environment,
-                null,
-                $timeoutSeconds
-            );
-            $process->run();
+        putenv('PYTHONIOENCODING=utf-8');
+        putenv('PYTHONWARNINGS=ignore');
+        putenv('OMP_NUM_THREADS=1');
 
-            return [
-                'stdout' => trim($process->getOutput()),
-                'stderr' => trim($process->getErrorOutput()),
-                'exit_code' => $process->getExitCode(),
+        if (function_exists('proc_open')) {
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
             ];
-        } catch (ProcessTimedOutException $exception) {
-            $process = $exception->getProcess();
 
-            return [
-                'stdout' => trim($process?->getOutput() ?? ''),
-                'stderr' => 'OCR timed out after ' . $timeoutSeconds . ' seconds.',
-                'exit_code' => -1,
-            ];
-        } catch (\Throwable $exception) {
+            $process = @proc_open($command, $descriptors, $pipes, base_path(), null);
+            if (is_resource($process)) {
+                fclose($pipes[0]);
+                stream_set_blocking($pipes[1], false);
+                stream_set_blocking($pipes[2], false);
+
+                $stdout = '';
+                $stderr = '';
+                $startedAt = time();
+
+                while (true) {
+                    $stdout .= stream_get_contents($pipes[1]);
+                    $stderr .= stream_get_contents($pipes[2]);
+                    $status = proc_get_status($process);
+
+                    if (! $status['running']) {
+                        $stdout .= stream_get_contents($pipes[1]);
+                        $stderr .= stream_get_contents($pipes[2]);
+                        break;
+                    }
+
+                    if ((time() - $startedAt) >= $timeoutSeconds) {
+                        proc_terminate($process);
+                        Log::warning('OCR script timed out for budget head table PDF.', [
+                            'file' => $filePath,
+                            'timeout_seconds' => $timeoutSeconds,
+                        ]);
+                        break;
+                    }
+
+                    usleep(100000);
+                }
+
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                $exitCode = proc_close($process);
+
+                return [
+                    'stdout' => trim($stdout),
+                    'stderr' => trim($stderr),
+                    'exit_code' => $exitCode,
+                ];
+            }
+        }
+
+        if (! function_exists('shell_exec')) {
             return [
                 'stdout' => '',
-                'stderr' => $exception->getMessage(),
+                'stderr' => 'Process execution functions are disabled on the server.',
                 'exit_code' => 1,
             ];
         }
+
+        $envPrefix = PHP_OS_FAMILY === 'Windows' ? '' : 'PYTHONIOENCODING=utf-8 PYTHONWARNINGS=ignore ';
+        $commandString = $envPrefix
+            . escapeshellarg($pythonBinary) . ' '
+            . escapeshellarg($scriptPath) . ' '
+            . escapeshellarg($filePath) . ' 2>&1';
+
+        $output = (string) shell_exec($commandString);
+
+        return [
+            'stdout' => trim($this->extractJsonPayloadFromOutput($output) ?? $output),
+            'stderr' => trim($this->extractNonJsonOutput($output)),
+            'exit_code' => 0,
+        ];
     }
 
     private function decodeOcrJsonOutput(string $output): ?array
@@ -1046,7 +1102,11 @@ class BudgetHeadController extends Controller
     private function buildOcrFailureMessage(string $stderr, ?int $exitCode): string
     {
         if (str_contains($stderr, 'No module named')) {
-            return 'OCR Python packages are missing on the server. Run: python3 -m pip install -r scripts/requirements-budget-head-ocr.txt (or bash scripts/setup-budget-head-ocr.sh after installing python3-pip).';
+            return 'OCR Python packages are missing. Run on server: bash scripts/setup-budget-head-ocr.sh';
+        }
+
+        if (str_contains(strtolower($stderr), 'tesseract')) {
+            return 'Tesseract OCR is not installed on the server. Run: sudo apt install -y tesseract-ocr && bash scripts/setup-budget-head-ocr.sh';
         }
 
         if (str_contains($stderr, 'Process execution functions are disabled')) {
@@ -1058,10 +1118,60 @@ class BudgetHeadController extends Controller
         }
 
         if ($stderr !== '') {
-            return 'OCR processing failed on the server: ' . mb_substr($stderr, 0, 500);
+            return 'OCR processing failed on the server: ' . $stderr;
         }
 
-        return 'Unable to extract text from PDF on the server. Run bash scripts/setup-budget-head-ocr.sh on the server, set BUDGET_HEAD_PDF_PYTHON in .env, then run: sudo chown -R www-data:www-data storage/app/budget-head-ocr-home .venv-budget-head-ocr';
+        return 'Unable to extract text from PDF on the server. Install Tesseract OCR and Python dependencies, or upload a searchable PDF export from the budget system.';
+    }
+
+    private function runSimpleCommand(array $command): array
+    {
+        putenv('PYTHONIOENCODING=utf-8');
+        putenv('PYTHONWARNINGS=ignore');
+        putenv('OMP_NUM_THREADS=1');
+
+        if (function_exists('proc_open')) {
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ];
+
+            $process = @proc_open($command, $descriptors, $pipes, base_path(), null);
+            if (is_resource($process)) {
+                fclose($pipes[0]);
+                stream_set_blocking($pipes[1], true);
+                stream_set_blocking($pipes[2], true);
+                $stdout = stream_get_contents($pipes[1]);
+                $stderr = stream_get_contents($pipes[2]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                $exitCode = proc_close($process);
+
+                return [
+                    'stdout' => trim((string) $stdout),
+                    'stderr' => trim((string) $stderr),
+                    'exit_code' => $exitCode,
+                ];
+            }
+        }
+
+        if (! function_exists('shell_exec')) {
+            return [
+                'stdout' => '',
+                'stderr' => 'Process execution functions are disabled on the server.',
+                'exit_code' => 1,
+            ];
+        }
+
+        $commandString = implode(' ', array_map('escapeshellarg', $command));
+        $output = (string) shell_exec($commandString.' 2>&1');
+
+        return [
+            'stdout' => trim($this->extractJsonPayloadFromOutput($output) ?? $output),
+            'stderr' => trim($this->extractNonJsonOutput($output)),
+            'exit_code' => 0,
+        ];
     }
 
     private function parseTableFormatText(string $text): array
