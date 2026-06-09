@@ -6,6 +6,9 @@ from __future__ import annotations
 import json
 import re
 import sys
+import warnings
+
+warnings.filterwarnings("ignore")
 
 import fitz
 
@@ -207,25 +210,44 @@ def extract_structured_rows(pdf_path: str) -> list[dict]:
 
 
 if __name__ == "__main__":
+    empty_payload = {
+        "structured_data": [],
+        "financial_years": [],
+        "total_items": 0,
+    }
+
     if len(sys.argv) < 2:
-        print(json.dumps({"structured_data": [], "financial_years": [], "total_items": 0}))
+        print(json.dumps(empty_payload), end="")
         sys.exit(1)
 
-    rows = extract_structured_rows(sys.argv[1])
-    financial_years = []
-    for row in rows:
-        year = row.get("financial_year")
-        if year and year not in financial_years:
-            financial_years.append(year)
+    try:
+        rows = extract_structured_rows(sys.argv[1])
+        financial_years = []
+        for row in rows:
+            year = row.get("financial_year")
+            if year and year not in financial_years:
+                financial_years.append(year)
 
-    print(
-        json.dumps(
-            {
-                "structured_data": rows,
-                "financial_years": financial_years,
-                "total_items": len(rows),
-            },
-            ensure_ascii=False,
-        ),
-        end="",
-    )
+        print(
+            json.dumps(
+                {
+                    "structured_data": rows,
+                    "financial_years": financial_years,
+                    "total_items": len(rows),
+                },
+                ensure_ascii=False,
+            ),
+            end="",
+        )
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    **empty_payload,
+                    "error": str(exc),
+                },
+                ensure_ascii=False,
+            ),
+            end="",
+        )
+        sys.exit(1)
