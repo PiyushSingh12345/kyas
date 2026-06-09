@@ -1061,7 +1061,7 @@ class BudgetHeadController extends Controller
     private function buildOcrFailureMessage(string $stderr, ?int $exitCode): string
     {
         if (str_contains($stderr, 'No module named')) {
-            return 'OCR Python packages are missing on the server. Install them with: pip install -r scripts/requirements-budget-head-ocr.txt';
+            return 'OCR Python packages are missing on the server. Run: python3 -m pip install -r scripts/requirements-budget-head-ocr.txt (or bash scripts/setup-budget-head-ocr.sh after installing python3-pip).';
         }
 
         if (str_contains($stderr, 'Process execution functions are disabled')) {
