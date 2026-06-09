@@ -27,8 +27,12 @@ import 'bootstrap';
 
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
+import './bootstrap';
+import { installFetchCsrfInterceptor, syncCsrfToken } from './utils/csrf';
 
-import { createInertiaApp } from '@inertiajs/vue3';
+installFetchCsrfInterceptor();
+
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
@@ -43,6 +47,10 @@ document.head.appendChild(link)
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+router.on('success', (event) => {
+    syncCsrfToken(event.detail.page.props?.csrf_token);
+});
+
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) =>
@@ -52,6 +60,7 @@ createInertiaApp({
         ),
     setup({ el, App, props, plugin }) {
         const initialPageProps = props?.initialPage?.props ?? {};
+        syncCsrfToken(initialPageProps?.csrf_token);
         const inactivityTimeoutMinutes = Number(
             initialPageProps?.session?.inactivity_timeout_minutes ?? 12,
         );

@@ -38,7 +38,13 @@ class EnforceSingleSession
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            if (! $request->expectsJson() && Route::has('login')) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'You have been logged out because your account was used to sign in from another device or browser.',
+                ], 401);
+            }
+
+            if (Route::has('login')) {
                 return redirect()->route('login')->with([
                     'status' => 'You have been logged out because your account was used to sign in from another device or browser.',
                     'status_type' => 'warning',

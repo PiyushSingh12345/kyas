@@ -1,0 +1,19 @@
+﻿Extracting text...
+Text length: 2980
+
+Total items: 1
+Financial years: 
+
+{
+    "type": "table_pdf",
+    "structured_data": [
+        {
+            "code": "243560796020035",
+            "item": "Grants for Creation of Capital Assets 243560796020131-Grants-in-aid-General 255200342030026-Advertising and Publicity",
+            "budget_amount": "243110",
+            "financial_year": null
+        }
+    ],
+    "financial_years": [],
+    "total_items": 1
+}

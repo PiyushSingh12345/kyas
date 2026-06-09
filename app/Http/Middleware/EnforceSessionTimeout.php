@@ -29,7 +29,13 @@ class EnforceSessionTimeout
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
 
-                if (! $request->expectsJson() && Route::has('login')) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Your session expired due to inactivity. Please log in again.',
+                    ], 401);
+                }
+
+                if (Route::has('login')) {
                     return redirect()->route('login')->with([
                         'status' => 'Your session expired due to inactivity. Please log in again.',
                         'status_type' => 'warning',

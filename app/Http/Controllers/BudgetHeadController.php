@@ -481,6 +481,63 @@ class BudgetHeadController extends Controller
         ];
     }
 
+    public function uploadTableFormat(Request $request)
+    {
+        set_time_limit(300);
+
+        $request->validate([
+            'file' => 'required|file|mimes:pdf|max:10240',
+        ]);
+
+        try {
+            $file = $request->file('file');
+            $fileName = $file->getClientOriginalName();
+
+            $filePath = $file->storeAs('temp', $fileName, 'local');
+            $fullPath = Storage::disk('local')->path($filePath);
+
+            $binary = @file_get_contents($fullPath);
+            if ($binary === false) {
+                throw ValidationException::withMessages([
+                    'file' => ['Unable to read uploaded PDF.'],
+                ]);
+            }
+            app(SafePdfValidator::class)->assertSafe($binary, 'file');
+
+            $extractedData = $this->processTableFormatPdfFile($fullPath);
+            Storage::disk('local')->delete($filePath);
+
+            if (($extractedData['total_items'] ?? 0) === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $extractedData['error'] ?? 'No budget head data could be extracted from the PDF.',
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'File processed successfully',
+                'data' => $extractedData,
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first(),
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Table format file upload error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error processing file: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function import(Request $request)
     {
         $request->validate([
@@ -489,69 +546,663 @@ class BudgetHeadController extends Controller
             'structured_data.*.item' => ['required', 'string', 'max:255', 'regex:' . self::DESCRIPTION_PATTERN],
             'structured_data.*.be_2024_25' => 'nullable|string',
             'structured_data.*.be_2025_26' => 'nullable|string',
-            'file_name' => 'required|string'
+            'file_name' => 'required|string',
         ], [
             'structured_data.*.code.regex' => 'Each imported budget code must be 15 digits or in format 1234.56.789.01.23.45.',
             'structured_data.*.item.regex' => 'Imported description contains invalid special characters.',
         ]);
 
         try {
-            $structuredData = $request->structured_data;
-            $fileName = $request->file_name;
-            
-            // Import structured data to database
-            $importedCount = 0;
-            $budgetPhaseCount = 0;
-            
-            foreach ($structuredData as $item) {
-                // Format the budget head code before saving
-                $formattedCode = $this->formatBudgetHeadCode($item['code']);
-                
-                // Check if budget head already exists
-                $existing = BudgetHead::where('budget', $formattedCode)->first();
-                
-                if (!$existing) {
-                    // Calculate category based on budget head code
-                    $category = $this->calculateCategory($formattedCode);
-                    
-                    // Create budget head
-                    $budgetHead = BudgetHead::create([
-                        'budget' => $formattedCode,
-                        'description' => $item['item'],
-                        'category' => $category,
-                        'status' => 1
-                    ]);
-                    $importedCount++;
-                    
-                    // Create budget phase record for BE 2025-26
-                    if (!empty($item['be_2025_26'])) {
-                        BudgetPhase::create([
-                            'financial_year' => '2025-26',
-                            'budget_phase' => 'BE',
-                            'budget_head_id' => $budgetHead->id,
-                            'budget_amount' => (float) $item['be_2025_26'],
-                            'status' => 1,
-                            'draft_flag' => 0
-                        ]);
-                        $budgetPhaseCount++;
-                    }
-                }
-            }
-            
+            $result = $this->importStructuredData(
+                $request->structured_data,
+                $request->file_name,
+                fn (array $item) => ! empty($item['be_2025_26'])
+                    ? ['financial_year' => '2025-26', 'budget_amount' => (float) $item['be_2025_26']]
+                    : null
+            );
+
             return response()->json([
                 'success' => true,
-                'message' => "Successfully imported {$importedCount} new budget heads and {$budgetPhaseCount} budget phases from {$fileName}",
-                'imported_count' => $importedCount,
-                'budget_phase_count' => $budgetPhaseCount,
-                'total_processed' => count($structuredData)
+                'message' => "Successfully imported {$result['imported_count']} new budget heads and {$result['budget_phase_count']} budget phases from {$request->file_name}",
+                'imported_count' => $result['imported_count'],
+                'budget_phase_count' => $result['budget_phase_count'],
+                'total_processed' => $result['total_processed'],
             ]);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error importing data: ' . $e->getMessage()
+                'message' => 'Error importing data: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function importTableFormat(Request $request)
+    {
+        $request->validate([
+            'structured_data' => 'required|array',
+            'structured_data.*.code' => ['required', 'string', 'regex:' . self::BUDGET_HEAD_PATTERN],
+            'structured_data.*.item' => ['required', 'string', 'max:255', 'regex:' . self::DESCRIPTION_PATTERN],
+            'structured_data.*.budget_amount' => 'nullable',
+            'structured_data.*.financial_year' => 'nullable|string|regex:/^\d{4}-\d{2}$/',
+            'financial_years' => 'nullable|array',
+            'financial_years.*' => 'string|regex:/^\d{4}-\d{2}$/',
+            'file_name' => 'required|string',
+        ], [
+            'structured_data.*.code.regex' => 'Each imported budget code must be 15 digits or in format 1234.56.789.01.23.45.',
+            'structured_data.*.item.regex' => 'Imported description contains invalid special characters.',
+        ]);
+
+        try {
+            $result = $this->importTableFormatStructuredData(
+                $request->structured_data,
+                $request->file_name,
+                $request->input('financial_years', [])
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully imported {$result['imported_count']} new budget heads and {$result['budget_phase_count']} budget phases from {$request->file_name}",
+                'imported_count' => $result['imported_count'],
+                'budget_phase_count' => $result['budget_phase_count'],
+                'total_processed' => $result['total_processed'],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error importing data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function importTableFormatStructuredData(array $structuredData, string $fileName, array $financialYears = []): array
+    {
+        $importedCount = 0;
+        $budgetPhaseCount = 0;
+        $structuredData = $this->backfillTableFormatFinancialYears($structuredData, $financialYears);
+
+        foreach ($structuredData as $item) {
+            if (empty($item['financial_year'])) {
+                continue;
+            }
+
+            $formattedCode = $this->formatBudgetHeadCode($item['code']);
+            $existing = BudgetHead::where('budget', $formattedCode)->first();
+
+            if ($existing) {
+                $budgetHead = $existing;
+            } else {
+                $category = $this->calculateCategory($formattedCode);
+
+                $budgetHead = BudgetHead::create([
+                    'budget' => $formattedCode,
+                    'description' => $item['item'],
+                    'category' => $category,
+                    'status' => 1,
+                ]);
+                $importedCount++;
+            }
+
+            $amount = $this->normalizeTableFormatAmount($item['budget_amount'] ?? null);
+            $budgetAmount = $amount !== null ? (float) $amount : 0.0;
+
+            $phase = BudgetPhase::where('budget_head_id', $budgetHead->id)
+                ->where('financial_year', $item['financial_year'])
+                ->where('budget_phase', 'BE')
+                ->first();
+
+            if ($phase) {
+                $phase->update([
+                    'budget_amount' => $budgetAmount,
+                    'status' => 1,
+                    'draft_flag' => 0,
+                ]);
+            } else {
+                BudgetPhase::create([
+                    'financial_year' => $item['financial_year'],
+                    'budget_phase' => 'BE',
+                    'budget_head_id' => $budgetHead->id,
+                    'budget_amount' => $budgetAmount,
+                    'status' => 1,
+                    'draft_flag' => 0,
+                ]);
+            }
+
+            $budgetPhaseCount++;
+        }
+
+        return [
+            'imported_count' => $importedCount,
+            'budget_phase_count' => $budgetPhaseCount,
+            'total_processed' => count($structuredData),
+        ];
+    }
+
+    private function backfillTableFormatFinancialYears(array $structuredData, array $financialYears): array
+    {
+        $financialYears = array_values(array_unique(array_filter($financialYears)));
+
+        if (count($financialYears) === 1) {
+            $onlyYear = $financialYears[0];
+            foreach ($structuredData as &$item) {
+                $item['financial_year'] = $onlyYear;
+            }
+            unset($item);
+
+            return $structuredData;
+        }
+
+        $currentYear = $financialYears[0] ?? null;
+
+        foreach ($structuredData as &$item) {
+            if (! empty($item['financial_year'])) {
+                $currentYear = $item['financial_year'];
+                continue;
+            }
+
+            if ($currentYear !== null) {
+                $item['financial_year'] = $currentYear;
+            }
+        }
+        unset($item);
+
+        return $structuredData;
+    }
+
+    private function importStructuredData(array $structuredData, string $fileName, callable $phaseResolver): array
+    {
+        $importedCount = 0;
+        $budgetPhaseCount = 0;
+
+        foreach ($structuredData as $item) {
+            $formattedCode = $this->formatBudgetHeadCode($item['code']);
+            $existing = BudgetHead::where('budget', $formattedCode)->first();
+
+            if ($existing) {
+                continue;
+            }
+
+            $category = $this->calculateCategory($formattedCode);
+
+            $budgetHead = BudgetHead::create([
+                'budget' => $formattedCode,
+                'description' => $item['item'],
+                'category' => $category,
+                'status' => 1,
+            ]);
+            $importedCount++;
+
+            $phaseData = $phaseResolver($item);
+            if ($phaseData) {
+                BudgetPhase::create([
+                    'financial_year' => $phaseData['financial_year'],
+                    'budget_phase' => 'BE',
+                    'budget_head_id' => $budgetHead->id,
+                    'budget_amount' => $phaseData['budget_amount'],
+                    'status' => 1,
+                    'draft_flag' => 0,
+                ]);
+                $budgetPhaseCount++;
+            }
+        }
+
+        return [
+            'imported_count' => $importedCount,
+            'budget_phase_count' => $budgetPhaseCount,
+            'total_processed' => count($structuredData),
+        ];
+    }
+
+    private function processTableFormatPdfFile(string $filePath): array
+    {
+        $parser = new Parser();
+        $pdf = $parser->parseFile($filePath);
+        $text = trim($pdf->getText());
+
+        if ($text !== '') {
+            $parsed = $this->parseTableFormatText($text);
+
+            return array_merge(['type' => 'table_pdf'], $this->normalizeTableFormatParsedData($parsed));
+        }
+
+        $ocrParsed = $this->runOcrStructuredExtraction($filePath);
+        if (($ocrParsed['total_items'] ?? 0) > 0) {
+            return array_merge(['type' => 'table_pdf'], $this->normalizeTableFormatParsedData($ocrParsed));
+        }
+
+        return [
+            'type' => 'table_pdf',
+            'error' => 'Unable to extract text from PDF. Scanned/image PDFs may take up to 4 minutes to process. Please retry, or upload a searchable PDF export from the budget system.',
+            'structured_data' => [],
+            'financial_years' => [],
+            'total_items' => 0,
+        ];
+    }
+
+    private function normalizeTableFormatParsedData(array $parsed): array
+    {
+        $structured = [];
+
+        foreach ($parsed['structured_data'] ?? [] as $record) {
+            $structured[] = [
+                'code' => $record['code'],
+                'item' => $record['item'],
+                'budget_amount' => $this->normalizeTableFormatAmount($record['budget_amount'] ?? null),
+                'financial_year' => $record['financial_year'] ?? null,
+            ];
+        }
+
+        $financialYears = $parsed['financial_years'] ?? [];
+        foreach ($structured as $record) {
+            if (! empty($record['financial_year']) && ! in_array($record['financial_year'], $financialYears, true)) {
+                $financialYears[] = $record['financial_year'];
+            }
+        }
+
+        $financialYears = array_values(array_unique($financialYears));
+
+        if (count($financialYears) === 1) {
+            $onlyYear = $financialYears[0];
+            foreach ($structured as &$record) {
+                $record['financial_year'] = $onlyYear;
+            }
+            unset($record);
+        }
+
+        return [
+            'structured_data' => $structured,
+            'financial_years' => array_values($financialYears),
+            'total_items' => count($structured),
+        ];
+    }
+
+    private function runOcrStructuredExtraction(string $filePath): array
+    {
+        $scriptPath = base_path('scripts/extract_budget_head_table_pdf.py');
+        if (! file_exists($scriptPath)) {
+            return [
+                'structured_data' => [],
+                'financial_years' => [],
+                'total_items' => 0,
+            ];
+        }
+
+        $output = $this->runOcrScript($filePath);
+        if ($output === '') {
+            return [
+                'structured_data' => [],
+                'financial_years' => [],
+                'total_items' => 0,
+            ];
+        }
+
+        $decoded = json_decode($output, true);
+        if (! is_array($decoded)) {
+            Log::warning('OCR script returned invalid JSON for budget head table PDF.', [
+                'file' => $filePath,
+                'output_preview' => substr($output, 0, 500),
+            ]);
+
+            return [
+                'structured_data' => [],
+                'financial_years' => [],
+                'total_items' => 0,
+            ];
+        }
+
+        return [
+            'structured_data' => $decoded['structured_data'] ?? [],
+            'financial_years' => $decoded['financial_years'] ?? [],
+            'total_items' => $decoded['total_items'] ?? count($decoded['structured_data'] ?? []),
+        ];
+    }
+
+    private function runOcrScript(string $filePath): string
+    {
+        $scriptPath = base_path('scripts/extract_budget_head_table_pdf.py');
+        if (! file_exists($scriptPath)) {
+            return '';
+        }
+
+        $python = PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3';
+        $command = [$python, $scriptPath, $filePath];
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open($command, $descriptors, $pipes);
+        if (! is_resource($process)) {
+            Log::warning('Unable to start OCR script for budget head table PDF.');
+
+            return '';
+        }
+
+        fclose($pipes[0]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $output = '';
+        $timeoutSeconds = 240;
+        $startedAt = time();
+
+        while (true) {
+            $output .= stream_get_contents($pipes[1]);
+            $status = proc_get_status($process);
+
+            if (! $status['running']) {
+                $output .= stream_get_contents($pipes[1]);
+                break;
+            }
+
+            if ((time() - $startedAt) >= $timeoutSeconds) {
+                proc_terminate($process);
+                Log::warning('OCR script timed out for budget head table PDF.', [
+                    'file' => $filePath,
+                    'timeout_seconds' => $timeoutSeconds,
+                ]);
+                break;
+            }
+
+            usleep(100000);
+        }
+
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        return trim($output);
+    }
+
+    private function parseTableFormatText(string $text): array
+    {
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $text))));
+        $structured = [];
+        $financialYears = [];
+        $currentFinancialYear = null;
+        $inKrishonnatiSection = false;
+        $foundKrishonnati = false;
+        $aboveKrishonnatiBuffer = [];
+
+        for ($i = 0; $i < count($lines); $i++) {
+            $line = $lines[$i];
+
+            if ($this->isKrishonnatiTotalLine($line)) {
+                break;
+            }
+
+            $detectedYear = $this->extractFinancialYearFromLine($line);
+            if ($detectedYear !== null) {
+                $currentFinancialYear = $detectedYear;
+                if (! in_array($currentFinancialYear, $financialYears, true)) {
+                    $financialYears[] = $currentFinancialYear;
+                }
+            }
+
+            if ($this->isKrishonnatiHeaderLine($line)) {
+                if (! $foundKrishonnati) {
+                    $foundKrishonnati = true;
+                    $inKrishonnatiSection = true;
+                    foreach ($aboveKrishonnatiBuffer as $record) {
+                        $structured[] = $record;
+                    }
+                    $aboveKrishonnatiBuffer = [];
+                }
+
+                $remainder = trim(preg_replace('/^Krishonnati\s+Yojna\s*/i', '', $line));
+                if ($remainder !== '') {
+                    foreach ($this->extractTableFormatRecordsFromSegment($remainder, $currentFinancialYear) as $inlineRecord) {
+                        $structured[] = $inlineRecord;
+                    }
+                }
+                continue;
+            }
+
+            $record = $this->parseTableFormatBudgetLine($line, $currentFinancialYear);
+            if ($record === null) {
+                continue;
+            }
+
+            if ($record['budget_amount'] === null && isset($lines[$i + 1])) {
+                $nextLine = trim($lines[$i + 1]);
+                if (preg_match('/^\d+(?:\.\d+)?$/', $nextLine)) {
+                    $record['budget_amount'] = $nextLine;
+                    $i++;
+                }
+            }
+
+            $record['budget_amount'] = $this->normalizeTableFormatAmount($record['budget_amount']);
+
+            if ($inKrishonnatiSection) {
+                $structured[] = $record;
+            } elseif (! $foundKrishonnati && $currentFinancialYear !== null) {
+                $aboveKrishonnatiBuffer[] = $record;
+            }
+        }
+
+        return [
+            'structured_data' => $structured,
+            'financial_years' => $financialYears,
+            'total_items' => count($structured),
+        ];
+    }
+
+    private function parseTableFormatFromMessyText(string $text): array
+    {
+        $financialYears = [];
+        if (preg_match_all('/BE\s*(\d{4}-\d{2})/i', $text, $yearMatches)) {
+            $financialYears = array_values(array_unique($yearMatches[1]));
+        }
+
+        $section = $text;
+        if (preg_match('/Krishonnati\s+Yojna(.*?)Krishonnati\s+Yojna\s+Total/is', $text, $sectionMatch)) {
+            $section = $sectionMatch[1];
+        } elseif (preg_match('/Krishonnati\s+Yojna(.*)$/is', $text, $sectionMatch)) {
+            $section = preg_replace('/Krishonnati\s+Yojna\s+Total.*$/is', '', $sectionMatch[1]);
+        }
+
+        if (preg_match('/Head of account.*?BE\s*(\d{4}-\d{2})(.*?)Krishonnati\s+Yojna/is', $text, $aboveMatch)) {
+            $section = $aboveMatch[2] . $section;
+            if (! in_array($aboveMatch[1], $financialYears, true)) {
+                array_unshift($financialYears, $aboveMatch[1]);
+            }
+        }
+
+        $defaultFinancialYear = $financialYears[0] ?? null;
+        $segments = preg_split('/BE\s*(\d{4}-\d{2})/i', $section, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        $structured = [];
+
+        if (count($segments) === 1) {
+            $structured = $this->extractTableFormatRecordsFromSegment($segments[0], $defaultFinancialYear);
+        } else {
+            $segmentIndex = 0;
+            while ($segmentIndex < count($segments)) {
+                $segment = $segments[$segmentIndex];
+                if (preg_match('/^\d{4}-\d{2}$/', trim($segment))) {
+                    $year = trim($segment);
+                    $content = $segments[$segmentIndex + 1] ?? '';
+                    $structured = array_merge($structured, $this->extractTableFormatRecordsFromSegment($content, $year));
+                    $segmentIndex += 2;
+                    continue;
+                }
+
+                $structured = array_merge($structured, $this->extractTableFormatRecordsFromSegment($segment, $defaultFinancialYear));
+                $segmentIndex++;
+            }
+        }
+
+        $structured = $this->deduplicateTableFormatRecords($structured);
+
+        return [
+            'structured_data' => $structured,
+            'financial_years' => $financialYears,
+            'total_items' => count($structured),
+        ];
+    }
+
+    private function extractTableFormatRecordsFromSegment(string $segment, ?string $financialYear): array
+    {
+        $normalized = preg_replace('/[_\|]/', '-', $segment);
+        preg_match_all(
+            '/(\d{15})(?:[-\s]+)([A-Za-z][A-Za-z0-9\s\-.,&()\/\']*?)(?=\d{15}|BE\s*\d{4}-\d{2}|Krishonnati\s+Yojna\s+Total|$)/i',
+            $normalized,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        $records = [];
+        $orphanAmounts = [];
+
+        foreach ($matches as $match) {
+            $item = trim(preg_replace('/\s+/', ' ', $match[2]), " \t\n\r\0\x0B-");
+            if ($item === '' || stripos($item, 'Head of account') !== false) {
+                continue;
+            }
+
+            $amount = null;
+            if (preg_match('/^(.+?)\s+(\d+(?:\.\d+)?)\s*$/', $item, $amountMatch)) {
+                $item = trim($amountMatch[1], " \t\n\r\0\x0B-");
+                $amount = $amountMatch[2];
+            }
+
+            if (preg_match('/^(\d+(?:\.\d+)?(?:\s+\d+(?:\.\d+)?)+)\s*$/', $item)) {
+                $orphanAmounts = array_merge($orphanAmounts, preg_split('/\s+/', trim($item)));
+                continue;
+            }
+
+            $records[] = [
+                'code' => $match[1],
+                'item' => $item,
+                'budget_amount' => $amount,
+                'financial_year' => $financialYear,
+            ];
+        }
+
+        if (preg_match_all('/(?<!\d)(\d{1,9}(?:\.\d+)?)(?!\d)/', $segment, $numberMatches)) {
+            $orphanAmounts = array_merge($orphanAmounts, $numberMatches[1]);
+        }
+
+        $amountIndex = 0;
+        foreach ($records as &$record) {
+            if ($record['budget_amount'] === null && isset($orphanAmounts[$amountIndex])) {
+                $record['budget_amount'] = $orphanAmounts[$amountIndex];
+                $amountIndex++;
+            }
+        }
+        unset($record);
+
+        return $records;
+    }
+
+    private function deduplicateTableFormatRecords(array $records): array
+    {
+        $unique = [];
+
+        foreach ($records as $record) {
+            $key = $record['code'] . '|' . ($record['financial_year'] ?? '');
+            if (! isset($unique[$key])) {
+                $unique[$key] = $record;
+            }
+        }
+
+        return array_values($unique);
+    }
+
+    private function extractFinancialYearFromLine(string $line): ?string
+    {
+        if (preg_match('/Head of account.*?BE\s*(\d{4}-\d{2})/i', $line, $matches)) {
+            return $matches[1];
+        }
+
+        if (stripos($line, 'Head of account') !== false && preg_match('/BE\s*(\d{4}-\d{2})/i', $line, $matches)) {
+            return $matches[1];
+        }
+
+        if (preg_match('/^BE\s*(\d{4}-\d{2})$/i', trim($line), $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    private function isKrishonnatiHeaderLine(string $line): bool
+    {
+        $trimmed = trim($line);
+
+        if (preg_match('/Krishonnati\s+Yojna\s+Total/i', $trimmed)) {
+            return false;
+        }
+
+        if (preg_match('/^Krishonnati\s+Yojna\s*$/i', $trimmed)) {
+            return true;
+        }
+
+        return (bool) preg_match('/^Krishonnati\s+Yojna\b/i', $trimmed);
+    }
+
+    private function isKrishonnatiTotalLine(string $line): bool
+    {
+        return (bool) preg_match('/Krishonnati\s+Yojna\s+Total/i', $line);
+    }
+
+    private function parseTableFormatBudgetLine(string $line, ?string $financialYear): ?array
+    {
+        if (! preg_match('/^(\d{12,15})-(.+)$/', $line, $parts)) {
+            return null;
+        }
+
+        $code = trim($parts[1]);
+        $rest = trim($parts[2]);
+        $amount = null;
+        $item = $rest;
+
+        if (preg_match('/^(.+?)\s+(\d+(?:\.\d+)?)\s*$/', $rest, $amountMatch)) {
+            $item = trim($amountMatch[1]);
+            $amount = $this->normalizeTableFormatAmount($amountMatch[2]);
+        }
+
+        $item = trim(preg_replace('/\s+/', ' ', $item));
+        if ($item === '' || stripos($item, 'Head of account') !== false) {
+            return null;
+        }
+
+        return [
+            'code' => $code,
+            'item' => $item,
+            'budget_amount' => $amount,
+            'financial_year' => $financialYear,
+        ];
+    }
+
+    private function normalizeTableFormatAmount(mixed $amount): ?string
+    {
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        $cleanAmount = preg_replace('/[^\d.]/', '', (string) $amount);
+        if ($cleanAmount === '') {
+            return null;
+        }
+
+        if (! str_contains($cleanAmount, '.') && strlen($cleanAmount) >= 4) {
+            $cleanAmount = $this->correctOcrAmountDigits($cleanAmount);
+        }
+
+        if ($cleanAmount === '' || (float) $cleanAmount === 0.0) {
+            return null;
+        }
+
+        return $cleanAmount;
+    }
+
+    private function correctOcrAmountDigits(string $digits): string
+    {
+        if (str_ends_with($digits, '1') && strlen($digits) >= 4 && $digits[strlen($digits) - 2] === '0') {
+            return substr($digits, 0, -1);
+        }
+
+        return $digits;
     }
 
     /**
