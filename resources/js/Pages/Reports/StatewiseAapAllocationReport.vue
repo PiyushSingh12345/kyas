@@ -352,7 +352,7 @@ const loading = ref(true)
 const error = ref(null)
 
 // Filter data
-const selectedFinancialYear = ref('2025-26')
+const selectedFinancialYear = ref('2026-27')
 const selectedStates = ref([])
 const selectedProgramDivisions = ref([])
 const tempState = ref('')
@@ -517,7 +517,7 @@ const getProgramDivisionName = (pdId) => {
 }
 
 const clearFilters = () => {
-  selectedFinancialYear.value = '2025-26'
+  selectedFinancialYear.value = '2026-27'
   selectedStates.value = []
   selectedProgramDivisions.value = []
   tempState.value = ''

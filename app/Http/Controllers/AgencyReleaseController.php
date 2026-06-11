@@ -1215,7 +1215,8 @@ class AgencyReleaseController extends Controller
     private function getHistoryByType(string $type): JsonResponse
     {
         try {
-            $history = AgencyReleaseHistory::where('release_type', $type)
+            $history = AgencyReleaseHistory::with('programDivision')
+                ->where('release_type', $type)
                 ->orderBy('history_timestamp', 'desc')
                 ->get()
                 ->map(function ($record) {
@@ -1225,8 +1226,10 @@ class AgencyReleaseController extends Controller
                         'date' => $record->date,
                         'budget_head' => $record->budget_head,
                         'purpose_of_grant' => $record->purpose_of_grant,
+                        'program_division' => $record->programDivision->division_name ?? '',
                         'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
+                        'expenditure' => $record->expenditure,
                         'central_implementing_agency' => $record->central_implementing_agency,
                         'ut' => $record->ut,
                         'agency_vendor' => $record->agency_vendor,
@@ -1269,6 +1272,7 @@ class AgencyReleaseController extends Controller
                 'purpose_of_grant' => $record->purpose_of_grant ?? null,
                 'program_division_id' => $record->program_division_id ?? null,
                 'amount' => $record->amount ?? null,
+                'expenditure' => $type === 'tsa' ? ($record->expenditure ?? null) : null,
                 'central_implementing_agency' => $record->central_implementing_agency ?? null,
                 'ut' => $record->ut ?? null,
                 'agency_vendor' => $record->agency_vendor ?? null,

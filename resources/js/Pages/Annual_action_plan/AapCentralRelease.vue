@@ -798,7 +798,7 @@
   const categorizing = ref(false)
 
   // Filter reactive data
-  const selectedFinancialYear = ref('2025-26')
+  const selectedFinancialYear = ref('2026-27')
   const selectedProgramDivisions = ref([])
   const selectedMajorHeads = ref([])
   const selectedBudgetHeads = ref([])

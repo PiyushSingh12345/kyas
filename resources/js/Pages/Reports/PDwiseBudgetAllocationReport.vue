@@ -550,7 +550,7 @@
   const categorizing = ref(false)
 
   // Filter reactive data
-  const selectedFinancialYear = ref('2025-26')
+  const selectedFinancialYear = ref('2026-27')
   const selectedBudgetPhase = ref('BE')
   const selectedProgramDivisions = ref([]) // Changed to array for multiple selections
   const tempProgramDivision = ref('') // Temporary value for dropdown

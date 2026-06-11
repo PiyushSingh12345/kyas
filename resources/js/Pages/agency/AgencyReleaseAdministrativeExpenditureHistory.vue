@@ -91,7 +91,7 @@
                             <td>{{ formatDate(item.date) }}</td>
                             <td>{{ item.budget_head }}</td>
                             <td>{{ item.purpose_of_grant }}</td>
-                            <td>{{ item.program_division_id }}</td>
+                            <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
                             <td>{{ item.agency_vendor }}</td>
                             <td class="text-center">

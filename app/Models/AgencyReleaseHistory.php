@@ -24,6 +24,7 @@ class AgencyReleaseHistory extends Model
         'purpose_of_grant',
         'program_division_id',
         'amount',
+        'expenditure',
         'central_implementing_agency',
         'ut',
         'agency_vendor',
@@ -38,6 +39,7 @@ class AgencyReleaseHistory extends Model
         'date' => 'date',
         'history_timestamp' => 'datetime',
         'amount' => 'decimal:2',
+        'expenditure' => 'decimal:2',
         'status' => 'integer',
     ];
 

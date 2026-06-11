@@ -841,91 +841,154 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
-     * Get release/expenditure data for budget head 2435 only: sum of agency_release_tsa,
-     * agency_release_loa, and agency_release_administrative_expenditure, grouped by budget_head and program_division_id.
-     * Returns [ bh_id => [ pd_id => amount ] ] so each budget head row shows only its corresponding agency sum.
+     * Map budget codes (dotted or digit-only) to budget head IDs.
+     *
+     * @return array<string, string>
      */
-    private function getAgencyReleaseSumForBudgetHead2435(string $financialYear, ?Request $request = null): array
+    private function buildBudgetCodeToBhIdMap(): array
+    {
+        $map = [];
+        $rows = DB::table('budget_heads')->where('status', 1)->get(['id', 'budget']);
+
+        foreach ($rows as $row) {
+            $trimmed = trim((string) $row->budget);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $bhId = (string) $row->id;
+            $map[$trimmed] = $bhId;
+
+            $digits = preg_replace('/[^0-9]/', '', $trimmed);
+            if ($digits !== '') {
+                $map[$digits] = $bhId;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Add agency amounts into an existing bh_id => pd_id => amount structure.
+     *
+     * @param array<string, array<string, float>> $formattedData
+     * @param array<string, array<string, float>> $agencyByBh
+     * @return array<string, array<string, float>>
+     */
+    private function mergeAgencyAmountsIntoFormattedData(array $formattedData, array $agencyByBh): array
+    {
+        foreach ($agencyByBh as $bhId => $byPd) {
+            if (!isset($formattedData[$bhId])) {
+                $formattedData[$bhId] = [];
+            }
+
+            foreach ($byPd as $pdId => $amount) {
+                if (!isset($formattedData[$bhId][$pdId])) {
+                    $formattedData[$bhId][$pdId] = 0;
+                }
+                $formattedData[$bhId][$pdId] += floatval($amount);
+            }
+        }
+
+        return $formattedData;
+    }
+
+    /**
+     * Get agency release/expenditure totals for the PD-wise budget allocation release report.
+     * TSA amount contributes to release; TSA expenditure contributes to expenditure.
+     * LOA and Administrative Expenditure amounts contribute to both release and expenditure.
+     *
+     * @return array{release_by_bh: array<string, array<string, float>>, expenditure_by_bh: array<string, array<string, float>>}
+     */
+    private function getAgencyReleaseDataForPdWiseReport(string $financialYear, ?Request $request = null): array
     {
         [$startDate, $endDate] = $request
             ? $this->resolveDateOnlyRangeBounds($request, $financialYear)
             : $this->getFinancialYearDateRange($financialYear);
 
-        $budgetHead2435Condition = '(TRIM(budget_head) = ? OR TRIM(budget_head) LIKE ?)';
+        $agencyBaseQuery = function (string $table) use ($startDate, $endDate) {
+            return DB::table($table)
+                ->where('status', 1)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->whereNotNull('program_division_id')
+                ->whereNotNull('budget_head');
+        };
 
-        // Sum from each table grouped by (budget_head, program_division_id)
-        $tsa = DB::table('agency_release_tsa')
-            ->where('status', 1)
-            ->whereBetween('date', [$startDate, $endDate])
-            ->whereRaw($budgetHead2435Condition, ['2435', '2435%'])
-            ->select(DB::raw('TRIM(budget_head) as budget_head'), 'program_division_id as pd_id', DB::raw('SUM(COALESCE(amount, 0)) as total'))
+        $tsaRelease = $agencyBaseQuery('agency_release_tsa')
+            ->select(
+                DB::raw('TRIM(budget_head) as budget_head'),
+                'program_division_id as pd_id',
+                DB::raw('SUM(COALESCE(amount, 0)) as total')
+            )
             ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
             ->get();
 
-        $loa = DB::table('agency_release_loa')
-            ->where('status', 1)
-            ->whereBetween('date', [$startDate, $endDate])
-            ->whereRaw($budgetHead2435Condition, ['2435', '2435%'])
-            ->select(DB::raw('TRIM(budget_head) as budget_head'), 'program_division_id as pd_id', DB::raw('SUM(COALESCE(amount, 0)) as total'))
+        $tsaExpenditure = $agencyBaseQuery('agency_release_tsa')
+            ->select(
+                DB::raw('TRIM(budget_head) as budget_head'),
+                'program_division_id as pd_id',
+                DB::raw('SUM(COALESCE(expenditure, 0)) as total')
+            )
             ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
             ->get();
 
-        $adminExp = DB::table('agency_release_administrative_expenditure')
-            ->where('status', 1)
-            ->whereBetween('date', [$startDate, $endDate])
-            ->whereRaw($budgetHead2435Condition, ['2435', '2435%'])
-            ->select(DB::raw('TRIM(budget_head) as budget_head'), 'program_division_id as pd_id', DB::raw('SUM(COALESCE(amount, 0)) as total'))
+        $loaAmounts = $agencyBaseQuery('agency_release_loa')
+            ->select(
+                DB::raw('TRIM(budget_head) as budget_head'),
+                'program_division_id as pd_id',
+                DB::raw('SUM(COALESCE(amount, 0)) as total')
+            )
             ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
             ->get();
 
-        // Merge sums by (budget_head, pd_id)
-        $byBudgetHeadAndPd = [];
-        foreach ([$tsa, $loa, $adminExp] as $collection) {
+        $adminExpAmounts = $agencyBaseQuery('agency_release_administrative_expenditure')
+            ->select(
+                DB::raw('TRIM(budget_head) as budget_head'),
+                'program_division_id as pd_id',
+                DB::raw('SUM(COALESCE(amount, 0)) as total')
+            )
+            ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
+            ->get();
+
+        $budgetCodeToBhId = $this->buildBudgetCodeToBhIdMap();
+        $releaseByBh = [];
+        $expenditureByBh = [];
+
+        $addTo = function (array &$target, $collection) use ($budgetCodeToBhId) {
             foreach ($collection as $row) {
                 if ($row->pd_id === null || $row->budget_head === null) {
                     continue;
                 }
-                $key = trim($row->budget_head) . '|' . (string) $row->pd_id;
-                if (!isset($byBudgetHeadAndPd[$key])) {
-                    $byBudgetHeadAndPd[$key] = ['budget_head' => trim($row->budget_head), 'pd_id' => (string) $row->pd_id, 'total' => 0];
+
+                $budgetHead = trim((string) $row->budget_head);
+                $bhId = $budgetCodeToBhId[$budgetHead] ?? null;
+                if ($bhId === null) {
+                    continue;
                 }
-                $byBudgetHeadAndPd[$key]['total'] += floatval($row->total ?? 0);
-            }
-        }
 
-        // Map budget code (trimmed) to bh_id for 2435 major head only
-        $budgetCodeToBhId = DB::table('budget_heads')
-            ->where('status', 1)
-            ->whereRaw('(TRIM(budget) = ? OR TRIM(budget) LIKE ?)', ['2435', '2435%'])
-            ->get()
-            ->keyBy(function ($row) {
-                return trim($row->budget);
-            })
-            ->map(function ($row) {
-                return (string) $row->id;
-            })
-            ->all();
+                $pdId = (string) $row->pd_id;
+                if (!isset($target[$bhId])) {
+                    $target[$bhId] = [];
+                }
+                if (!isset($target[$bhId][$pdId])) {
+                    $target[$bhId][$pdId] = 0;
+                }
+                $target[$bhId][$pdId] += floatval($row->total ?? 0);
+            }
+        };
 
-        // Build [ bh_id => [ pd_id => amount ] ] - only for (budget_head, pd_id) that map to a valid bh_id
-        $byBh = [];
-        foreach ($byBudgetHeadAndPd as $item) {
-            $budgetHead = $item['budget_head'];
-            $pdId = $item['pd_id'];
-            $total = $item['total'];
-            $bhId = $budgetCodeToBhId[$budgetHead] ?? null;
-            if ($bhId === null) {
-                continue;
-            }
-            if (!isset($byBh[$bhId])) {
-                $byBh[$bhId] = [];
-            }
-            if (!isset($byBh[$bhId][$pdId])) {
-                $byBh[$bhId][$pdId] = 0;
-            }
-            $byBh[$bhId][$pdId] += $total;
-        }
+        $addTo($releaseByBh, $tsaRelease);
+        $addTo($releaseByBh, $loaAmounts);
+        $addTo($releaseByBh, $adminExpAmounts);
 
-        return ['by_bh' => $byBh];
+        $addTo($expenditureByBh, $tsaExpenditure);
+        $addTo($expenditureByBh, $loaAmounts);
+        $addTo($expenditureByBh, $adminExpAmounts);
+
+        return [
+            'release_by_bh' => $releaseByBh,
+            'expenditure_by_bh' => $expenditureByBh,
+        ];
     }
 
     /**
@@ -994,11 +1057,12 @@ class AnnualActionPlanController extends Controller
                 'sample' => array_slice($formattedData, 0, 3, true)
             ]);
 
-            // For budget head 2435 only: replace release with agency sum per corresponding budget head (not every row)
-            $agency2435 = $this->getAgencyReleaseSumForBudgetHead2435($financialYear, $request);
-            foreach ($agency2435['by_bh'] as $bhId => $byPd) {
-                $formattedData[$bhId] = $byPd;
-            }
+            // Add agency release amounts (TSA amount + LOA amount + Admin Exp amount) to existing release data
+            $agencyData = $this->getAgencyReleaseDataForPdWiseReport($financialYear, $request);
+            $formattedData = $this->mergeAgencyAmountsIntoFormattedData(
+                $formattedData,
+                $agencyData['release_by_bh']
+            );
 
             return response()->json([
                 'success' => true,
@@ -1114,11 +1178,12 @@ class AnnualActionPlanController extends Controller
             // Convert to the expected format (already formatted above)
             $formattedData = $groupedData;
 
-            // For budget head 2435 only: set expenditure = agency sum per corresponding budget head (same as release, not every row)
-            $agency2435 = $this->getAgencyReleaseSumForBudgetHead2435($financialYear, $request);
-            foreach ($agency2435['by_bh'] as $bhId => $byPd) {
-                $formattedData[$bhId] = $byPd;
-            }
+            // Add agency expenditure amounts (TSA expenditure + LOA amount + Admin Exp amount) to existing expenditure data
+            $agencyData = $this->getAgencyReleaseDataForPdWiseReport($financialYear, $request);
+            $formattedData = $this->mergeAgencyAmountsIntoFormattedData(
+                $formattedData,
+                $agencyData['expenditure_by_bh']
+            );
 
             Log::info('Daily Sanction Expenditure Data Query Result', [
                 'raw_count' => $expenditureData->count(),

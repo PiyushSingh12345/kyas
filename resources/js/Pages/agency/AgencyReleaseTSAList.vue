@@ -64,7 +64,7 @@
                             <th>Budget Head</th>
                             <th>Purpose of Grant</th>
                             <th>Program Division</th>
-                            <th>Amount</th>
+                            <th>Amount/Release</th>
                             <th>Expenditure</th>
                             <th>Central Implementing Agency</th>
                             <th>Remark</th>

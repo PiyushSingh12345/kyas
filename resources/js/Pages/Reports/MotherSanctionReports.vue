@@ -538,11 +538,25 @@ const clearFilters = async () => {
   await fetchMotherSanctions('')
 }
 
-// Function to prepare table data for export
+const getStatusLabel = (status) => (status === 'active' ? 'Active' : 'Inactive')
+
+const getExportFilterSummary = () => {
+  const parts = [`Amount in ${amountInText.value}`]
+  if (selectedFinancialYear.value) parts.push(`FY: ${selectedFinancialYear.value}`)
+  if (selectedState.value) parts.push(`State: ${selectedState.value}`)
+  if (selectedStatus.value) parts.push(`Status: ${getStatusLabel(selectedStatus.value)}`)
+  if (dateFrom.value) parts.push(`From: ${formatDate(dateFrom.value)}`)
+  if (dateTo.value) parts.push(`To: ${formatDate(dateTo.value)}`)
+  if (searchTerm.value?.trim()) parts.push(`Search: ${searchTerm.value.trim()}`)
+  parts.push(`Records: ${filteredSecondTableData.value.length}`)
+  return parts.join(' | ')
+}
+
+// Flatten the currently filtered table into export rows (one row per budget head).
 const prepareTableData = () => {
   const data = []
-  
-  // Add header row
+
+  data.push([`Mother Sanction Report (${getExportFilterSummary()})`])
   data.push([
     'Fy',
     'State',
@@ -552,12 +566,16 @@ const prepareTableData = () => {
     'SL Scode',
     'Annual Allocation',
     'MS Total Amount',
-    'Status'
+    'Budget Head',
+    'Category',
+    'MS Amount',
+    'Expenditure',
+    'Available Fund',
+    'Status',
   ])
-  
-  // Add data rows
-  filteredSecondTableData.value.forEach(item => {
-    data.push([
+
+  filteredSecondTableData.value.forEach((item) => {
+    const parentCols = [
       item.financial_year || '',
       item.state || '',
       item.ky_ms_no || '',
@@ -566,11 +584,96 @@ const prepareTableData = () => {
       item.sl_scode || '',
       formatCurrency(item.annual_allocation),
       formatCurrency(item.total_mother_sanction_amount),
-      item.status || 'active'
-    ])
+    ]
+    const statusLabel = getStatusLabel(item.status)
+    const budgetHeads = item.budget_heads?.length ? item.budget_heads : [null]
+
+    budgetHeads.forEach((budget) => {
+      data.push([
+        ...parentCols,
+        budget?.budget_head || '',
+        budget?.category || '',
+        budget ? formatCurrency(budget.mother_sanction_amount) : '',
+        budget ? formatCurrency(budget.expenditure) : '',
+        budget ? formatCurrency(budget.available_fund) : '',
+        statusLabel,
+      ])
+    })
   })
-  
+
   return data
+}
+
+const buildExportTableHtml = () => {
+  const rows = filteredSecondTableData.value.map((item) => {
+    const budgetRows = (item.budget_heads?.length ? item.budget_heads : []).map((budget) => `
+      <tr>
+        <td class="text-center">${budget.budget_head || ''}</td>
+        <td class="text-center">${budget.category || ''}</td>
+        <td class="text-center currency-cell">${formatCurrency(budget.mother_sanction_amount)}</td>
+        <td class="text-center currency-cell">${formatCurrency(budget.expenditure)}</td>
+        <td class="text-center currency-cell">${formatCurrency(budget.available_fund)}</td>
+      </tr>
+    `).join('')
+
+    const budgetTableBody = budgetRows || `
+      <tr>
+        <td colspan="5" class="text-center text-muted">No budget heads available</td>
+      </tr>
+    `
+
+    return `
+      <tr>
+        <td>${item.financial_year || ''}</td>
+        <td>${item.state || ''}</td>
+        <td>${item.ky_ms_no || ''}</td>
+        <td>${formatDate(item.sanction_date)}</td>
+        <td>${item.sls_name || ''}</td>
+        <td>${item.sl_scode || ''}</td>
+        <td class="currency-cell">${formatCurrency(item.annual_allocation)}</td>
+        <td class="currency-cell">${formatCurrency(item.total_mother_sanction_amount)}</td>
+        <td>
+          <table class="nested-table">
+            <thead>
+              <tr>
+                <th>Budget Head</th>
+                <th>Category</th>
+                <th>MS Amount</th>
+                <th>Expenditure</th>
+                <th>Available Fund</th>
+              </tr>
+            </thead>
+            <tbody>${budgetTableBody}</tbody>
+          </table>
+        </td>
+        <td class="text-center">${getStatusLabel(item.status)}</td>
+      </tr>
+    `
+  }).join('')
+
+  const emptyRow = filteredSecondTableData.value.length === 0
+    ? '<tr><td colspan="10" class="text-center text-muted">No mother sanction data available</td></tr>'
+    : ''
+
+  return `
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Fy</th>
+          <th>State</th>
+          <th>MS NO</th>
+          <th>Date</th>
+          <th>SLS Details</th>
+          <th>SL Scode</th>
+          <th>Annual Allocation</th>
+          <th>MS Total Amount</th>
+          <th>Budget Head</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>${rows}${emptyRow}</tbody>
+    </table>
+  `
 }
 
 // Function to export to Excel (.xlsx)
@@ -624,32 +727,37 @@ const exportToCSV = () => {
 // Function to export to PDF
 const exportToPDF = () => {
   const printWindow = window.open('', '_blank')
-  const tableElement = document.getElementById('reportTable')
-  
-  if (!tableElement) {
-    alert('Table not found')
+
+  if (!printWindow) {
+    alert('Unable to open print window. Please allow pop-ups for this site.')
     return
   }
-  
-  const tableHTML = tableElement.outerHTML
-  
+
+  const tableHTML = buildExportTableHtml()
+  const filterSummary = getExportFilterSummary()
+
   const headStart = '<head>'
   const titleTag = '<title>Mother Sanction Report</title>'
   const styleStart = '<style>'
   const styles = 'body { font-family: Arial, sans-serif; margin: 20px; }' +
     'h2 { text-align: center; color: #333; }' +
     '.meta-info { text-align: center; margin-bottom: 20px; color: #666; }' +
-    'table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 8px; }' +
-    'table th, table td { border: 1px solid #ddd; padding: 4px; text-align: left; }' +
-    'table th { background-color: #007bff; color: white; font-weight: bold; }' +
+    '.report-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 8px; }' +
+    '.report-table th, .report-table td { border: 1px solid #ddd; padding: 4px; text-align: left; vertical-align: top; }' +
+    '.report-table th { background-color: #007bff; color: white; font-weight: bold; text-align: center; }' +
+    '.nested-table { width: 100%; border-collapse: collapse; font-size: 8px; }' +
+    '.nested-table th, .nested-table td { border: 1px solid #ddd; padding: 3px; text-align: center; }' +
+    '.nested-table th { background-color: #e9ecef; color: #495057; }' +
+    '.currency-cell { text-align: right; font-family: "Courier New", monospace; }' +
     '@media print { @page { size: landscape; margin: 1cm; } body { margin: 0; } }'
   const styleEnd = '</style>'
   const headEnd = '</head>'
-  
+
   const bodyStart = '<body>'
   const h2Tag = '<h2>Mother Sanction Report</h2>'
   const metaInfoStart = '<div class="meta-info">'
   const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'
+  const filtersP = '<p><strong>Filters:</strong> ' + filterSummary + '</p>'
   const metaInfoEnd = '</div>'
   const scriptStart = '<' + 'script' + '>'
   const scriptContent = 'window.onload = function() { window.print(); }'
@@ -657,12 +765,12 @@ const exportToPDF = () => {
   const scriptTag = scriptStart + scriptContent + scriptEnd
   const bodyEnd = '<' + '/' + 'body' + '>'
   const htmlEnd = '<' + '/' + 'html' + '>'
-  
+
   const htmlContent = '<!DOCTYPE html><html>' +
     headStart + titleTag + styleStart + styles + styleEnd + headEnd +
-    bodyStart + h2Tag + metaInfoStart + generatedP + metaInfoEnd +
+    bodyStart + h2Tag + metaInfoStart + generatedP + filtersP + metaInfoEnd +
     tableHTML + scriptTag + bodyEnd + htmlEnd
-  
+
   printWindow.document.write(htmlContent)
   printWindow.document.close()
 }

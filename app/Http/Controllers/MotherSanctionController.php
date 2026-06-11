@@ -1288,73 +1288,37 @@ public function getMotherSanctionDetails($kyMsNo)
                 ->orderBy('history_timestamp', 'desc')
                 ->get();
 
-            // Group by state_id and sls_code similar to list method
-            $groupedData = $history->groupBy(function($item) {
-                return ($item->state_id ?? '') . '|' . ($item->sls_name ?? '');
-            });
-
-            $transformedData = $groupedData->map(function($group) {
-                $firstItem = $group->first();
-                
-                // Get all unique budget heads for this group
-                $budgetHeadMap = [];
-                
-                foreach ($group as $item) {
-                    if (empty($item->budget_head)) {
-                        continue;
-                    }
-                    
-                    $budgetKey = $item->budget_head;
-                    
-                    if (!isset($budgetHeadMap[$budgetKey])) {
-                        $budgetHeadMap[$budgetKey] = [
-                            'budget_head' => $item->budget_head,
-                            'category' => $item->category,
-                            'mother_sanction_amount' => 0,
-                            'available_fund' => 0,
-                            'old_mother_sanction_amount' => 0,
-                            'new_mother_sanction_amount' => 0,
-                            'old_available_fund' => 0,
-                            'new_available_fund' => 0,
-                            'action_type' => $item->action_type,
-                            'change_description' => $item->change_description,
-                            'changed_by' => $item->changed_by,
-                            'history_timestamp' => $item->history_timestamp,
-                        ];
-                    }
-                    
-                    // Aggregate amounts
-                    $budgetHeadMap[$budgetKey]['mother_sanction_amount'] += floatval($item->mother_sanction_amount ?? 0);
-                    $budgetHeadMap[$budgetKey]['available_fund'] += floatval($item->available_fund ?? 0);
-                    $budgetHeadMap[$budgetKey]['old_mother_sanction_amount'] += floatval($item->old_mother_sanction_amount ?? 0);
-                    $budgetHeadMap[$budgetKey]['new_mother_sanction_amount'] += floatval($item->new_mother_sanction_amount ?? 0);
-                    $budgetHeadMap[$budgetKey]['old_available_fund'] += floatval($item->old_available_fund ?? 0);
-                    $budgetHeadMap[$budgetKey]['new_available_fund'] += floatval($item->new_available_fund ?? 0);
+            $transformedData = $history->map(function ($item) {
+                $budgetHeads = [];
+                if (!empty($item->budget_head)) {
+                    $budgetHeads[] = [
+                        'budget_head' => $item->budget_head,
+                        'category' => $item->category,
+                        'mother_sanction_amount' => floatval($item->mother_sanction_amount ?? 0),
+                        'available_fund' => floatval($item->available_fund ?? 0),
+                        'old_mother_sanction_amount' => floatval($item->old_mother_sanction_amount ?? 0),
+                        'new_mother_sanction_amount' => floatval($item->new_mother_sanction_amount ?? 0),
+                        'old_available_fund' => floatval($item->old_available_fund ?? 0),
+                        'new_available_fund' => floatval($item->new_available_fund ?? 0),
+                    ];
                 }
 
-                $budgetHeads = collect($budgetHeadMap)->values();
-
-                // Get all unique ky_ms_no values
-                $allKyMsNos = $group->pluck('ky_ms_no')->unique()->filter()->values()->toArray();
-                $kyMsNoDisplay = !empty($allKyMsNos) ? implode(', ', $allKyMsNos) : ($firstItem->ky_ms_no ?? '');
-
                 return [
-                    'id' => $firstItem->history_id,
-                    'financial_year' => $firstItem->financial_year,
-                    'state_id' => $firstItem->state_id,
-                    'ky_ms_no' => $kyMsNoDisplay,
-                    'ky_ms_no_list' => $allKyMsNos,
-                    'sls_name' => $firstItem->sls_name,
-                    'pd_component' => $firstItem->pd_component,
-                    'sanction_date' => $firstItem->sanction_date,
+                    'id' => $item->history_id,
+                    'financial_year' => $item->financial_year,
+                    'state_id' => $item->state_id,
+                    'ky_ms_no' => $item->ky_ms_no,
+                    'sls_name' => $item->sls_name,
+                    'pd_component' => $item->pd_component,
+                    'sanction_date' => $item->sanction_date,
                     'budget_heads' => $budgetHeads,
-                    'action_type' => $firstItem->action_type,
-                    'changed_by' => $firstItem->changed_by,
-                    'history_timestamp' => $firstItem->history_timestamp,
-                    'change_description' => $firstItem->change_description,
+                    'action_type' => $item->action_type,
+                    'changed_by' => $item->changed_by,
+                    'history_timestamp' => $item->history_timestamp,
+                    'change_description' => $item->change_description,
                     'state' => [
-                        'id' => $firstItem->state_id,
-                        'name' => $firstItem->state->name ?? ''
+                        'id' => $item->state_id,
+                        'name' => $item->state->name ?? '',
                     ],
                 ];
             })->values();

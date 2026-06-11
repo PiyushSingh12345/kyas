@@ -74,7 +74,8 @@
                             <th>Budget Head</th>
                             <th>Purpose of Grant</th>
                             <th>Program Division</th>
-                            <th>Amount/Release/Expenditure</th>
+                            <th>Amount/Release</th>
+                            <th>Expenditure</th>
                             <th>Central Implementing Agency</th>
                             <th>Action Type</th>
                             <th>Changed By</th>
@@ -91,8 +92,9 @@
                             <td>{{ formatDate(item.date) }}</td>
                             <td>{{ item.budget_head }}</td>
                             <td>{{ item.purpose_of_grant }}</td>
-                            <td>{{ item.program_division_id }}</td>
+                            <td>{{ item.program_division }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.amount) }}</td>
+                            <td class="currency-cell">{{ formatCurrency(item.expenditure) }}</td>
                             <td>{{ item.central_implementing_agency }}</td>
                             <td class="text-center">
                               <span
@@ -111,7 +113,7 @@
                           </tr>
 
                           <tr v-if="filteredList.length === 0">
-                            <td colspan="10" class="text-center text-muted py-4">
+                            <td colspan="11" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No TSA history records found
                             </td>
