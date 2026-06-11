@@ -73,7 +73,8 @@
                   </div>
                   
                   <!-- File Upload Section -->
-                  <div class="card-body border-top">
+                   <!-- hide this section for now -->
+                  <!-- <div class="card-body border-top">
                     <div class="row">
                       <div class="col-md-12">
                         <div class="form-group">
@@ -106,7 +107,7 @@
                           </div>
                           <div v-if="uploadSuccess" class="alert alert-success mt-2">
                             {{ uploadSuccess }}
-                          </div>
+                          </div> -->
                           
                           <!-- Debug Info -->
                           <!-- <div v-if="extractedData" class="alert alert-info mt-2">
@@ -114,14 +115,67 @@
                           </div> -->
                           
                           <!-- Show Modal Button -->
-                          <div v-if="extractedData" class="mt-3">
+                          <!-- <div v-if="extractedData" class="mt-3">
                             <button 
                               type="button" 
                               class="btn btn-primary" 
                               @click="showPreviewModal"
                             >
                               <i class="fas fa-eye me-2"></i>
-                              Preview Extracted Data ({{ extractedData.total_lines }} lines)
+                              Preview Extracted Data ({{ extractedData.total_items }} items)
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div> -->
+
+                  <!-- BE PDF Upload Section -->
+                  <div class="card-body border-top">
+                    <div class="row">
+                      <div class="col-md-12">
+                        <div class="form-group">
+                          <label class="form-label fw-bold">Upload BE Budget Head Data (PDF)</label>
+                          <div class="input-group">
+                            <input
+                              type="file"
+                              class="form-control"
+                              @change="handleBeFileUpload"
+                              accept=".pdf"
+                              ref="beFileInput"
+                            />
+                            <button
+                              type="button"
+                              class="btn btn-success"
+                              @click="uploadBeFile"
+                              :disabled="!beSelectedFile || beUploading"
+                            >
+                              <i class="fas fa-upload me-2"></i>
+                              {{ beUploading ? 'Uploading...' : 'Upload File' }}
+                            </button>
+                          </div>
+                          <small class="text-muted d-block mt-1">
+                            Extracts budget heads below "Krishonnati Yojna" up to "Krishonnati Yojna Total" (if present). Financial year is read from the "Head of account/ Scheme &amp; Programme" row.
+                          </small>
+                          <div v-if="beSelectedFile" class="mt-2">
+                            <small class="text-muted">
+                              Selected file: {{ beSelectedFile.name }} ({{ formatFileSize(beSelectedFile.size) }})
+                            </small>
+                          </div>
+                          <div v-if="beUploadError" class="alert alert-danger mt-2">
+                            {{ beUploadError }}
+                          </div>
+                          <div v-if="beUploadSuccess" class="alert alert-success mt-2">
+                            {{ beUploadSuccess }}
+                          </div>
+                          <div v-if="beExtractedData" class="mt-3">
+                            <button
+                              type="button"
+                              class="btn btn-primary"
+                              @click="showBePreviewModal"
+                            >
+                              <i class="fas fa-eye me-2"></i>
+                              Preview Extracted Data ({{ beExtractedData.total_items }} items)
                             </button>
                           </div>
                         </div>
@@ -336,6 +390,102 @@
       </div>
     </div>
   </div>
+
+  <!-- BE Preview Modal -->
+  <div class="modal fade" id="bePreviewModal" tabindex="-1" aria-labelledby="bePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="bePreviewModalLabel">
+            <i class="fas fa-file-pdf me-2"></i>
+            Extracted BE Budget Data Preview
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>File:</strong> {{ beSelectedFile?.name || 'Unknown' }} |
+            <strong>Financial Year:</strong> {{ beExtractedData?.financial_year || 'N/A' }} |
+            <strong>Extracted:</strong> {{ beExtractedData?.total_items || 0 }} items from below "Krishonnati Yojna" to "Krishonnati Yojna Total"
+            <br>
+            <strong>Extracted Total:</strong> {{ formatAmount(beExtractedData?.extracted_total) }} Lakhs |
+            <strong>PDF Section Total:</strong> {{ formatAmount(beExtractedData?.pdf_section_total) }} Lakhs
+            <span
+              v-if="beExtractedData?.pdf_section_total != null && beExtractedData?.extracted_total != null && Number(beExtractedData.extracted_total) !== Number(beExtractedData.pdf_section_total)"
+              class="text-danger ms-1"
+            >
+              (totals do not match — review extracted rows)
+            </span>
+            <br>
+            <small class="text-muted">
+              <i class="fas fa-database me-1"></i>
+              Clicking "Proceed" will save budget heads to database and create corresponding budget phase records for BE {{ beExtractedData?.financial_year || '' }}.
+            </small>
+          </div>
+
+          <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-bordered table-striped">
+              <thead class="table-dark sticky-top">
+                <tr>
+                  <th style="width: 25%;">Budget Head</th>
+                  <th style="width: 40%;">Head Description</th>
+                  <th style="width: 15%;">Category</th>
+                  <th style="width: 20%;">Budget Amount in Lakhs ({{ beExtractedData?.financial_year || 'Current FY' }})</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(item, index) in beExtractedData?.structured_data || []" :key="index">
+                  <td style="font-family: monospace; font-size: 0.9em;">
+                    <strong>{{ item.code }}</strong>
+                  </td>
+                  <td class="text-end fw-bold" style="font-family: monospace;">
+                    {{ item.item }}
+                  </td>
+                  <td class="text-center">
+                    {{ calculateCategory(item.code) }}
+                  </td>
+                  <td class="text-end fw-bold" style="font-family: monospace;">
+                    {{ formatAmount(item.be_2025_26) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="d-flex justify-content-between w-100">
+            <div>
+              <small class="text-muted">
+                <i class="fas fa-clock me-1"></i>
+                Extracted on {{ new Date().toLocaleString() }}
+              </small>
+            </div>
+            <div class="btn-group">
+              <button
+                type="button"
+                class="btn btn-success"
+                @click="proceedWithBeImport"
+                :disabled="beProcessing"
+              >
+                <i class="fas fa-check me-2"></i>
+                {{ beProcessing ? 'Processing...' : 'Proceed' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="handleBeCancel"
+                :disabled="beProcessing"
+              >
+                <i class="fas fa-times me-2"></i>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 <script setup>
 import Header from '../Common/Header.vue'
@@ -489,6 +639,15 @@ const uploadError = ref('')
 const uploadSuccess = ref('')
 const extractedData = ref(null)
 const fileInput = ref(null)
+
+// BE PDF upload related reactive variables
+const beSelectedFile = ref(null)
+const beUploading = ref(false)
+const beProcessing = ref(false)
+const beUploadError = ref('')
+const beUploadSuccess = ref('')
+const beExtractedData = ref(null)
+const beFileInput = ref(null)
 
 const form = useForm({
   budget: '',
@@ -758,19 +917,169 @@ const handleCancel = () => {
   closePreviewModal()
 }
 
+// BE PDF upload methods
+const handleBeFileUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    const allowedTypes = ['application/pdf']
+    if (!allowedTypes.includes(file.type)) {
+      beUploadError.value = 'Please select a valid PDF file.'
+      beSelectedFile.value = null
+      return
+    }
+
+    const maxSize = 10 * 1024 * 1024
+    if (file.size > maxSize) {
+      beUploadError.value = 'File size must be less than 10MB.'
+      beSelectedFile.value = null
+      return
+    }
+
+    beSelectedFile.value = file
+    beUploadError.value = ''
+    beUploadSuccess.value = ''
+    beExtractedData.value = null
+  }
+}
+
+const uploadBeFile = () => {
+  if (!beSelectedFile.value) {
+    beUploadError.value = 'Please select a file to upload.'
+    return
+  }
+
+  beUploading.value = true
+  beUploadError.value = ''
+  beUploadSuccess.value = ''
+
+  const formData = new FormData()
+  formData.append('file', beSelectedFile.value)
+
+  csrfFetch('/budget-heads/upload-be', {
+    method: 'POST',
+    body: formData,
+  })
+  .then(data => {
+    if (data.success) {
+      beUploadSuccess.value = 'File processed successfully! Preview the extracted data below.'
+      beExtractedData.value = data.data
+    } else {
+      beUploadError.value = data.message || 'Upload failed. Please try again.'
+    }
+  })
+  .catch(error => {
+    beUploadError.value = error?.message || 'Upload failed. Please try again.'
+  })
+  .finally(() => {
+    beUploading.value = false
+  })
+}
+
+const acceptBeExtractedData = () => {
+  if (!beExtractedData.value) return
+
+  beProcessing.value = true
+
+  const token = getCsrfToken()
+  if (!token) {
+    beUploadError.value = 'CSRF token not found. Please refresh the page and try again.'
+    beProcessing.value = false
+    return
+  }
+
+  csrfFetch('/budget-heads/import-be', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      _token: token,
+      structured_data: beExtractedData.value.structured_data,
+      financial_year: beExtractedData.value.financial_year,
+      file_name: beSelectedFile.value?.name || 'Unknown',
+    }),
+  })
+  .then(data => {
+    if (data.success) {
+      beUploadSuccess.value = data.message || 'Data imported successfully!'
+      closeBePreviewModal()
+      router.reload({ only: ['BudgetHeads'] })
+    } else {
+      beUploadError.value = data.message || 'Import failed. Please try again.'
+    }
+  })
+  .catch(error => {
+    beUploadError.value = error?.message || 'Import failed. Please try again.'
+  })
+  .finally(() => {
+    beProcessing.value = false
+  })
+}
+
+const showBePreviewModal = () => {
+  try {
+    const modalElement = document.getElementById('bePreviewModal')
+    if (modalElement) {
+      const modal = new bootstrap.Modal(modalElement)
+      modal.show()
+    }
+  } catch (error) {
+    console.error('Error showing BE modal:', error)
+    alert('Modal error. Please check console for details.')
+  }
+}
+
+const closeBePreviewModal = () => {
+  try {
+    const modalElement = document.getElementById('bePreviewModal')
+    if (modalElement) {
+      const modal = bootstrap.Modal.getInstance(modalElement)
+      if (modal) {
+        modal.hide()
+      }
+    }
+  } catch (error) {
+    console.error('Error closing BE modal:', error)
+  }
+
+  beExtractedData.value = null
+  beSelectedFile.value = null
+  beUploadSuccess.value = ''
+  beUploadError.value = ''
+  if (beFileInput.value) {
+    beFileInput.value.value = ''
+  }
+}
+
+const proceedWithBeImport = () => {
+  if (!beExtractedData.value?.financial_year) {
+    beUploadError.value = 'Financial year could not be determined from the PDF. Please upload a valid BE budget head PDF.'
+    return
+  }
+
+  if (!confirm('Are you sure to freeze?')) {
+    return
+  }
+
+  acceptBeExtractedData()
+}
+
+const handleBeCancel = () => {
+  closeBePreviewModal()
+}
+
 // Helper function to format amount
 const formatAmount = (amount) => {
-  if (!amount || amount === 'null' || amount === '') {
+  if (amount === null || amount === undefined || amount === '' || amount === 'null') {
     return 'N/A'
   }
-  
-  // Remove any non-numeric characters except dots and commas
-  const cleanAmount = amount.toString().replace(/[^\d.,]/g, '')
-  
-  if (cleanAmount === '') {
+
+  const cleanAmount = amount.toString().replace(/[^\d.,-]/g, '')
+
+  if (cleanAmount === '' || cleanAmount === '-') {
     return 'N/A'
   }
-  
+
   return cleanAmount
 }
 

@@ -66,8 +66,10 @@
                         <label for="financialYearSelect">F.Y</label>
                         <select class="form-select" id="financialYearSelect" v-model="financialYear">
                           <option disabled value="">Select Year</option>
+                          <option value="2026-2027">2026-2027</option>
                           <option value="2025-2026">2025-2026</option>
                           <option value="2024-2025">2024–2025</option>
+                          <option value="2023-2024">2023–2024</option>
                         </select>
                       </div>
                     </div>

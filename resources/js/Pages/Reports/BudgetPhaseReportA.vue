@@ -47,6 +47,7 @@
                               <div class="col-md-4">
                                 <label for="financialYear" class="form-label fw-bold">Financial Year</label>
                                 <select class="form-select" id="financialYear" v-model="financialYear" @change="onFinancialYearChange">
+                                  <option value="2026-2027">2026–2027</option>
                                   <option value="2025-26">2025–2026</option>
                                   <option value="2024-25">2024–2025</option>
                                   <option value="2023-24">2023–2024</option>

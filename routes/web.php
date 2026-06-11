@@ -249,7 +249,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/budget-heads', [BudgetHeadController::class, 'store'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.store');
     Route::post('/budget-heads/upload', [BudgetHeadController::class, 'upload'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.upload');
+    Route::post('/budget-heads/upload-be', [BudgetHeadController::class, 'uploadBe'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.uploadBe');
     Route::post('/budget-heads/import', [BudgetHeadController::class, 'import'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.import');
+    Route::post('/budget-heads/import-be', [BudgetHeadController::class, 'importBe'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.importBe');
     Route::delete('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'destroy'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.destroy');
     Route::put('/budget-heads/{budgetHead}', [BudgetHeadController::class, 'update'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.update');
     Route::put('/budget-heads/{id}/toggle-status', [BudgetHeadController::class, 'toggleStatus'])->middleware(['role:2,3', 'throttle:budget-heads'])->name('BudgetHead.toggleStatus');

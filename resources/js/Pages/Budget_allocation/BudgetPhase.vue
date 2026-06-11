@@ -37,8 +37,10 @@
                       <div class="form-group">
                         <label for="financialYear">F.Y</label>
                         <select class="form-select" id="financialYear" v-model="financialYear">
+                          <option value="2026-27">2026-27</option>
                           <option value="2025-26">2025-26</option>
                           <option value="2024-25">2024-25</option>
+                          <option value="2023-24">2023-24</option>
                           <!-- Add more years if needed -->
                         </select>
                       </div>
@@ -228,7 +230,7 @@ export default {
   },
   setup() {
     const selectedPhase = ref('0')
-    const financialYear = ref('2025-26')
+    const financialYear = ref('2026-27')
     const filteredBudgetHeads = ref([])
     const isSubmitted = ref(false)
     const isProcessing = ref(false)

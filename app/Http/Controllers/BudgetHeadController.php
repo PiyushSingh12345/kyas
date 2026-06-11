@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BudgetHead;
 use App\Models\BudgetPhase;
+use App\Services\BudgetHeadBePdfParser;
 use App\Services\SafePdfValidator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -631,5 +632,152 @@ class BudgetHeadController extends Controller
         return $formatted;
     }
 
+    private function hasImportableAmount($value): bool
+    {
+        return $value !== null && $value !== '';
+    }
 
+    public function uploadBe(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:pdf|max:10240',
+        ]);
+
+        try {
+            $file = $request->file('file');
+            $fileName = $file->getClientOriginalName();
+            $filePath = $file->storeAs('temp', $fileName, 'local');
+            $fullPath = Storage::disk('local')->path($filePath);
+
+            $binary = @file_get_contents($fullPath);
+            if ($binary === false) {
+                throw ValidationException::withMessages([
+                    'file' => ['Unable to read uploaded PDF.'],
+                ]);
+            }
+
+            app(SafePdfValidator::class)->assertSafe($binary, 'file');
+            $extractedData = app(BudgetHeadBePdfParser::class)->parse($fullPath);
+
+            Storage::disk('local')->delete($filePath);
+
+            if (!empty($extractedData['error'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $extractedData['error'],
+                    'data' => $extractedData,
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'File processed successfully',
+                'data' => $extractedData,
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first(),
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('BE file upload error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error processing file: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function importBe(Request $request)
+    {
+        $request->validate([
+            'structured_data' => 'required|array',
+            'structured_data.*.code' => ['required', 'string', 'regex:' . self::BUDGET_HEAD_PATTERN],
+            'structured_data.*.item' => ['required', 'string', 'max:255', 'regex:' . self::DESCRIPTION_PATTERN],
+            'structured_data.*.be_2024_25' => 'nullable|string',
+            'structured_data.*.be_2025_26' => 'nullable|string',
+            'financial_year' => ['required', 'regex:/^\d{4}-\d{2}$/'],
+            'file_name' => 'required|string',
+        ], [
+            'structured_data.*.code.regex' => 'Each imported budget code must be 15 digits or in format 1234.56.789.01.23.45.',
+            'structured_data.*.item.regex' => 'Imported description contains invalid special characters.',
+        ]);
+
+        try {
+            $structuredData = $request->structured_data;
+            $fileName = $request->file_name;
+            $financialYear = $request->financial_year;
+
+            $importedCount = 0;
+            $updatedHeadCount = 0;
+            $budgetPhaseCount = 0;
+            $budgetPhaseUpdatedCount = 0;
+
+            foreach ($structuredData as $item) {
+                $formattedCode = $this->formatBudgetHeadCode($item['code']);
+                $existing = BudgetHead::where('budget', $formattedCode)->first();
+
+                if (!$existing) {
+                    $category = $this->calculateCategory($formattedCode);
+
+                    $budgetHead = BudgetHead::create([
+                        'budget' => $formattedCode,
+                        'description' => $item['item'],
+                        'category' => $category,
+                        'status' => 1,
+                    ]);
+                    $importedCount++;
+                } else {
+                    $budgetHead = $existing;
+                    $budgetHead->update(['description' => $item['item']]);
+                    $updatedHeadCount++;
+                }
+
+                if ($this->hasImportableAmount($item['be_2025_26'] ?? null)) {
+                    $existingPhase = BudgetPhase::where('budget_head_id', $budgetHead->id)
+                        ->where('financial_year', $financialYear)
+                        ->where('budget_phase', 'BE')
+                        ->first();
+
+                    $phaseData = [
+                        'budget_amount' => (float) $item['be_2025_26'],
+                        'status' => 1,
+                        'draft_flag' => 0,
+                    ];
+
+                    if ($existingPhase) {
+                        $existingPhase->update($phaseData);
+                        $budgetPhaseUpdatedCount++;
+                    } else {
+                        BudgetPhase::create(array_merge($phaseData, [
+                            'financial_year' => $financialYear,
+                            'budget_phase' => 'BE',
+                            'budget_head_id' => $budgetHead->id,
+                        ]));
+                        $budgetPhaseCount++;
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully imported {$importedCount} new budget heads, updated {$updatedHeadCount} existing heads, and saved {$budgetPhaseCount} new / {$budgetPhaseUpdatedCount} updated budget phases (BE {$financialYear}) from {$fileName}",
+                'imported_count' => $importedCount,
+                'updated_head_count' => $updatedHeadCount,
+                'budget_phase_count' => $budgetPhaseCount,
+                'budget_phase_updated_count' => $budgetPhaseUpdatedCount,
+                'total_processed' => count($structuredData),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error importing data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
