@@ -72,13 +72,12 @@
                     <button v-if="editingId" type="button" class="btn btn-secondary" @click="cancelEdit">Cancel</button>
                   </div>
                   
-                  <!-- File Upload Section starts here -->
+                  <!-- File Upload Section -->
                   <div class="card-body border-top">
-                    <!-- File Upload 1st Section commented out for now -->
-                    <!-- <div class="row"> -->
-                      <!-- <div class="col-md-12"> -->
-                        <!-- <div class="form-group"> -->
-                          <!-- <label class="form-label fw-bold">Upload Budget Head Data (PDF)</label>
+                    <div class="row">
+                      <div class="col-md-12">
+                        <div class="form-group">
+                          <label class="form-label fw-bold">Upload Budget Head Data (PDF)</label>
                           <div class="input-group">
                             <input 
                               type="file" 
@@ -101,13 +100,13 @@
                             <small class="text-muted">
                               Selected file: {{ selectedFile.name }} ({{ formatFileSize(selectedFile.size) }})
                             </small>
-                          </div> -->
-                          <!-- <div v-if="uploadError" class="alert alert-danger mt-2">
+                          </div>
+                          <div v-if="uploadError" class="alert alert-danger mt-2">
                             {{ uploadError }}
                           </div>
                           <div v-if="uploadSuccess" class="alert alert-success mt-2">
                             {{ uploadSuccess }}
-                          </div> -->
+                          </div>
                           
                           <!-- Debug Info -->
                           <!-- <div v-if="extractedData" class="alert alert-info mt-2">
@@ -115,7 +114,7 @@
                           </div> -->
                           
                           <!-- Show Modal Button -->
-                          <!-- <div v-if="extractedData" class="mt-3">
+                          <div v-if="extractedData" class="mt-3">
                             <button 
                               type="button" 
                               class="btn btn-primary" 
@@ -123,66 +122,6 @@
                             >
                               <i class="fas fa-eye me-2"></i>
                               Preview Extracted Data ({{ extractedData.total_lines }} lines)
-                            </button>
-                          </div> -->
-                        <!-- </div> -->
-                      <!-- </div> -->
-                    <!-- </div> -->
-
-                   <!-- File Upload 2nd Section starts here -->
-                    <div class="row mt-4">
-                      <div class="col-md-12">
-                        <div class="form-group">
-                          <label class="form-label fw-bold">Upload Budget Head Table Data (PDF)</label>
-                          <div class="input-group">
-                            <input
-                              type="file"
-                              class="form-control"
-                              @change="handleTableFileUpload"
-                              accept=".pdf"
-                              ref="tableFileInput"
-                              :disabled="tableUploading || tableProcessing"
-                            />
-                            <button
-                              type="button"
-                              class="btn btn-success"
-                              @click="uploadTableFile"
-                              :disabled="!selectedTableFile || tableUploading || tableProcessing"
-                            >
-                              <span v-if="tableUploading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                              <i v-else class="fas fa-upload me-2"></i>
-                              {{ tableUploading ? 'Processing...' : 'Upload File' }}
-                            </button>
-                          </div>
-                          <small class="text-muted d-block mt-1">
-                            Upload table-format PDF with "Head of account/ Scheme &amp; Programme" and "Krishonnati Yojna" section.
-                            Scanned/image PDFs may take 2–4 minutes to process.
-                          </small>
-                          <div v-if="tableUploading" class="alert alert-warning mt-2 mb-0 d-flex align-items-center">
-                            <div class="spinner-border spinner-border-sm text-warning me-2" role="status">
-                              <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <span>Processing PDF… scanned files can take a few minutes. Please wait.</span>
-                          </div>
-                          <div v-if="selectedTableFile" class="mt-2">
-                            <small class="text-muted">
-                              Selected file: {{ selectedTableFile.name }} ({{ formatFileSize(selectedTableFile.size) }})
-                            </small>
-                          </div>
-                          <div v-if="tableUploadError" class="alert alert-danger mt-2">
-                            {{ tableUploadError }}
-                          </div>
-                          <div v-if="tableUploadSuccess" class="alert alert-success mt-2">
-                            {{ tableUploadSuccess }}
-                          </div>
-                          <div v-if="tableExtractedData" class="mt-3">
-                            <button
-                              type="button"
-                              class="btn btn-primary"
-                              @click="showTablePreviewModal"
-                            >
-                              <i class="fas fa-eye me-2"></i>
-                              Preview Extracted Data ({{ tableExtractedData.total_items }} items)
                             </button>
                           </div>
                         </div>
@@ -397,94 +336,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Table Format Preview Modal -->
-  <div class="modal fade" id="tablePreviewModal" tabindex="-1" aria-labelledby="tablePreviewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="tablePreviewModalLabel">
-            <i class="fas fa-file-pdf me-2"></i>
-            Extracted Budget Table Data Preview
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>File:</strong> {{ selectedTableFile?.name || 'Unknown' }} |
-            <strong>Extracted:</strong> {{ tableExtractedData?.total_items || 0 }} items from "Krishonnati Yojna" section
-            <br>
-            <strong>Financial Year(s):</strong>
-            {{ tableFinancialYearsLabel }}
-            <br>
-            <small class="text-muted">
-              <i class="fas fa-database me-1"></i>
-              Clicking "Proceed" will save budget heads to database and create corresponding budget phase records.
-            </small>
-          </div>
-
-          <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-            <table class="table table-bordered table-striped">
-              <thead class="table-dark sticky-top">
-                <tr>
-                  <th style="width: 20%;">Budget Head</th>
-                  <th style="width: 35%;">Head Description</th>
-                  <th style="width: 12%;">Category</th>
-                  <th style="width: 13%;">Financial Year</th>
-                  <th style="width: 20%;">Budget Amount (Lakhs)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(item, index) in tableExtractedData?.structured_data || []" :key="index">
-                  <td style="font-family: monospace; font-size: 0.9em;">
-                    <strong>{{ item.code }}</strong>
-                  </td>
-                  <td>{{ item.item }}</td>
-                  <td class="text-center">{{ calculateCategory(item.code) }}</td>
-                  <td class="text-center">{{ item.financial_year || 'N/A' }}</td>
-                  <td class="text-end fw-bold" style="font-family: monospace;">
-                    {{ formatTableAmount(item.budget_amount) }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <div class="d-flex justify-content-between w-100">
-            <div>
-              <small class="text-muted">
-                <i class="fas fa-clock me-1"></i>
-                Extracted on {{ new Date().toLocaleString() }}
-              </small>
-            </div>
-            <div class="btn-group">
-              <button
-                type="button"
-                class="btn btn-success"
-                @click="proceedWithTableImport"
-                :disabled="tableProcessing"
-              >
-                <span v-if="tableProcessing" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                <i v-else class="fas fa-check me-2"></i>
-                {{ tableProcessing ? 'Processing...' : 'Proceed' }}
-              </button>
-              <button
-                type="button"
-                class="btn btn-secondary"
-                @click="handleTableCancel"
-                :disabled="tableProcessing"
-              >
-                <i class="fas fa-times me-2"></i>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 </template>
 <script setup>
 import Header from '../Common/Header.vue'
@@ -638,22 +489,6 @@ const uploadError = ref('')
 const uploadSuccess = ref('')
 const extractedData = ref(null)
 const fileInput = ref(null)
-
-const selectedTableFile = ref(null)
-const tableUploading = ref(false)
-const tableProcessing = ref(false)
-const tableUploadError = ref('')
-const tableUploadSuccess = ref('')
-const tableExtractedData = ref(null)
-const tableFileInput = ref(null)
-
-const tableFinancialYearsLabel = computed(() => {
-  const years = tableExtractedData.value?.financial_years || []
-  if (years.length === 0) {
-    return 'Not detected'
-  }
-  return years.map((year) => `BE ${year}`).join(', ')
-})
 
 const form = useForm({
   budget: '',
@@ -923,153 +758,6 @@ const handleCancel = () => {
   closePreviewModal()
 }
 
-const handleTableFileUpload = (event) => {
-  const file = event.target.files[0]
-  if (!file) {
-    return
-  }
-
-  if (file.type !== 'application/pdf') {
-    tableUploadError.value = 'Please select a valid PDF file.'
-    selectedTableFile.value = null
-    return
-  }
-
-  const maxSize = 10 * 1024 * 1024
-  if (file.size > maxSize) {
-    tableUploadError.value = 'File size must be less than 10MB.'
-    selectedTableFile.value = null
-    return
-  }
-
-  selectedTableFile.value = file
-  tableUploadError.value = ''
-  tableUploadSuccess.value = ''
-  tableExtractedData.value = null
-}
-
-const uploadTableFile = () => {
-  if (!selectedTableFile.value) {
-    tableUploadError.value = 'Please select a file to upload.'
-    return
-  }
-
-  tableUploading.value = true
-  tableUploadError.value = ''
-  tableUploadSuccess.value = ''
-
-  const formData = new FormData()
-  formData.append('file', selectedTableFile.value)
-
-  csrfFetch('/budget-heads/upload-table', {
-    method: 'POST',
-    body: formData,
-  })
-    .then((data) => {
-      if (data.success) {
-        tableUploadSuccess.value = 'File processed successfully! Preview the extracted data below.'
-        tableExtractedData.value = data.data
-      } else {
-        tableUploadError.value = data.message || 'Upload failed. Please try again.'
-      }
-    })
-    .catch((error) => {
-      tableUploadError.value = error?.message || 'Upload failed. Please try again.'
-    })
-    .finally(() => {
-      tableUploading.value = false
-    })
-}
-
-const acceptTableExtractedData = () => {
-  if (!tableExtractedData.value) {
-    return
-  }
-
-  tableProcessing.value = true
-
-  const token = getCsrfToken()
-  if (!token) {
-    tableUploadError.value = 'CSRF token not found. Please refresh the page and try again.'
-    tableProcessing.value = false
-    return
-  }
-
-  csrfFetch('/budget-heads/import-table', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      _token: token,
-      structured_data: tableExtractedData.value.structured_data,
-      financial_years: tableExtractedData.value.financial_years || [],
-      file_name: selectedTableFile.value?.name || 'Unknown',
-    }),
-  })
-    .then((data) => {
-      if (data.success) {
-        tableUploadSuccess.value = data.message || 'Data imported successfully!'
-        closeTablePreviewModal()
-        router.reload({ only: ['BudgetHeads'] })
-      } else {
-        tableUploadError.value = data.message || 'Import failed. Please try again.'
-      }
-    })
-    .catch((error) => {
-      tableUploadError.value = error?.message || 'Import failed. Please try again.'
-    })
-    .finally(() => {
-      tableProcessing.value = false
-    })
-}
-
-const showTablePreviewModal = () => {
-  try {
-    const modalElement = document.getElementById('tablePreviewModal')
-    if (modalElement) {
-      const modal = new bootstrap.Modal(modalElement)
-      modal.show()
-    }
-  } catch (error) {
-    console.error('Error showing table preview modal:', error)
-  }
-}
-
-const closeTablePreviewModal = () => {
-  try {
-    const modalElement = document.getElementById('tablePreviewModal')
-    if (modalElement) {
-      const modal = bootstrap.Modal.getInstance(modalElement)
-      if (modal) {
-        modal.hide()
-      }
-    }
-  } catch (error) {
-    console.error('Error closing table preview modal:', error)
-  }
-
-  tableExtractedData.value = null
-  selectedTableFile.value = null
-  tableUploadSuccess.value = ''
-  tableUploadError.value = ''
-  if (tableFileInput.value) {
-    tableFileInput.value.value = ''
-  }
-}
-
-const proceedWithTableImport = () => {
-  if (!confirm('Are you sure to freeze?')) {
-    return
-  }
-
-  acceptTableExtractedData()
-}
-
-const handleTableCancel = () => {
-  closeTablePreviewModal()
-}
-
 // Helper function to format amount
 const formatAmount = (amount) => {
   if (!amount || amount === 'null' || amount === '') {
@@ -1083,20 +771,6 @@ const formatAmount = (amount) => {
     return 'N/A'
   }
   
-  return cleanAmount
-}
-
-const formatTableAmount = (amount) => {
-  if (!amount || amount === 'null' || amount === '') {
-    return '0'
-  }
-
-  const cleanAmount = amount.toString().replace(/[^\d.,]/g, '')
-
-  if (cleanAmount === '') {
-    return '0'
-  }
-
   return cleanAmount
 }
 
