@@ -105,7 +105,7 @@ class AgencyReleaseController extends Controller
                 'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
-                'expenditure' => 'required|numeric|min:0',
+                'expenditure' => 'nullable|numeric|min:0|lte:amount',
                 'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'isNer' => 'sometimes|boolean',
                 'remark' => 'sometimes|nullable|string|max:1000',
@@ -114,6 +114,7 @@ class AgencyReleaseController extends Controller
                 'budgetHead.regex' => 'Budget head format is invalid.',
                 'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
                 'centralImplementingAgency.regex' => 'Agency name contains invalid special characters.',
+                'expenditure.lte' => 'Expenditure cannot exceed Amount.',
             ]);
 
             // Get budget head record
@@ -167,7 +168,7 @@ class AgencyReleaseController extends Controller
                 'purpose_of_grant' => $validated['purposeOfGrant'],
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
-                'expenditure' => $validated['expenditure'],
+                'expenditure' => $validated['expenditure'] ?? null,
                 'central_implementing_agency' => $validated['centralImplementingAgency'],
                 'is_ner' => $request->boolean('isNer'),
                 'remark' => $validated['remark'] ?? null,
@@ -218,7 +219,7 @@ class AgencyReleaseController extends Controller
                 'purposeOfGrant' => ['required', 'string', 'max:1000', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
-                'expenditure' => 'required|numeric|min:0',
+                'expenditure' => 'nullable|numeric|min:0|lte:amount',
                 'centralImplementingAgency' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
                 'isNer' => 'sometimes|boolean',
                 'remark' => 'sometimes|nullable|string|max:1000',
@@ -227,6 +228,7 @@ class AgencyReleaseController extends Controller
                 'budgetHead.regex' => 'Budget head format is invalid.',
                 'purposeOfGrant.regex' => 'Purpose of grant contains invalid special characters.',
                 'centralImplementingAgency.regex' => 'Agency name contains invalid special characters.',
+                'expenditure.lte' => 'Expenditure cannot exceed Amount.',
             ]);
 
             $balanceError = $this->validateAmountAgainstBalancedFund(
@@ -251,7 +253,7 @@ class AgencyReleaseController extends Controller
                 'purpose_of_grant' => $validated['purposeOfGrant'],
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
-                'expenditure' => $validated['expenditure'],
+                'expenditure' => $validated['expenditure'] ?? null,
                 'central_implementing_agency' => $validated['centralImplementingAgency'],
                 'is_ner' => $request->boolean('isNer'),
                 'remark' => $validated['remark'] ?? null,

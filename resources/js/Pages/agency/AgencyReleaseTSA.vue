@@ -162,17 +162,21 @@
                       <!-- Expenditure -->
                       <div class="col-md-6 col-lg-4">
                         <div class="form-group">
-                          <label for="expenditure">Expenditure <span class="text-danger">*</span></label>
+                          <label for="expenditure">Expenditure</label>
                           <input
                             type="number"
                             class="form-control"
+                            :class="{ 'is-invalid': expenditureExceedsAmount }"
                             id="expenditure"
                             v-model="formData.expenditure"
                             step="0.01"
                             min="0"
+                            :max="formData.amount !== '' && !isNaN(parseFloat(formData.amount)) ? parseFloat(formData.amount) : undefined"
                             placeholder="Enter Expenditure"
-                            required
                           >
+                          <div v-if="expenditureExceedsAmount" class="invalid-feedback">
+                            Expenditure cannot exceed Amount (₹{{ parseFloat(formData.amount).toFixed(2) }} lakhs)
+                          </div>
                         </div>
                       </div>
 
@@ -277,6 +281,12 @@ const isSubmitting = ref(false)
 const amountExceedsBalance = computed(() => {
   const amount = parseFloat(formData.value.amount)
   return !isNaN(amount) && amount > 0 && balancedFundAmount.value > 0 && amount > balancedFundAmount.value
+})
+
+const expenditureExceedsAmount = computed(() => {
+  const expenditure = parseFloat(formData.value.expenditure)
+  const amount = parseFloat(formData.value.amount)
+  return !isNaN(expenditure) && expenditure > 0 && !isNaN(amount) && amount > 0 && expenditure > amount
 })
 
 // Flash message state
@@ -429,7 +439,7 @@ const submitForm = async () => {
   // Validation
   if (!formData.value.sanctionNumber || !formData.value.date || !formData.value.budgetHead || 
       !formData.value.purposeOfGrant || !formData.value.programDivision || 
-      !formData.value.amount || !formData.value.expenditure || !formData.value.centralImplementingAgency) {
+      !formData.value.amount || !formData.value.centralImplementingAgency) {
     showFlashMessage('danger', 'Please fill in all required fields', 'fas fa-exclamation-triangle')
     return
   }
@@ -437,6 +447,11 @@ const submitForm = async () => {
   // Check if amount exceeds balanced fund amount
   if (amountExceedsBalance.value) {
     showFlashMessage('danger', `Amount cannot exceed Balanced Fund Amount of ₹${balancedFundAmount.value.toFixed(2)} lakhs`, 'fas fa-exclamation-triangle')
+    return
+  }
+
+  if (expenditureExceedsAmount.value) {
+    showFlashMessage('danger', `Expenditure cannot exceed Amount of ₹${parseFloat(formData.value.amount).toFixed(2)} lakhs`, 'fas fa-exclamation-triangle')
     return
   }
 
@@ -452,7 +467,9 @@ const submitForm = async () => {
       purposeOfGrant: formData.value.purposeOfGrant,
       programDivision: parseInt(formData.value.programDivision),
       amount: parseFloat(formData.value.amount),
-      expenditure: parseFloat(formData.value.expenditure),
+      expenditure: formData.value.expenditure !== '' && formData.value.expenditure != null
+        ? parseFloat(formData.value.expenditure)
+        : null,
       centralImplementingAgency: formData.value.centralImplementingAgency,
       isNer: Boolean(formData.value.isNer),
       remark: formData.value.remark

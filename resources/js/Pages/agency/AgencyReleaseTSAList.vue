@@ -233,8 +233,20 @@
                 </div>
                 <div class="col-md-6">
                   <div class="form-group mb-3">
-                    <label for="editExpenditure">Expenditure <span class="text-danger">*</span></label>
-                    <input type="number" class="form-control" id="editExpenditure" v-model="editForm.expenditure" step="0.01" min="0" required>
+                    <label for="editExpenditure">Expenditure</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      :class="{ 'is-invalid': editExpenditureExceedsAmount }"
+                      id="editExpenditure"
+                      v-model="editForm.expenditure"
+                      step="0.01"
+                      min="0"
+                      :max="editForm.amount !== '' && !isNaN(parseFloat(editForm.amount)) ? parseFloat(editForm.amount) : undefined"
+                    >
+                    <div v-if="editExpenditureExceedsAmount" class="invalid-feedback">
+                      Expenditure cannot exceed Amount (₹{{ parseFloat(editForm.amount).toFixed(2) }} lakhs)
+                    </div>
                   </div>
                 </div>
                 <div class="col-md-6">
@@ -275,7 +287,7 @@
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" @click="closeEditDialog">Cancel</button>
-              <button type="submit" class="btn btn-primary" :disabled="isSavingEdit || editAmountExceedsBalance">
+              <button type="submit" class="btn btn-primary" :disabled="isSavingEdit || editAmountExceedsBalance || editExpenditureExceedsAmount">
                 <span v-if="isSavingEdit" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 Update
               </button>
@@ -354,6 +366,12 @@ const editForm = ref({
 const editAmountExceedsBalance = computed(() => {
   const amount = parseFloat(editForm.value.amount)
   return !isNaN(amount) && amount > 0 && editBalancedFundAmount.value > 0 && amount > editBalancedFundAmount.value
+})
+
+const editExpenditureExceedsAmount = computed(() => {
+  const expenditure = parseFloat(editForm.value.expenditure)
+  const amount = parseFloat(editForm.value.amount)
+  return !isNaN(expenditure) && expenditure > 0 && !isNaN(amount) && amount > 0 && expenditure > amount
 })
 
 // Flash message state
@@ -639,6 +657,11 @@ const submitEdit = async () => {
     return
   }
 
+  if (editExpenditureExceedsAmount.value) {
+    showFlashMessage('danger', `Expenditure cannot exceed Amount of ₹${parseFloat(editForm.value.amount).toFixed(2)} lakhs`, 'fas fa-exclamation-triangle')
+    return
+  }
+
   isSavingEdit.value = true
 
   try {
@@ -655,7 +678,9 @@ const submitEdit = async () => {
         purposeOfGrant: editForm.value.purposeOfGrant,
         programDivision: parseInt(editForm.value.programDivision, 10),
         amount: parseFloat(editForm.value.amount),
-        expenditure: parseFloat(editForm.value.expenditure),
+        expenditure: editForm.value.expenditure !== '' && editForm.value.expenditure != null
+          ? parseFloat(editForm.value.expenditure)
+          : null,
         centralImplementingAgency: editForm.value.centralImplementingAgency,
         isNer: Boolean(editForm.value.isNer),
         remark: editForm.value.remark
