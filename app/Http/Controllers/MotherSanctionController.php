@@ -33,7 +33,7 @@ class MotherSanctionController extends Controller
     public function getSlsData($stateId)
     {
         $slsData = SlsPDComponent::where('state_id', $stateId)
-                                 ->select('id', 'name')
+                                 ->select('id', 'name','sls_code','full_sls_name')
                                  ->get();
 
         return response()->json($slsData);
@@ -1284,8 +1284,18 @@ public function getMotherSanctionDetails($kyMsNo)
     public function historyList()
     {
         try {
-            $history = MotherSanctionHistory::with(['state', 'motherSanction'])
-                ->orderBy('history_timestamp', 'desc')
+            $history = DB::table('mother_sanction_history as msh')
+                ->select([
+                    'msh.*',
+                    's.name as state_name',
+                    'pdc.sls_code',
+                ])
+                ->join('states as s', 'msh.state_id', '=', 's.id')
+                ->leftJoin('pd_and_sls_comp as pdc', function ($join) {
+                    $join->on(DB::raw('msh.sls_name COLLATE utf8mb4_unicode_ci'), '=', DB::raw('pdc.name COLLATE utf8mb4_unicode_ci'))
+                         ->on(DB::raw('msh.pd_component COLLATE utf8mb4_unicode_ci'), '=', DB::raw('pdc.slsPD COLLATE utf8mb4_unicode_ci'));
+                })
+                ->orderBy('msh.history_timestamp', 'desc')
                 ->get();
 
             $transformedData = $history->map(function ($item) {
@@ -1309,6 +1319,9 @@ public function getMotherSanctionDetails($kyMsNo)
                     'state_id' => $item->state_id,
                     'ky_ms_no' => $item->ky_ms_no,
                     'sls_name' => $item->sls_name,
+                    'sls_code' => $item->sls_code ?? '',
+                    'annual_allocation' => floatval($item->new_available_fund ?? $item->available_fund ?? 0),
+                    'total_mother_sanction_amount' => floatval($item->total_mother_sanction_amount ?? 0),
                     'pd_component' => $item->pd_component,
                     'sanction_date' => $item->sanction_date,
                     'budget_heads' => $budgetHeads,
@@ -1318,7 +1331,7 @@ public function getMotherSanctionDetails($kyMsNo)
                     'change_description' => $item->change_description,
                     'state' => [
                         'id' => $item->state_id,
-                        'name' => $item->state->name ?? '',
+                        'name' => $item->state_name ?? '',
                     ],
                 ];
             })->values();

@@ -68,7 +68,7 @@
                               <th>MS NO</th>
                               <th>Date</th>
                               <th>SLS Details</th>
-                              <th>SL  Scode</th>
+                              <th>SLS Code</th>
                               <th>Annual Allocation</th>
                               <th>MS Total Amount</th>
                               <th>Budget Head</th>

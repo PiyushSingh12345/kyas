@@ -65,6 +65,9 @@
                               <th>MS NO</th>
                               <th>Date</th>
                               <th>SLS Details</th>
+                              <th>SLS Code</th>
+                              <th>Annual Allocation</th>
+                              <th>MS Total Amount</th>
                               <th>Budget Head</th>
                               <th>Action Type</th>
                               <th>Changed By</th>
@@ -80,6 +83,9 @@
                             <td>{{ item.ky_ms_no }}</td>
                             <td>{{ formatDate(item.sanction_date) }}</td>
                             <td>{{ item.sls_name }}</td>
+                            <td>{{ item.sls_code || item.sls_name?.substring(0, 2) || '' }}</td>
+                            <td class="currency-cell">{{ formatCurrency(item.annual_allocation) }}</td>
+                            <td class="currency-cell">{{ formatCurrency(item.total_mother_sanction_amount) }}</td>
 
                             <td>
                               <div class="budget-head-table">
@@ -131,7 +137,7 @@
                           </tr>
                           
                           <tr v-if="historyData.length === 0">
-                            <td colspan="10" class="text-center text-muted py-4">
+                            <td colspan="13" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No mother sanction history available
                             </td>

@@ -50,6 +50,7 @@
 						</div>
 
 						<div v-else>
+							<div ref="reportTableScrollWrapper" class="report-table-scroll-wrapper" @scroll="onTableWrapperScroll">
 							<div class="table-responsive">
 								<table class="table table-bordered table-hover align-middle text-center">
 									<thead class="table-dark">
@@ -132,6 +133,7 @@
 									</tbody>
 								</table>
 							</div>
+							</div>
 
 							<!-- Submit Button -->
 							<div class="row mt-4">
@@ -153,13 +155,22 @@
             </div>
           </div>
         </div>
+        <!-- Fixed horizontal scrollbar at bottom of viewport -->
+        <div
+          v-show="showFixedScrollBar"
+          ref="fixedScrollBar"
+          class="fixed-horizontal-scrollbar"
+          @scroll="onFixedScrollBarScroll"
+        >
+          <div ref="fixedScrollBarInner" class="fixed-horizontal-scrollbar-inner"></div>
+        </div>
         <Footer />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, onUpdated, computed, watch, nextTick } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios';
 import Header from '../Common/Header.vue'
@@ -175,6 +186,65 @@ const remarksData = ref({})
 const loading = ref(true)
 const error = ref(null)
 const submitting = ref(false)
+
+// Fixed horizontal scrollbar at bottom of viewport
+const reportTableScrollWrapper = ref(null)
+const fixedScrollBar = ref(null)
+const fixedScrollBarInner = ref(null)
+const showFixedScrollBar = ref(false)
+let scrollSyncLock = false
+
+function updateFixedScrollBarWidth() {
+  nextTick(() => {
+    const wrapper = reportTableScrollWrapper.value
+    const inner = fixedScrollBarInner.value
+    const bar = fixedScrollBar.value
+    if (!wrapper || !inner || !bar) return
+    const tableEl = wrapper.querySelector('#reportTable table') || wrapper.querySelector('table')
+    let contentWidth = tableEl && tableEl.scrollWidth > 0 ? tableEl.scrollWidth : wrapper.scrollWidth
+    if (contentWidth <= 0) contentWidth = wrapper.scrollWidth
+    const cw = wrapper.clientWidth
+    inner.style.width = contentWidth + 'px'
+    showFixedScrollBar.value = contentWidth > cw
+    if (showFixedScrollBar.value) {
+      const wrapperMax = wrapper.scrollWidth - wrapper.clientWidth
+      const barMax = bar.scrollWidth - bar.clientWidth
+      scrollSyncLock = true
+      if (barMax > 0 && wrapperMax > 0) {
+        bar.scrollLeft = (wrapper.scrollLeft / wrapperMax) * barMax
+      } else {
+        bar.scrollLeft = wrapper.scrollLeft
+      }
+      scrollSyncLock = false
+    }
+  })
+}
+
+function onTableWrapperScroll() {
+  if (scrollSyncLock) return
+  const wrapper = reportTableScrollWrapper.value
+  const bar = fixedScrollBar.value
+  if (!wrapper || !bar) return
+  const wrapperMax = wrapper.scrollWidth - wrapper.clientWidth
+  const barMax = bar.scrollWidth - bar.clientWidth
+  if (wrapperMax <= 0 || barMax <= 0) return
+  scrollSyncLock = true
+  bar.scrollLeft = (wrapper.scrollLeft / wrapperMax) * barMax
+  scrollSyncLock = false
+}
+
+function onFixedScrollBarScroll() {
+  if (scrollSyncLock) return
+  const wrapper = reportTableScrollWrapper.value
+  const bar = fixedScrollBar.value
+  if (!wrapper || !bar) return
+  const wrapperMax = wrapper.scrollWidth - wrapper.clientWidth
+  const barMax = bar.scrollWidth - bar.clientWidth
+  if (wrapperMax <= 0 || barMax <= 0) return
+  scrollSyncLock = true
+  wrapper.scrollLeft = (bar.scrollLeft / barMax) * wrapperMax
+  scrollSyncLock = false
+}
 
 // Fetch states from API
 const fetchStates = async () => {
@@ -523,6 +593,7 @@ const viewHistory = () => {
 
 // Load data on component mount
 onMounted(async () => {
+  window.addEventListener('resize', updateFixedScrollBarWidth)
   try {
     console.log('Component mounted, starting to load data...')
     
@@ -545,7 +616,17 @@ onMounted(async () => {
   } finally {
     loading.value = false
     console.log('Component loading completed')
+    nextTick(updateFixedScrollBarWidth)
+    setTimeout(updateFixedScrollBarWidth, 300)
   }
+})
+
+onUpdated(() => {
+  if (!loading.value && !error.value) updateFixedScrollBarWidth()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateFixedScrollBarWidth)
 })
 </script>
 
@@ -603,6 +684,99 @@ onMounted(async () => {
     left: 0;
     /* background-color: #f2f2f2; */
     z-index: 1;
+}
+
+/* Horizontal scroll wrapper for report table - scrollbar at bottom of wrapper + fixed bar at viewport bottom */
+.report-table-scroll-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  background: #fff;
+  padding: 0;
+  margin-top: 4px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar {
+  height: 10px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar-track {
+  background: #f1f3f5;
+  border-radius: 0 0 6px 6px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: #868e96;
+  border-radius: 5px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #495057;
+}
+
+.report-table-scroll-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: #868e96 #f1f3f5;
+}
+
+.report-table-scroll-wrapper .table-responsive {
+  margin-bottom: 0;
+  min-width: max-content;
+  width: max-content;
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+.report-table-scroll-wrapper table {
+  min-width: max-content;
+  width: max-content;
+}
+
+/* Fixed horizontal scrollbar at bottom of viewport */
+.fixed-horizontal-scrollbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #f1f3f5;
+  z-index: 1030;
+  border-top: 1px solid #dee2e6;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.fixed-horizontal-scrollbar-inner {
+  height: 1px;
+  pointer-events: none;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar {
+  height: 12px;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: #e9ecef;
+  border-radius: 0;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: #868e96;
+  border-radius: 6px;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #495057;
+}
+
+.fixed-horizontal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #868e96 #e9ecef;
 }
 
 </style>
