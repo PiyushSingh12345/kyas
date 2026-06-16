@@ -66,8 +66,6 @@
                               <th>Date</th>
                               <th>SLS Details</th>
                               <th>SLS Code</th>
-                              <th>Annual Allocation</th>
-                              <th>MS Total Amount</th>
                               <th>Budget Head</th>
                               <th>Action Type</th>
                               <th>Changed By</th>
@@ -84,8 +82,6 @@
                             <td>{{ formatDate(item.sanction_date) }}</td>
                             <td>{{ item.sls_name }}</td>
                             <td>{{ item.sls_code || item.sls_name?.substring(0, 2) || '' }}</td>
-                            <td class="currency-cell">{{ formatCurrency(item.annual_allocation) }}</td>
-                            <td class="currency-cell">{{ formatCurrency(item.total_mother_sanction_amount) }}</td>
 
                             <td>
                               <div class="budget-head-table">
@@ -94,23 +90,25 @@
                                     <tr class="table-light">
                                       <th class="text-center">Budget Head</th>
                                       <th class="text-center">Category</th>
-                                      <th class="text-center">Old MS Amount</th>
-                                      <th class="text-center">New MS Amount</th>
-                                      <th class="text-center">Old Available Fund</th>
-                                      <th class="text-center">New Available Fund</th>
+                                      <th class="text-center">Annual Allocation</th>
+                                      <th class="text-center">MS Amount</th>
+                                      <th class="text-center">Expenditure</th>
+                                      <th class="text-center">Available Fund</th>
+                                      <th class="text-center">Carry Forward Amount</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     <tr v-for="(budget, budgetIndex) in item.budget_heads" :key="budgetIndex">
                                       <td class="text-center">{{ budget.budget_head }}</td>
                                       <td class="text-center">{{ budget.category }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(budget.old_mother_sanction_amount) }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(budget.new_mother_sanction_amount) }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(budget.old_available_fund) }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(budget.new_available_fund) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.annual_allocation_individual) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget)) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCarryForwardAmount(budget.carry_forward_amount || 0) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
-                                      <td colspan="6" class="text-center text-muted">No budget heads available</td>
+                                      <td colspan="7" class="text-center text-muted">No budget heads available</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -137,7 +135,7 @@
                           </tr>
                           
                           <tr v-if="historyData.length === 0">
-                            <td colspan="13" class="text-center text-muted py-4">
+                            <td colspan="11" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No mother sanction history available
                             </td>
@@ -226,17 +224,19 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('en-IN');
 };
 
-// Method to format date and time
+// Method to format date and time in Indian Standard Time
 const formatDateTime = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
   return date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
+    hour12: true,
   });
 };
 
@@ -246,6 +246,20 @@ const formatCurrency = (amount) => {
   return parseFloat(amount).toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
+  });
+};
+
+const calculateAvailableFund = (budget) => {
+  const msAmount = parseFloat(budget.mother_sanction_amount) || 0;
+  const expenditure = parseFloat(budget.expenditure) || 0;
+  return msAmount - expenditure;
+};
+
+const formatCarryForwardAmount = (amount) => {
+  if (!amount) return '0.00000';
+  return parseFloat(amount).toLocaleString('en-IN', {
+    minimumFractionDigits: 5,
+    maximumFractionDigits: 5
   });
 };
 </script>

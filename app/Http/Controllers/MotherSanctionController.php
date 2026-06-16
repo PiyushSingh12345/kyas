@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Carbon;
 
 use Inertia\Inertia;
 
@@ -1255,6 +1256,7 @@ public function getMotherSanctionDetails($kyMsNo)
     private function saveHistory($record, $actionType, $description = null, $oldMsAmount = null, $newMsAmount = null, $oldAvailableFund = null, $newAvailableFund = null)
     {
         $changedBy = Auth::check() ? Auth::user()->name : 'System';
+        $nowIst = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
         
         MotherSanctionHistory::create([
             'mother_sanction_id' => $record->id,
@@ -1285,6 +1287,9 @@ public function getMotherSanctionDetails($kyMsNo)
             'new_mother_sanction_amount' => $newMsAmount ?? $record->mother_sanction_amount,
             'old_available_fund' => $oldAvailableFund ?? $record->available_fund,
             'new_available_fund' => $newAvailableFund ?? $record->available_fund,
+            'history_timestamp' => $nowIst,
+            'created_at' => $nowIst,
+            'updated_at' => $nowIst,
         ]);
     }
 
@@ -1311,15 +1316,27 @@ public function getMotherSanctionDetails($kyMsNo)
             $transformedData = $history->map(function ($item) {
                 $budgetHeads = [];
                 if (!empty($item->budget_head)) {
+                    $expenditure = DB::table('daily_sanction')
+                        ->where('mother_sanction', $item->ky_ms_no)
+                        ->where('budget_head', $item->budget_head)
+                        ->where('state_id', $item->state_id)
+                        ->sum('center_share_amount');
+
+                    $annualAllocationByBudgetHead = $this->getAnnualAllocationByBudgetHead(
+                        $item->sls_name,
+                        $item->state_id,
+                        $item->pd_component,
+                        [$item->budget_head]
+                    );
+
                     $budgetHeads[] = [
                         'budget_head' => $item->budget_head,
                         'category' => $item->category,
+                        'annual_allocation_individual' => $annualAllocationByBudgetHead[$item->budget_head] ?? 0.0,
                         'mother_sanction_amount' => floatval($item->mother_sanction_amount ?? 0),
+                        'expenditure' => floatval($expenditure ?? 0),
                         'available_fund' => floatval($item->available_fund ?? 0),
-                        'old_mother_sanction_amount' => floatval($item->old_mother_sanction_amount ?? 0),
-                        'new_mother_sanction_amount' => floatval($item->new_mother_sanction_amount ?? 0),
-                        'old_available_fund' => floatval($item->old_available_fund ?? 0),
-                        'new_available_fund' => floatval($item->new_available_fund ?? 0),
+                        'carry_forward_amount' => floatval($item->carry_forward_amount ?? 0),
                     ];
                 }
 
@@ -1330,14 +1347,14 @@ public function getMotherSanctionDetails($kyMsNo)
                     'ky_ms_no' => $item->ky_ms_no,
                     'sls_name' => $item->sls_name,
                     'sls_code' => $item->sls_code ?? '',
-                    'annual_allocation' => floatval($item->new_available_fund ?? $item->available_fund ?? 0),
-                    'total_mother_sanction_amount' => floatval($item->total_mother_sanction_amount ?? 0),
                     'pd_component' => $item->pd_component,
                     'sanction_date' => $item->sanction_date,
                     'budget_heads' => $budgetHeads,
                     'action_type' => $item->action_type,
                     'changed_by' => $item->changed_by,
-                    'history_timestamp' => $item->history_timestamp,
+                    'history_timestamp' => $item->history_timestamp
+                        ? Carbon::parse($item->history_timestamp, 'Asia/Kolkata')->format('c')
+                        : null,
                     'change_description' => $item->change_description,
                     'state' => [
                         'id' => $item->state_id,

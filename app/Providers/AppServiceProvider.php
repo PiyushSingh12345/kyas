@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
@@ -32,6 +33,16 @@ class AppServiceProvider extends ServiceProvider
     {
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
+        }
+
+        // Keep DB session time zone consistent with application time zone (IST).
+        // This prevents `CURRENT_TIMESTAMP` / `useCurrent()` columns from being stored in UTC.
+        try {
+            if (config('database.default') === 'mysql' || config('database.default') === 'mariadb') {
+                DB::statement("SET time_zone = '+05:30'");
+            }
+        } catch (\Throwable $e) {
+            // If DB isn't available during boot (e.g. artisan config:cache), skip.
         }
 
         RateLimiter::for('budget-heads', function (Request $request) {

@@ -11,6 +11,8 @@ class MotherSanctionHistory extends Model
 
     protected $table = 'mother_sanction_history';
 
+    public $timestamps = false;
+
     protected $fillable = [
         'mother_sanction_id',
         'financial_year',
@@ -41,11 +43,12 @@ class MotherSanctionHistory extends Model
         'new_mother_sanction_amount',
         'old_available_fund',
         'new_available_fund',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
         'sanction_date' => 'date',
-        'history_timestamp' => 'datetime',
         'total_mother_sanction_amount' => 'decimal:2',
         'available_fund' => 'decimal:2',
         'mother_sanction_amount' => 'decimal:2',

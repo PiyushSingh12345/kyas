@@ -57,6 +57,8 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // Ensure DB session timestamps align to IST.
+            'timezone' => env('DB_TIMEZONE', '+05:30'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
@@ -77,6 +79,8 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // Ensure DB session timestamps align to IST.
+            'timezone' => env('DB_TIMEZONE', '+05:30'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
