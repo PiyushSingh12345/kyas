@@ -424,8 +424,15 @@ public function list()
             
             // Get all ky_ms_no values for this state + sls_code combination
             $kyMsNos = $group->pluck('ky_ms_no')->unique()->filter()->values();
+
+            $annualAllocationByBudgetHead = $this->getAnnualAllocationByBudgetHead(
+                $firstItem->sls_name,
+                $firstItem->state_id,
+                $firstItem->pd_component,
+                array_keys($budgetHeadMap)
+            );
             
-            $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($kyMsNos, $stateId) {
+            $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($kyMsNos, $stateId, $annualAllocationByBudgetHead) {
                 // Calculate expenditure across all mother sanctions for this budget head
                 $expenditure = DB::table('daily_sanction')
                     ->whereIn('mother_sanction', $kyMsNos->toArray())
@@ -434,6 +441,7 @@ public function list()
                     ->sum('center_share_amount');
                 
                 $budgetData['expenditure'] = floatval($expenditure ?? 0);
+                $budgetData['annual_allocation_individual'] = $annualAllocationByBudgetHead[$budgetData['budget_head']] ?? 0.0;
                 
                 return $budgetData;
             })->values();
@@ -441,6 +449,7 @@ public function list()
             // Calculate totals
             $totalAmount = $group->sum('mother_sanction_amount');
             $totalAvailableFund = $group->sum('available_fund');
+            $annualAllocation = array_sum($annualAllocationByBudgetHead);
             
             // Get all unique ky_ms_no values for display
             $allKyMsNos = $kyMsNos->toArray();
@@ -464,6 +473,7 @@ public function list()
                 'pd_component' => $firstItem->pd_component,
                 'total_mother_sanction_amount' => $totalAmount,
                 'total_available_fund' => $totalAvailableFund,
+                'annual_allocation' => $annualAllocation,
                 'budget_heads' => $budgetHeads,
                 'uc_received_from_State' => $firstItem->uc_received_from_State,
                 'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
@@ -1350,5 +1360,100 @@ public function getMotherSanctionDetails($kyMsNo)
         }
     }
 
-   
+    /**
+     * Resolve program division ID from SLS via pd_and_sls_comp.
+     */
+    private function resolveProgramDivisionIdFromSls(
+        ?string $slsName,
+        ?int $stateId,
+        ?string $pdComponent
+    ): ?int {
+        if (empty($slsName)) {
+            return null;
+        }
+
+        $programDivisionQuery = DB::table('pd_and_sls_comp as psc')
+            ->join('md_program_divisions as md', function ($join) {
+                $join->on(
+                    DB::raw('psc.slsPD COLLATE utf8mb4_unicode_ci'),
+                    '=',
+                    DB::raw('md.division_name COLLATE utf8mb4_unicode_ci')
+                );
+            })
+            ->where('psc.name', $slsName);
+
+        if ($stateId) {
+            $programDivisionQuery->where('psc.state_id', $stateId);
+        }
+
+        if ($pdComponent) {
+            $programDivisionQuery->where('psc.slsPD', $pdComponent);
+        }
+
+        $programDivisionId = $programDivisionQuery->value('md.division_id');
+
+        return $programDivisionId ? (int) $programDivisionId : null;
+    }
+
+    /**
+     * Get pdwise_aap_allocation amounts per budget head for the program division resolved via SLS.
+     *
+     * @return array<string, float>
+     */
+    private function getAnnualAllocationByBudgetHead(
+        ?string $slsName,
+        ?int $stateId,
+        ?string $pdComponent,
+        array $budgetHeadNames
+    ): array {
+        $result = array_fill_keys($budgetHeadNames, 0.0);
+
+        if (empty($budgetHeadNames)) {
+            return $result;
+        }
+
+        $programDivisionId = $this->resolveProgramDivisionIdFromSls($slsName, $stateId, $pdComponent);
+
+        if (!$programDivisionId) {
+            return $result;
+        }
+
+        $budgetHeadIdMap = DB::table('budget_heads')
+            ->whereIn('budget', $budgetHeadNames)
+            ->pluck('id', 'budget');
+
+        if ($budgetHeadIdMap->isEmpty()) {
+            return $result;
+        }
+
+        $allocations = DB::table('pdwise_aap_allocation')
+            ->where('pd_id', $programDivisionId)
+            ->whereIn('bh_id', $budgetHeadIdMap->values())
+            ->where('status', 1)
+            ->select('bh_id', DB::raw('SUM(amount) as total_amount'))
+            ->groupBy('bh_id')
+            ->pluck('total_amount', 'bh_id');
+
+        foreach ($budgetHeadNames as $budgetHeadName) {
+            $budgetHeadId = $budgetHeadIdMap[$budgetHeadName] ?? null;
+            if ($budgetHeadId) {
+                $result[$budgetHeadName] = floatval($allocations[$budgetHeadId] ?? 0);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Sum pdwise_aap_allocation amounts for budget heads under the program division resolved via SLS.
+     */
+    private function calculateAnnualAllocationFromPdwiseAap(
+        ?string $slsName,
+        ?int $stateId,
+        ?string $pdComponent,
+        array $budgetHeadNames
+    ): float {
+        return array_sum($this->getAnnualAllocationByBudgetHead($slsName, $stateId, $pdComponent, $budgetHeadNames));
+    }
+
 }

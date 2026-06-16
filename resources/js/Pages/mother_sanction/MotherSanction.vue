@@ -102,7 +102,6 @@
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
                         <label for="slsId">SLS Name</label>
-                        <!-- {{ slsData }} -->
                         <select class="form-control" v-model="selectedSlsId" @change="fetchFundAllocationData">
                           <option value="">--- Select SLS Name ---</option>
                           <option v-for="sls in slsData" :key="sls.id" :value="sls.name">{{ sls.full_sls_name }}</option>
@@ -274,7 +273,7 @@
                 <div class="card-footer">
                   <div class="form">
                     <div class="col-12 d-flex justify-content-center">
-                      <button class="btn btn-primary me-1" @click="submitData(0)">Save as Draft</button>
+                      <button class="btn btn-primary me-1" @click="openDraftPreview">Save as Draft</button>
                       <button class="btn btn-success me-1" @click="submitData(1)">Submit</button>
                       <button class="btn btn-danger me-1" @click="resetForm">Reset</button>
 
@@ -284,6 +283,123 @@
 
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Draft Preview Modal -->
+    <div class="modal fade" id="draftPreviewModal" tabindex="-1" aria-labelledby="draftPreviewModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="draftPreviewModalLabel">
+              <i class="fas fa-eye me-2"></i>
+              Preview Mother Sanction (Save as Draft)
+            </h5>
+            <button type="button" class="btn-close" @click="closeDraftPreview" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info mb-3">
+              <i class="fas fa-info-circle me-2"></i>
+              Please review all details below. Click <strong>Submit</strong> to save as draft, or <strong>Cancel</strong> to go back and edit the form.
+            </div>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">F.Y</label>
+                <div class="fw-semibold">{{ financialYear || '—' }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">State</label>
+                <div class="fw-semibold">{{ selectedStateName }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">MS Sequence No.</label>
+                <div class="fw-semibold">{{ msSequenceNo || '—' }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">IFD No.</label>
+                <div class="fw-semibold">{{ ifdNo || '—' }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">Sanction Date</label>
+                <div class="fw-semibold">{{ sanctionDate || '—' }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">KY MS No.</label>
+                <div class="fw-semibold">{{ kyMsNo || '—' }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">SLS Name</label>
+                <div class="fw-semibold">{{ selectedSlsDisplayName }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">PD/Component</label>
+                <div class="fw-semibold">{{ pdComponent || '—' }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-muted mb-0">Total Mother Sanction Amount (current)</label>
+                <div class="fw-semibold">{{ totalSanctionAmount.toLocaleString() }}</div>
+              </div>
+              <div class="col-md-12">
+                <label class="form-label text-muted mb-0">Remark</label>
+                <div class="fw-semibold">{{ remark || '—' }}</div>
+              </div>
+            </div>
+
+            <div class="table-responsive mb-4">
+              <table class="table table-bordered table-head-bg-primary">
+                <thead>
+                  <tr>
+                    <th>Budget Head</th>
+                    <th>Category</th>
+                    <th>Current Available Fund Amount</th>
+                    <th>Mother Sanction Amount</th>
+                    <th>Carry Forward</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, index) in previewBudgetRows" :key="index">
+                    <td>{{ row.budget_head || '—' }}</td>
+                    <td>{{ row.category || '—' }}</td>
+                    <td>{{ getCurrentAvailableFundAmount(row) }}</td>
+                    <td>{{ row.sanction_amount || '—' }}</td>
+                    <td>{{ row.carry_forward || '0.00000' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label text-muted mb-0">UC Received From State</label>
+                <div class="fw-semibold">{{ ucFile?.name || 'No file selected' }}</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-muted mb-0">Signed Copy of Mother Sanction</label>
+                <div class="fw-semibold">{{ sanctionFile?.name || 'No file selected' }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-success"
+              @click="confirmDraftSubmit"
+              :disabled="isDraftSubmitting"
+            >
+              <span v-if="isDraftSubmitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
+              {{ isDraftSubmitting ? 'Saving...' : 'Submit' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              @click="closeDraftPreview"
+              :disabled="isDraftSubmitting"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
@@ -315,6 +431,7 @@ const ucFile = ref(null);
 const sanctionFile = ref(null);
 const ucFilePreview = ref(null)
 const sanctionFilePreview = ref(null)
+const isDraftSubmitting = ref(false)
 
 // Flash message state
 const flashMessage = ref({
@@ -529,8 +646,78 @@ const selectedBudgetHeads = computed(() =>
   reappropriations.value.map(row => row.budget_head).filter(Boolean)
 );
 
+const selectedStateName = computed(() => {
+  const state = states.value.find(s => String(s.id) === String(selectedState.value));
+  return state ? state.name : (selectedState.value || '—');
+});
 
+const selectedSlsDisplayName = computed(() => {
+  const sls = slsData.value.find(s => s.name === selectedSlsId.value);
+  return sls ? sls.full_sls_name : (selectedSlsId.value || '—');
+});
 
+const previewBudgetRows = computed(() =>
+  reappropriations.value.filter(row =>
+    row.budget_head || row.sanction_amount || parseFloat(row.carry_forward) > 0
+  )
+);
+
+const validateForm = () => {
+  if (!financialYear.value || !selectedState.value || !msSequenceNo.value ||
+      !ifdNo.value || !sanctionDate.value || !selectedSlsId.value || !pdComponent.value) {
+    showFlashMessage('danger', 'Please fill in all required fields before submitting.', 'fas fa-exclamation-triangle');
+    return false;
+  }
+
+  const hasBudgetData = reappropriations.value.some(row =>
+    row.budget_head && row.sanction_amount && parseFloat(row.sanction_amount) > 0
+  );
+
+  if (!hasBudgetData) {
+    showFlashMessage('danger', 'Please add at least one budget allocation with sanction amount.', 'fas fa-exclamation-triangle');
+    return false;
+  }
+
+  return true;
+};
+
+const openDraftPreview = () => {
+  if (!validateForm()) return;
+
+  try {
+    const modalElement = document.getElementById('draftPreviewModal');
+    if (modalElement) {
+      const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+      modal.show();
+    }
+  } catch (error) {
+    console.error('Error showing draft preview modal:', error);
+  }
+};
+
+const closeDraftPreview = () => {
+  try {
+    const modalElement = document.getElementById('draftPreviewModal');
+    if (modalElement) {
+      const modal = bootstrap.Modal.getInstance(modalElement);
+      if (modal) modal.hide();
+    }
+  } catch (error) {
+    console.error('Error closing draft preview modal:', error);
+  }
+};
+
+const confirmDraftSubmit = async () => {
+  if (isDraftSubmitting.value) return;
+
+  isDraftSubmitting.value = true;
+  const success = await submitData(0);
+  isDraftSubmitting.value = false;
+
+  if (success) {
+    closeDraftPreview();
+  }
+};
 
 const handleSanctionFileChange = (e) => {
   const file = e.target.files[0];
@@ -556,22 +743,8 @@ function removeReappropriationRow(index) {
 
 
 const submitData = async (status) => {
-  // Client-side validation
-  // if (!financialYear.value || !selectedState.value || !msSequenceNo.value || !sanctionNo.value || 
-  if (!financialYear.value || !selectedState.value || !msSequenceNo.value  || 
-      !ifdNo.value || !sanctionDate.value || !selectedSlsId.value || !pdComponent.value) {
-    showFlashMessage('danger', 'Please fill in all required fields before submitting.', 'fas fa-exclamation-triangle');
-    return;
-  }
-
-  // Check if at least one budget row has data
-  const hasBudgetData = reappropriations.value.some(row => 
-    row.budget_head && row.sanction_amount && parseFloat(row.sanction_amount) > 0
-  );
-  
-  if (!hasBudgetData) {
-    showFlashMessage('danger', 'Please add at least one budget allocation with sanction amount.', 'fas fa-exclamation-triangle');
-    return;
+  if (!validateForm()) {
+    return false;
   }
 
   const formData = new FormData();
@@ -671,7 +844,7 @@ const submitData = async (status) => {
     } catch (jsonError) {
       console.error('Error parsing response:', jsonError);
       showFlashMessage('danger', 'Invalid response from server. Please try again.', 'fas fa-exclamation-triangle');
-      return;
+      return false;
     }
     
     if (response.ok && result.message) {
@@ -686,6 +859,7 @@ const submitData = async (status) => {
       setTimeout(() => {
         resetForm();
       }, 1500); // Delay reset to allow user to see the success message
+      return true;
     } else {
       // Handle error responses
       if (response.status === 422 && result.errors) {
@@ -698,10 +872,12 @@ const submitData = async (status) => {
         const errorMessage = result.message || result.error || 'An error occurred while saving the data.';
         showFlashMessage('danger', errorMessage, 'fas fa-exclamation-triangle');
       }
+      return false;
     }
   } catch (error) {
     console.error('Network error:', error);
     showFlashMessage('danger', 'Network error. Please check your connection and try again.', 'fas fa-exclamation-triangle');
+    return false;
   }
 };
 

@@ -69,7 +69,7 @@
                               <th>Date</th>
                               <th>SLS Details</th>
                               <th>SLS Code</th>
-                              <th>Annual Allocation</th>
+                              <th>Total Annual Allocation</th>
                               <th>MS Total Amount</th>
                               <th>Budget Head</th>
                               <th>Action</th>
@@ -92,10 +92,11 @@
                               <div class="budget-head-table">
                                 <table class="table table-sm mb-0">
                                   <!-- <table class="table table-sm table-bordered mb-0"> -->
-                                  <thead>
+                                    <thead>
                                     <tr class="table-light">
                                       <th class="text-center">Budget Head</th>
                                       <th class="text-center">Category</th>
+                                      <th class="text-center">Annual Allocation</th>
                                       <th class="text-center">MS Amount</th>
                                       <th class="text-center">Expenditure</th>
                                       <th class="text-center">Available Fund</th>
@@ -106,13 +107,14 @@
                                     <tr v-for="(budget, budgetIndex) in item.budget_heads" :key="budgetIndex">
                                       <td class="text-center">{{ budget.budget_head }}</td>
                                       <td class="text-center">{{ budget.category }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.annual_allocation_individual) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget)) }}</td>
                                       <td class="text-center currency-cell">{{ formatCarryForwardAmount(budget.carry_forward_amount || 0) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
-                                      <td colspan="6" class="text-center text-muted">No budget heads available</td>
+                                      <td colspan="7" class="text-center text-muted">No budget heads available</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -344,7 +346,7 @@ const secondTableData = computed(() => {
     total_mother_sanction_amount: item.total_mother_sanction_amount,
     budget_heads: item.budget_heads || [],
     total_expenditure: 0, // This would come from daily sanctions if available
-    annual_allocation: item.total_available_fund || 0, // Use total available fund from backend
+    annual_allocation: item.annual_allocation || 0,
     sl_scode: item.sls_code || item.sls_name?.substring(0, 2) || '', // Use sls_code from DB, fallback to substring
     status: item.status || 'active', // Default to active if not specified - can be 'active', 'inactive', or 'close'
     ifd_no: item.ifd_no || '',
