@@ -114,7 +114,9 @@ $(document).ready(function(){
 	var toggle_sidebar = false,
 	toggle_quick_sidebar = false,
 	toggle_topbar = false,
-	minimize_sidebar = false,
+		// Sidebar minimize/maximize is handled by Vue (useSidebarLayout).
+		// Disable the legacy jQuery click handler to avoid double-toggling.
+		minimize_sidebar = true,
 	first_toggle_sidebar = false,
 	toggle_page_sidebar = false,
 	toggle_overlay_sidebar = false,
@@ -201,7 +203,7 @@ $(document).ready(function(){
 	}
 
 	if(!minimize_sidebar){
-		var minibutton = $('.toggle-sidebar');
+		var minibutton = $('.toggle-sidebar').not('[data-vue-sidebar-toggle="1"]');
 		if($('.wrapper').hasClass('sidebar_minimize')){
 			minibutton.addClass('toggled');
 			minibutton.html('<i class="gg-more-vertical-alt"></i>');

@@ -13,14 +13,25 @@
               KY Automation System
             </a>
             <div class="nav-toggle">
-              <button class="btn btn-toggle toggle-sidebar">
-                <i class="gg-menu-right"></i>
+              <button
+                type="button"
+                class="btn btn-toggle toggle-sidebar"
+                data-vue-sidebar-toggle="1"
+                :class="{ toggled: sidebarMinimized }"
+                @click="toggleSidebar"
+              >
+                <i :class="sidebarMinimized ? 'gg-more-vertical-alt' : 'gg-menu-right'"></i>
               </button>
-              <button class="btn btn-toggle sidenav-toggler">
+              <button
+                type="button"
+                class="btn btn-toggle sidenav-toggler"
+                :class="{ toggled: navOpen }"
+                @click="toggleSidenav"
+              >
                 <i class="gg-menu-left"></i>
               </button>
             </div>
-            <button class="topbar-toggler more">
+            <button type="button" class="topbar-toggler more" @click="toggleTopbar">
               <i class="gg-more-vertical-alt"></i>
             </button>
           </div>
@@ -370,8 +381,10 @@
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { useRoleAccess } from '../../Composables/useRoleAccess'
+import { useSidebarLayout } from '../../Composables/useSidebarLayout'
 
 const { hasRole } = useRoleAccess()
+const { sidebarMinimized, navOpen, toggleSidebar, toggleSidenav, toggleTopbar } = useSidebarLayout()
 
 const activeMenu = ref('') // This will store the ID of the currently open menu
 

@@ -1,6 +1,9 @@
 <script setup>
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
+import { useSidebarLayout } from '../../Composables/useSidebarLayout';
+
+const { sidebarMinimized, navOpen, toggleSidebar, toggleSidenav, toggleTopbar } = useSidebarLayout();
 </script>
 <template> 
 			<div class="main-header">
@@ -14,14 +17,25 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 								KY Automation System
 						</a>
 						<div class="nav-toggle">
-							<button class="btn btn-toggle toggle-sidebar">
-								<i class="gg-menu-right"></i>
+							<button
+								type="button"
+								class="btn btn-toggle toggle-sidebar"
+								data-vue-sidebar-toggle="1"
+								:class="{ toggled: sidebarMinimized }"
+								@click="toggleSidebar"
+							>
+								<i :class="sidebarMinimized ? 'gg-more-vertical-alt' : 'gg-menu-right'"></i>
 							</button>
-							<button class="btn btn-toggle sidenav-toggler">
+							<button
+								type="button"
+								class="btn btn-toggle sidenav-toggler"
+								:class="{ toggled: navOpen }"
+								@click="toggleSidenav"
+							>
 								<i class="gg-menu-left"></i>
 							</button>
 						</div>
-						<button class="topbar-toggler more">
+						<button type="button" class="topbar-toggler more" @click="toggleTopbar">
 							<i class="gg-more-vertical-alt"></i>
 						</button>
 					</div>

@@ -17,7 +17,7 @@ import '../js/core/bootstrap.min.js';
 // import '../js/core/jquery.slimscroll.min.js'
 
 //import '../js/plugin/jquery-scrollbar/jquery.scrollbar.min.js';
-import '../js/kaiadmin.min.js';
+import '../js/kaiadmin.js';
 import '../js/setting-demo.js';
 //import '../js/demo.js';
 
