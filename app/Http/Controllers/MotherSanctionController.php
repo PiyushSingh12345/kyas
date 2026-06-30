@@ -56,19 +56,35 @@ class MotherSanctionController extends Controller
         ]);
     }
 
-    public function getFundAllocationData($slsId, $stateId)
+    public function getFundAllocationData(Request $request, $slsId, $stateId)
     {
-        //get the data from pd_and_sls_comp table and joinded with md_program_divisions, budget_heads, pdwise_aap_allocation
-        $data = DB::table('pd_and_sls_comp as pd')
-        ->join('md_program_divisions as md', function($join) {
-            $join->on(DB::raw('pd.slsPD COLLATE utf8mb4_unicode_ci'), '=', DB::raw('md.division_name COLLATE utf8mb4_unicode_ci'));
-        })
-        ->join('pdwise_aap_allocation as pda', 'md.division_id', '=', 'pda.pd_id')
-        ->join('budget_heads as bh', 'pda.bh_id', '=', 'bh.id')
-        ->where('pd.state_id', $stateId)
-        ->where('pd.name', $slsId)
-        ->select('bh.budget as budget', 'pd.slsPD as slsPD', 'pda.amount', 'bh.category')
-        ->get();
+        $financialYear = $request->query('financial_year');
+        $budgetPhase = $request->query('budget_phase', 'BE');
+
+        $programDivisionId = $this->resolveProgramDivisionIdFromSls($slsId, (int) $stateId, null);
+
+        if (!$programDivisionId) {
+            return response()->json([]);
+        }
+
+        $pdRow = DB::table('pd_and_sls_comp')
+            ->where('state_id', $stateId)
+            ->where('name', $slsId)
+            ->first();
+
+        $query = DB::table('pdwise_aap_allocation as pda')
+            ->join('budget_heads as bh', 'pda.bh_id', '=', 'bh.id')
+            ->where('pda.pd_id', $programDivisionId);
+
+        $this->applyPdwiseAllocationFilters($query, $financialYear, $budgetPhase, 'pda');
+
+        $data = $query
+            ->select('bh.budget as budget', 'pda.amount', 'bh.category')
+            ->get()
+            ->map(function ($item) use ($pdRow) {
+                $item->slsPD = $pdRow->slsPD ?? '';
+                return $item;
+            });
 
         return response()->json($data);
     }
@@ -78,25 +94,45 @@ class MotherSanctionController extends Controller
         $budget = $request->query('budget');
         $slsId = $request->query('sls_id');
         $stateId = $request->query('state_id');
+        $financialYear = $request->query('financial_year');
+        $budgetPhase = $request->query('budget_phase', 'BE');
+        $pdComponent = $request->query('pd_component');
 
-        //get the data from pdwise_aap_allocation table and join with budget_heads table, md_program_divisions table, and pd_and_sls_comp table
-        $data = DB::table('pdwise_aap_allocation as pda')
-        ->join('budget_heads as bh', 'pda.bh_id', '=', 'bh.id')
-        ->join('md_program_divisions as md', 'pda.pd_id', '=', 'md.division_id')
-        ->join('pd_and_sls_comp as psc', function($join) {
-            $join->on(DB::raw('md.division_name COLLATE utf8mb4_unicode_ci'), '=', DB::raw('psc.slsPD COLLATE utf8mb4_unicode_ci'));
-        })
-        ->where('bh.budget', $budget)
-        ->where('psc.name', $slsId)
-        ->where('psc.state_id', $stateId)
-        ->select('bh.budget as budget', 'pda.amount', 'bh.category')
-        ->get();
-
-        if (!$data) {
-            return response()->json(['message' => 'No matching record found.'], 404);
+        if (!$budget || !$slsId || !$stateId) {
+            return response()->json(['message' => 'Missing required parameters.'], 400);
         }
 
-        return response()->json($data);
+        $programDivisionId = $this->resolveProgramDivisionIdFromSls(
+            $slsId,
+            (int) $stateId,
+            $pdComponent
+        );
+
+        if (!$programDivisionId) {
+            return response()->json(['message' => 'No matching program division found.'], 404);
+        }
+
+        $budgetHead = BudgetHead::where('budget', $budget)->first();
+
+        if (!$budgetHead) {
+            return response()->json(['message' => 'Budget head not found.'], 404);
+        }
+
+        $query = DB::table('pdwise_aap_allocation')
+            ->where('pd_id', $programDivisionId)
+            ->where('bh_id', $budgetHead->id);
+
+        $this->applyPdwiseAllocationFilters($query, $financialYear, $budgetPhase);
+
+        $totalAmount = floatval($query->sum('amount') ?? 0);
+
+        return response()->json([
+            [
+                'budget' => $budget,
+                'amount' => $totalAmount,
+                'category' => $budgetHead->category,
+            ],
+        ]);
     }
 
     /**
@@ -323,7 +359,10 @@ class MotherSanctionController extends Controller
     {
         try {
             $budgetHead = $request->query('budget_head');
-            $pdComponent = $request->query('pd_component'); // Optional parameter for backward compatibility
+            $pdComponent = $request->query('pd_component');
+            $stateId = $request->query('state_id');
+            $slsName = $request->query('sls_name');
+            $financialYear = $request->query('financial_year');
 
             if (!$budgetHead) {
                 return response()->json([
@@ -333,14 +372,26 @@ class MotherSanctionController extends Controller
                 ], 400);
             }
 
-            // Sum all mother_sanction_amount from mother_sanction table
-            // where budget_head matches (regardless of pd_component for Total M.S Release)
             $query = DB::table('mother_sanction')
                 ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
                 ->where('status', 1)
                 ->whereNotNull('mother_sanction_amount');
-            
-            // If pd_component is provided, filter by it (for backward compatibility)
+
+            if ($stateId) {
+                $query->where('state_id', $stateId);
+            }
+
+            if ($slsName) {
+                $query->where('sls_name', $slsName);
+            }
+
+            if ($financialYear) {
+                $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+                if (!empty($yearVariants)) {
+                    $query->whereIn('financial_year', $yearVariants);
+                }
+            }
+
             if ($pdComponent) {
                 $query->whereRaw('TRIM(pd_component) COLLATE utf8mb4_unicode_ci = TRIM(?) COLLATE utf8mb4_unicode_ci', [$pdComponent]);
             }
@@ -430,7 +481,8 @@ public function list()
                 $firstItem->sls_name,
                 $firstItem->state_id,
                 $firstItem->pd_component,
-                array_keys($budgetHeadMap)
+                array_keys($budgetHeadMap),
+                $firstItem->financial_year
             );
             
             $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($kyMsNos, $stateId, $annualAllocationByBudgetHead) {
@@ -1326,7 +1378,8 @@ public function getMotherSanctionDetails($kyMsNo)
                         $item->sls_name,
                         $item->state_id,
                         $item->pd_component,
-                        [$item->budget_head]
+                        [$item->budget_head],
+                        $item->financial_year
                     );
 
                     $budgetHeads[] = [
@@ -1378,6 +1431,60 @@ public function getMotherSanctionDetails($kyMsNo)
     }
 
     /**
+     * Return both short (2026-27) and long (2026-2027) financial year formats.
+     *
+     * @return array<int, string>
+     */
+    private function normalizeFinancialYearVariants(?string $year): array
+    {
+        if (empty($year)) {
+            return [];
+        }
+
+        $year = trim($year);
+        $variants = [$year];
+
+        if (preg_match('/^\d{4}-\d{4}$/', $year)) {
+            [$start, $end] = explode('-', $year);
+            $variants[] = $start . '-' . substr($end, -2);
+        } elseif (preg_match('/^\d{4}-\d{2}$/', $year)) {
+            [$start, $end] = explode('-', $year);
+            $variants[] = $start . '-20' . $end;
+        }
+
+        return array_values(array_unique($variants));
+    }
+
+    /**
+     * Apply PD-wise allocation filters aligned with the PD wise Budget Allocation page.
+     */
+    private function applyPdwiseAllocationFilters($query, ?string $financialYear, ?string $budgetPhase, string $tableAlias = ''): void
+    {
+        $prefix = $tableAlias !== '' ? $tableAlias . '.' : '';
+
+        $query->where($prefix . 'status', 1);
+
+        if ($financialYear) {
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+            if (!empty($yearVariants)) {
+                $query->whereIn($prefix . 'financial_year', $yearVariants);
+            }
+        }
+
+        $phase = $budgetPhase ?: 'BE';
+        if ($phase !== '0') {
+            if ($phase === 'BE') {
+                $query->where(function ($phaseQuery) use ($prefix) {
+                    $phaseQuery->where($prefix . 'budget_phase', 'BE')
+                        ->orWhereNull($prefix . 'budget_phase');
+                });
+            } else {
+                $query->where($prefix . 'budget_phase', $phase);
+            }
+        }
+    }
+
+    /**
      * Resolve program division ID from SLS via pd_and_sls_comp.
      */
     private function resolveProgramDivisionIdFromSls(
@@ -1421,7 +1528,9 @@ public function getMotherSanctionDetails($kyMsNo)
         ?string $slsName,
         ?int $stateId,
         ?string $pdComponent,
-        array $budgetHeadNames
+        array $budgetHeadNames,
+        ?string $financialYear = null,
+        ?string $budgetPhase = 'BE'
     ): array {
         $result = array_fill_keys($budgetHeadNames, 0.0);
 
@@ -1443,10 +1552,13 @@ public function getMotherSanctionDetails($kyMsNo)
             return $result;
         }
 
-        $allocations = DB::table('pdwise_aap_allocation')
+        $allocationQuery = DB::table('pdwise_aap_allocation')
             ->where('pd_id', $programDivisionId)
-            ->whereIn('bh_id', $budgetHeadIdMap->values())
-            ->where('status', 1)
+            ->whereIn('bh_id', $budgetHeadIdMap->values());
+
+        $this->applyPdwiseAllocationFilters($allocationQuery, $financialYear, $budgetPhase);
+
+        $allocations = $allocationQuery
             ->select('bh_id', DB::raw('SUM(amount) as total_amount'))
             ->groupBy('bh_id')
             ->pluck('total_amount', 'bh_id');

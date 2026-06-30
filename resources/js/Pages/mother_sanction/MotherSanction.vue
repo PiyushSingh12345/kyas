@@ -273,8 +273,11 @@
                 <div class="card-footer">
                   <div class="form">
                     <div class="col-12 d-flex justify-content-center">
-                      <button class="btn btn-primary me-1" @click="openDraftPreview">Save as Draft</button>
-                      <button class="btn btn-success me-1" @click="submitData(1)">Submit</button>
+                      <button class="btn btn-primary me-1" @click="openDraftPreview" :disabled="isSubmitting">Submit</button>
+                      <!-- <button class="btn btn-success me-1" @click="submitData(1)" :disabled="isSubmitting">
+                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        {{ isSubmitting ? 'Submitting...' : 'Submit' }}
+                      </button> -->
                       <button class="btn btn-danger me-1" @click="resetForm">Reset</button>
 
                     </div>
@@ -295,14 +298,14 @@
           <div class="modal-header">
             <h5 class="modal-title" id="draftPreviewModalLabel">
               <i class="fas fa-eye me-2"></i>
-              Preview Mother Sanction (Save as Draft)
+              Preview Mother Sanction
             </h5>
             <button type="button" class="btn-close" @click="closeDraftPreview" aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <div class="alert alert-info mb-3">
               <i class="fas fa-info-circle me-2"></i>
-              Please review all details below. Click <strong>Submit</strong> to save as draft, or <strong>Cancel</strong> to go back and edit the form.
+              Please review all details below. Click <strong>Submit</strong> to save the mother sanction, or <strong>Cancel</strong> to go back and edit the form.
             </div>
 
             <div class="row g-3 mb-4">
@@ -387,16 +390,16 @@
               type="button"
               class="btn btn-success"
               @click="confirmDraftSubmit"
-              :disabled="isDraftSubmitting"
+              :disabled="isSubmitting"
             >
-              <span v-if="isDraftSubmitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
-              {{ isDraftSubmitting ? 'Saving...' : 'Submit' }}
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
+              {{ isSubmitting ? 'Submitting...' : 'Submit' }}
             </button>
             <button
               type="button"
               class="btn btn-secondary"
               @click="closeDraftPreview"
-              :disabled="isDraftSubmitting"
+              :disabled="isSubmitting"
             >
               Cancel
             </button>
@@ -431,7 +434,7 @@ const ucFile = ref(null);
 const sanctionFile = ref(null);
 const ucFilePreview = ref(null)
 const sanctionFilePreview = ref(null)
-const isDraftSubmitting = ref(false)
+const isSubmitting = ref(false)
 
 // Flash message state
 const flashMessage = ref({
@@ -550,26 +553,59 @@ const reappropriations = ref([
   { budget_head: '', category: '', available_amount: '', sanction_amount: '', carry_forward: '0.00000' }
 ])
 
-// Store released amounts for each budget head and pd_component combination
+// Store released amounts scoped by budget head, state, SLS, and financial year
 const releasedAmounts = ref({})
 
-// Function to fetch total M.S Release for a budget head (regardless of pd_component)
+const getReleasedAmountCacheKey = (budgetHead) => {
+  return [
+    budgetHead,
+    selectedState.value,
+    selectedSlsId.value,
+    financialYear.value,
+  ].join('|')
+}
+
+const buildMotherSanctionQueryParams = (extra = {}) => {
+  const params = new URLSearchParams(extra)
+
+  if (financialYear.value) {
+    params.set('financial_year', financialYear.value)
+  }
+  if (selectedState.value) {
+    params.set('state_id', selectedState.value)
+  }
+  if (selectedSlsId.value) {
+    params.set('sls_name', selectedSlsId.value)
+  }
+  if (pdComponent.value) {
+    params.set('pd_component', pdComponent.value)
+  }
+
+  params.set('budget_phase', 'BE')
+
+  return params
+}
+
+// Function to fetch total M.S Release for a budget head within the selected state/SLS/FY
 const fetchReleasedAmount = async (budgetHead) => {
   if (!budgetHead) {
     return 0;
   }
   
-  const cacheKey = budgetHead; // Use only budget_head as key
+  const cacheKey = getReleasedAmountCacheKey(budgetHead);
   
   // Return cached value if available
   if (releasedAmounts.value[cacheKey] !== undefined) {
     return releasedAmounts.value[cacheKey];
   }
   
-  // Fetch from API - get total M.S Release for this budget head (all pd_components)
   try {
+    const params = buildMotherSanctionQueryParams({
+      budget_head: budgetHead,
+    })
+
     const response = await fetch(
-      `/api/mother-sanction/released-amount?budget_head=${encodeURIComponent(budgetHead)}`
+      `/api/mother-sanction/released-amount?${params.toString()}`
     );
     
     if (response.ok) {
@@ -602,8 +638,8 @@ const getCurrentAvailableFundAmount = (row) => {
   // Total Allocation = available_amount (sum of all allocations for this budget head corresponding to SLS and state)
   const totalAllocation = parseFloat(row.available_amount) || 0;
   
-  // Total M.S Release = sum of all mother_sanction_amount for this budget head (regardless of pd_component)
-  const cacheKey = row.budget_head; // Use only budget_head as key for total M.S Release
+  // Total M.S Release for this budget head within the selected state/SLS/FY
+  const cacheKey = getReleasedAmountCacheKey(row.budget_head);
   const totalMsRelease = releasedAmounts.value[cacheKey] || 0;
   
   // Current Available Fund Amount = Total Allocation - Total M.S Release
@@ -708,12 +744,7 @@ const closeDraftPreview = () => {
 };
 
 const confirmDraftSubmit = async () => {
-  if (isDraftSubmitting.value) return;
-
-  isDraftSubmitting.value = true;
-  const success = await submitData(0);
-  isDraftSubmitting.value = false;
-
+  const success = await submitData(1);
   if (success) {
     closeDraftPreview();
   }
@@ -743,9 +774,15 @@ function removeReappropriationRow(index) {
 
 
 const submitData = async (status) => {
+  if (isSubmitting.value) {
+    return false;
+  }
+
   if (!validateForm()) {
     return false;
   }
+
+  isSubmitting.value = true;
 
   const formData = new FormData();
   const safeFinancialYear = sanitizeTextInput(financialYear.value);
@@ -848,12 +885,7 @@ const submitData = async (status) => {
     }
     
     if (response.ok && result.message) {
-      // Success response
-      if (status === 1) {
-        showFlashMessage('success', result.message || 'Data submitted successfully!', 'fas fa-check-circle');
-      } else {
-        showFlashMessage('info', result.message || 'Data saved as draft successfully!', 'fas fa-save');
-      }
+      showFlashMessage('success', result.message || 'Data submitted successfully!', 'fas fa-check-circle');
       
       // Reset form after successful submission
       setTimeout(() => {
@@ -878,6 +910,8 @@ const submitData = async (status) => {
     console.error('Network error:', error);
     showFlashMessage('danger', 'Network error. Please check your connection and try again.', 'fas fa-exclamation-triangle');
     return false;
+  } finally {
+    isSubmitting.value = false;
   }
 };
 
@@ -1156,15 +1190,14 @@ const totalSanctionAmount = computed(() => {
 
 const fetchFundAllocationData = async () => {
   if (!selectedSlsId.value || !selectedState.value) return;
-// console.log("selectedSlsId.value",selectedSlsId.value);
-// console.log("selectedState.value",selectedState.value);
+
   try {
-    const response = await fetch(`/api/fund-allocation/${selectedSlsId.value}/${selectedState.value}`);
+    const params = buildMotherSanctionQueryParams()
+    const response = await fetch(`/api/fund-allocation/${encodeURIComponent(selectedSlsId.value)}/${selectedState.value}?${params.toString()}`);
     if (response.ok) {
       const data = await response.json();
       fundAllocations.value = data;
-console.log("fundAllocations.value",fundAllocations.value);
-      // ✅ Set PD/Component from the first item
+
       if (data.length > 0) {
         pdComponent.value = data[0].slsPD;
       } else {
@@ -1197,7 +1230,13 @@ const fetchBudgetDetails = async (row) => {
   }
 
   try {
-    const res = await fetch(`/api/fund-allocation/by-budget?budget=${encodeURIComponent(row.budget_head)}&sls_id=${encodeURIComponent(selectedSlsId.value)}&state_id=${selectedState.value}`);
+    const params = buildMotherSanctionQueryParams({
+      budget: row.budget_head,
+      sls_id: selectedSlsId.value,
+      state_id: selectedState.value,
+    })
+
+    const res = await fetch(`/api/fund-allocation/by-budget?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
       
@@ -1242,10 +1281,9 @@ const clearAllBudgetDetails = () => {
   });
 };
 
-// Watch for changes in SLS ID or state to clear budget details
-watch([selectedSlsId, selectedState], () => {
+// Watch for changes in SLS ID, state, or financial year to clear budget details
+watch([selectedSlsId, selectedState, financialYear], () => {
   clearAllBudgetDetails();
-  // Clear released amounts cache when SLS or state changes
   releasedAmounts.value = {};
 });
 
