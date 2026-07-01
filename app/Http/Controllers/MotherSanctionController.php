@@ -327,6 +327,7 @@ class MotherSanctionController extends Controller
                     'uc_received_from_State' => '',
                     'signed_copy_of_mother_sanction' => '',
                     'status' => $status,
+                    'action_type' => 'FRESH_CREATE',
                     'last_id' => rand(10, 99),
                     'remark' => $remarkText,
                 ];
@@ -525,6 +526,7 @@ public function list()
                 'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
                 'last_id' => $firstItem->last_id,
                 'status' => $isActive ? 'active' : 'inactive',
+                'action_type' => $firstItem->action_type ?? 'FRESH_CREATE',
                 'created_at' => $firstItem->created_at,
                 'updated_at' => $firstItem->updated_at,
                 'state' => [
@@ -689,6 +691,8 @@ public function listReport(Request $request)
         $sanitizedSlsName = $this->sanitizeTextInput($request->sls_name);
         $sanitizedPdComponent = $this->sanitizeTextInput($request->pd_component);
 
+        $createActionType = $this->resolveCreateActionType($request);
+
         $commonData = [
             'financial_year' => $request->financial_year,
             'state_id' => $request->state_id,
@@ -704,6 +708,7 @@ public function listReport(Request $request)
             'uc_received_from_State' => $ucFilePath,
             'signed_copy_of_mother_sanction' => $signedCopyPath,
             'status' => $request->status,
+            'action_type' => $createActionType,
             'last_id'=> rand(10, 99)
         ];
 
@@ -736,7 +741,10 @@ public function listReport(Request $request)
             ]));
 
             // Save history for creation
-            $this->saveHistory($sanction, 'CREATE', 'New mother sanction record created');
+            $historyDescription = $createActionType === 'REVISED'
+                ? 'Revised mother sanction record created'
+                : 'New mother sanction record created';
+            $this->saveHistory($sanction, $createActionType, $historyDescription);
 
             $lastInserted = $sanction; // Keep reference to the last inserted record
         }
@@ -954,10 +962,10 @@ public function updateStatus(Request $request)
             $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
             
             foreach ($records as $record) {
-                // Save history before update
-                $this->saveHistory($record, 'DEACTIVATE', 'Record deactivated');
-                
+                $this->saveHistory($record, 'DEACTIVATED', 'Record deactivated');
+
                 $record->status = 0;
+                $record->action_type = 'DEACTIVATED';
                 $record->save();
             }
             
@@ -975,10 +983,10 @@ public function updateStatus(Request $request)
             $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
             
             foreach ($records as $record) {
-                // Save history before update
-                $this->saveHistory($record, 'ACTIVATE', 'Record activated');
-                
+                $this->saveHistory($record, 'ACTIVATED', 'Record activated');
+
                 $record->status = 1;
+                $record->action_type = 'ACTIVATED';
                 $record->save();
             }
             
@@ -1025,13 +1033,14 @@ public function updateStatus(Request $request)
                 $newAvailableFund = $newMsAmount - $expenditure;
 
                 // Save history before update
-                $this->saveHistory($record, 'REVISE', 
+                $this->saveHistory($record, 'REVISED', 
                     "Record revised. MS Amount: {$currentMsAmount} -> {$newMsAmount}, Available Fund: {$oldAvailableFund} -> {$newAvailableFund}",
                     $currentMsAmount, $newMsAmount, $oldAvailableFund, $newAvailableFund
                 );
 
                 // Set status to inactive for revise
                 $record->status = 0;
+                $record->action_type = 'REVISED';
                 $record->mother_sanction_amount = $newMsAmount;
                 $record->available_fund = $newAvailableFund;
                 $record->carry_forward_amount = $carryForwardAmount;
@@ -1109,9 +1118,10 @@ public function updateStatus(Request $request)
 
                 // Mark record as inactive/closed
                 $record->status = 0;
+                $record->action_type = 'CLOSED';
 
                 // Save history before update
-                $this->saveHistory($record, 'CLOSE', 
+                $this->saveHistory($record, 'CLOSED', 
                     "Record closed. MS Amount: {$oldMsAmount} -> {$expenditure}, Available Fund: {$oldAvailableFund} -> 0 (returned to BE)",
                     $oldMsAmount, $expenditure, $oldAvailableFund, 0
                 );
@@ -1293,6 +1303,20 @@ public function getMotherSanctionDetails($kyMsNo)
             'years' => $financialYears,
             'data' => $grouped,
         ]);
+    }
+
+    /**
+     * Resolve action_type for newly created mother sanction records.
+     */
+    private function resolveCreateActionType(Request $request): string
+    {
+        $requested = strtoupper((string) $request->input('action_type'));
+
+        if ($request->boolean('is_revise') || in_array($requested, ['REVISE', 'REVISED'], true)) {
+            return 'REVISED';
+        }
+
+        return 'FRESH_CREATE';
     }
 
     /**

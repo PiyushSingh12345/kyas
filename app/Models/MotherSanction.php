@@ -31,6 +31,7 @@ class MotherSanction extends Model
         'signed_copy_of_mother_sanction',
         'last_id',
         'status',
+        'action_type',
         'remark'
     ];
 

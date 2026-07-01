@@ -37,7 +37,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Extra fields for history tracking
-            $table->enum('action_type', ['CREATE', 'UPDATE', 'CLOSE', 'REVISE', 'DEACTIVATE', 'ACTIVATE']);
+            $table->enum('action_type', ['FRESH_CREATE', 'UPDATED', 'CLOSED', 'REVISED', 'DEACTIVATED', 'ACTIVATED']);
             $table->string('changed_by', 100)->nullable();
             $table->timestamp('history_timestamp')->useCurrent();
             $table->text('change_description')->nullable(); // Description of what changed

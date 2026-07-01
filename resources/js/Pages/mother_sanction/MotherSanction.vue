@@ -870,6 +870,7 @@ const submitData = async (status) => {
   }
   
   formData.append('reappropriations', JSON.stringify(reappropriationsToSubmit));
+  formData.append('is_revise', isRevise ? '1' : '0');
 
   // Debug: Log all FormData entries
   console.log('FormData contents:');

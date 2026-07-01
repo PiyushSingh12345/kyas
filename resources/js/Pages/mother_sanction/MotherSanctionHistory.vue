@@ -118,15 +118,15 @@
                             <td class="text-center">
                               <span 
                                 :class="{
-                                  'badge bg-primary': item.action_type === 'CREATE',
-                                  'badge bg-info': item.action_type === 'UPDATE',
-                                  'badge bg-warning': item.action_type === 'REVISE',
-                                  'badge bg-danger': item.action_type === 'CLOSE',
-                                  'badge bg-secondary': item.action_type === 'DEACTIVATE',
-                                  'badge bg-success': item.action_type === 'ACTIVATE'
+                                  'badge bg-primary': item.action_type === 'FRESH_CREATE',
+                                  'badge bg-info': item.action_type === 'UPDATED',
+                                  'badge bg-warning': item.action_type === 'REVISED',
+                                  'badge bg-danger': item.action_type === 'CLOSED',
+                                  'badge bg-secondary': item.action_type === 'DEACTIVATED',
+                                  'badge bg-success': item.action_type === 'ACTIVATED'
                                 }"
                               >
-                                {{ item.action_type }}
+                                {{ formatActionType(item.action_type) }}
                               </span>
                             </td>
                             <td>{{ item.changed_by || 'System' }}</td>
@@ -247,6 +247,25 @@ const formatCurrency = (amount) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+};
+
+const formatActionType = (actionType) => {
+  const labels = {
+    FRESH_CREATE: 'Fresh Create',
+    REVISED: 'Revised',
+    CLOSED: 'Closed',
+    DEACTIVATED: 'Deactivated',
+    ACTIVATED: 'Activated',
+    UPDATED: 'Updated',
+    CREATE: 'Fresh Create',
+    REVISE: 'Revised',
+    CLOSE: 'Closed',
+    DEACTIVATE: 'Deactivated',
+    ACTIVATE: 'Activated',
+    UPDATE: 'Updated',
+  };
+
+  return labels[actionType] || actionType || '-';
 };
 
 const calculateAvailableFund = (budget) => {
