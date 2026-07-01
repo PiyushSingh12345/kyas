@@ -350,6 +350,8 @@ const secondTableData = computed(() => {
     sl_scode: item.sls_code || item.sls_name?.substring(0, 2) || '', // Use sls_code from DB, fallback to substring
     status: item.status || 'active', // Default to active if not specified - can be 'active', 'inactive', or 'close'
     ifd_no: item.ifd_no || '',
+    pd_component: item.pd_component || '',
+    remark: item.remark || '',
   }));
 });
 

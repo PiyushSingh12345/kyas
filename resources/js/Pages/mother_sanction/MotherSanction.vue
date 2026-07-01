@@ -177,7 +177,7 @@
                             <select v-model="row.budget_head" class="form-select" @change="fetchBudgetDetails(row)">
                               <option value="">--- Budget Head ---</option>
                               <option 
-                                v-for="(item, idx) in fundAllocations.filter(f => !selectedBudgetHeads.includes(f.budget) || f.budget === row.budget_head)"
+                                v-for="(item, idx) in getBudgetHeadOptions(row)"
                                 :key="idx" 
                                 :value="item.budget"
                               >
@@ -682,6 +682,23 @@ const selectedBudgetHeads = computed(() =>
   reappropriations.value.map(row => row.budget_head).filter(Boolean)
 );
 
+const getBudgetHeadOptions = (row) => {
+  const available = fundAllocations.value.filter(
+    (f) => !selectedBudgetHeads.value.includes(f.budget) || f.budget === row.budget_head
+  );
+
+  if (row.budget_head && !available.some((f) => f.budget === row.budget_head)) {
+    return [
+      { budget: row.budget_head, category: row.category || '', amount: 0 },
+      ...available,
+    ];
+  }
+
+  return available;
+};
+
+const isPrefilling = ref(false);
+
 const selectedStateName = computed(() => {
   const state = states.value.find(s => String(s.id) === String(selectedState.value));
   return state ? state.name : (selectedState.value || '—');
@@ -960,7 +977,11 @@ const prefillFormFromURL = async () => {
   const urlParams = new URLSearchParams(window.location.search);
   
   if (urlParams.get('edit') === 'true' || urlParams.get('revise') === 'true') {
+    isPrefilling.value = true;
+
+    try {
     console.log('Prefilling form from URL parameters');
+    const isRevise = urlParams.get('revise') === 'true';
     
     // Prefill basic fields
     if (urlParams.get('financial_year')) {
@@ -972,10 +993,14 @@ const prefillFormFromURL = async () => {
       // Fetch SLS data for the selected state
       await fetchSlsData();
     }
+
+    if (urlParams.get('pd_component')) {
+      pdComponent.value = urlParams.get('pd_component');
+    }
     
     if (urlParams.get('sls_name')) {
       selectedSlsId.value = urlParams.get('sls_name');
-      // Fetch fund allocation data
+      // Fetch fund allocation data after pd_component is set
       await fetchFundAllocationData();
     }
     
@@ -1004,14 +1029,6 @@ const prefillFormFromURL = async () => {
       kyMsNo.value = urlParams.get('ky_ms_no');
     }
     
-    // if (urlParams.get('sls_name')) {
-    //   selectedSlsId.value = urlParams.get('sls_name');
-    // }
-    
-    if (urlParams.get('pd_component')) {
-      pdComponent.value = urlParams.get('pd_component');
-    }
-    
     if (urlParams.get('remark')) {
       remark.value = urlParams.get('remark');
     }
@@ -1021,41 +1038,35 @@ const prefillFormFromURL = async () => {
       try {
         const budgetHeadsData = JSON.parse(urlParams.get('budget_heads'));
         if (Array.isArray(budgetHeadsData) && budgetHeadsData.length > 0) {
-          const isRevise = urlParams.get('revise') === 'true';
-          
           reappropriations.value = budgetHeadsData.map(budget => {
             if (isRevise) {
               // For revise: carry_forward = available amount, sanction_amount = MS amount
               return {
                 budget_head: budget.budget_head || '',
                 category: budget.category || '',
-                available_amount: budget.available_amount || '', // This will be fetched from fund allocation
-                sanction_amount: budget.sanction_amount || '', // MS amount field
-                carry_forward: budget.carry_forward || '0.00000' // Available amount in carry forward
-              };
-            } else {
-              // For edit: normal prefilling
-              return {
-                budget_head: budget.budget_head || '',
-                category: budget.category || '',
-                available_amount: budget.available_fund || budget.available_amount || '',
-                sanction_amount: budget.mother_sanction_amount || budget.sanction_amount || '',
+                available_amount: budget.available_amount || '',
+                sanction_amount: budget.sanction_amount || '',
                 carry_forward: budget.carry_forward || '0.00000'
               };
             }
+
+            return {
+              budget_head: budget.budget_head || '',
+              category: budget.category || '',
+              available_amount: budget.available_fund || budget.available_amount || '',
+              sanction_amount: budget.mother_sanction_amount || budget.sanction_amount || '',
+              carry_forward: budget.carry_forward || '0.00000'
+            };
           });
           
-          // After setting budget heads, fetch available amounts for revise mode
           if (isRevise && selectedSlsId.value && selectedState.value) {
             await fetchFundAllocationData();
-            // Update available_amount for each row after fund allocation is fetched
             for (const row of reappropriations.value) {
               if (row.budget_head) {
-                await fetchBudgetDetails(row);
+                await fetchBudgetDetails(row, { preserveReviseAmounts: true });
               }
             }
           } else if (selectedSlsId.value && selectedState.value) {
-            // For edit mode, also fetch released amounts for all budget heads
             for (const row of reappropriations.value) {
               if (row.budget_head) {
                 await fetchReleasedAmount(row.budget_head);
@@ -1068,14 +1079,17 @@ const prefillFormFromURL = async () => {
       }
     }
     
-    // If we have a KY MS No, fetch the detailed data
-    if (urlParams.get('ky_ms_no')) {
+    // Revise flow already has budget heads from the list page; avoid overwriting them.
+    if (urlParams.get('ky_ms_no') && !isRevise) {
       await fetchMotherSanctionDetails(urlParams.get('ky_ms_no'));
     }
     
     // Regenerate KY MS No after all data is loaded
     if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value) {
       kyMsNo.value = generateKyMsNo();
+    }
+    } finally {
+      isPrefilling.value = false;
     }
   }
 }
@@ -1198,9 +1212,9 @@ const fetchFundAllocationData = async () => {
       const data = await response.json();
       fundAllocations.value = data;
 
-      if (data.length > 0) {
+      if (data.length > 0 && !pdComponent.value) {
         pdComponent.value = data[0].slsPD;
-      } else {
+      } else if (data.length === 0 && !pdComponent.value) {
         pdComponent.value = '';
       }
     } else {
@@ -1216,7 +1230,11 @@ const fetchFundAllocationData = async () => {
 };
 
 
-const fetchBudgetDetails = async (row) => {
+const fetchBudgetDetails = async (row, options = {}) => {
+  const { preserveReviseAmounts = false } = options;
+  const savedSanctionAmount = row.sanction_amount;
+  const savedCarryForward = row.carry_forward;
+
   // If budget head is cleared, clear the row data
   if (!row.budget_head) {
     clearRowData(row);
@@ -1225,7 +1243,9 @@ const fetchBudgetDetails = async (row) => {
   
   // If required fields are missing, clear the row data
   if (!selectedSlsId.value || !selectedState.value) {
-    clearRowData(row);
+    if (!preserveReviseAmounts) {
+      clearRowData(row);
+    }
     return;
   }
 
@@ -1251,11 +1271,11 @@ const fetchBudgetDetails = async (row) => {
         const budgetData = data[0];
         row.category = budgetData.category || '';
         row.available_amount = totalAmount.toFixed(5); // Total Allocation
-      } else if (data && typeof data === 'object') {
+      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
         // Handle single object response
-        row.category = data.category || '';
-        row.available_amount = data.amount || '';
-      } else {
+        row.category = data.category || row.category || '';
+        row.available_amount = data.amount || row.available_amount || '';
+      } else if (!preserveReviseAmounts) {
         // No data found
         clearRowData(row);
         console.log('No budget details found for the selected budget head');
@@ -1265,13 +1285,20 @@ const fetchBudgetDetails = async (row) => {
       if (row.budget_head) {
         await fetchReleasedAmount(row.budget_head);
       }
-    } else {
+    } else if (!preserveReviseAmounts) {
       clearRowData(row);
       console.error('Budget details not found');
     }
   } catch (error) {
     console.error('Error fetching budget details:', error);
-    clearRowData(row);
+    if (!preserveReviseAmounts) {
+      clearRowData(row);
+    }
+  }
+
+  if (preserveReviseAmounts) {
+    row.sanction_amount = savedSanctionAmount;
+    row.carry_forward = savedCarryForward;
   }
 };
 
@@ -1283,6 +1310,9 @@ const clearAllBudgetDetails = () => {
 
 // Watch for changes in SLS ID, state, or financial year to clear budget details
 watch([selectedSlsId, selectedState, financialYear], () => {
+  if (isPrefilling.value) {
+    return;
+  }
   clearAllBudgetDetails();
   releasedAmounts.value = {};
 });

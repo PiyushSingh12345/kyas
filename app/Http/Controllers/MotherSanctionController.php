@@ -60,8 +60,9 @@ class MotherSanctionController extends Controller
     {
         $financialYear = $request->query('financial_year');
         $budgetPhase = $request->query('budget_phase', 'BE');
+        $pdComponent = $request->query('pd_component');
 
-        $programDivisionId = $this->resolveProgramDivisionIdFromSls($slsId, (int) $stateId, null);
+        $programDivisionId = $this->resolveProgramDivisionIdFromSls($slsId, (int) $stateId, $pdComponent);
 
         if (!$programDivisionId) {
             return response()->json([]);
@@ -515,6 +516,7 @@ public function list()
                 'ky_ms_no_list' => $kyMsNoList,
                 'sls_name' => $firstItem->sls_name,
                 'pd_component' => $firstItem->pd_component,
+                'remark' => $firstItem->remark,
                 'total_mother_sanction_amount' => $totalAmount,
                 'total_available_fund' => $totalAvailableFund,
                 'annual_allocation' => $annualAllocation,
