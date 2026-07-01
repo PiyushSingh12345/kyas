@@ -427,7 +427,7 @@ public function list()
             ->join('states as s', 'ms.state_id', '=', 's.id')
             ->leftJoin('pd_and_sls_comp as pdc', function($join) {
                 $join->on('ms.sls_name', '=', 'pdc.name')
-                     ->on('ms.pd_component', '=', 'pdc.slsPD');
+                     ->on('ms.state_id', '=', 'pdc.state_id');
             })
             // Show all records regardless of status
             ->orderBy('ms.created_at', 'desc')
@@ -440,41 +440,39 @@ public function list()
 
         // Transform the grouped data
         $transformedData = $groupedData->map(function($group) {
-            $firstItem = $group->first();
-            
-            // Get all unique budget heads for this group and aggregate their values
+            $pickLatestBatch = function ($records) {
+                return $records
+                    ->groupBy('ky_ms_no')
+                    ->sortByDesc(fn($batch) => $batch->max('created_at'))
+                    ->first() ?? collect();
+            };
+
+            // Show the latest active mother sanction batch; older revisions remain inactive in DB
+            $activeRecords = $group->filter(fn($item) => (int) ($item->status ?? 0) === 1);
+            $isActive = $activeRecords->isNotEmpty();
+            $displayRecords = $pickLatestBatch($isActive ? $activeRecords : $group);
+            $firstItem = $displayRecords->sortByDesc('created_at')->first() ?? $group->first();
+
+            // Budget head amounts come from the displayed batch only (not summed across inactive revisions)
             $budgetHeadMap = [];
-            
-            // Collect all budget heads and aggregate amounts
-            foreach ($group as $item) {
+            foreach ($displayRecords as $item) {
                 if (empty($item->budget_head)) {
                     continue;
                 }
-                
-                $budgetKey = $item->budget_head;
-                
-                if (!isset($budgetHeadMap[$budgetKey])) {
-                    $budgetHeadMap[$budgetKey] = [
-                        'budget_head' => $item->budget_head,
-                        'category' => $item->category,
-                        'available_fund' => 0,
-                        'mother_sanction_amount' => 0,
-                        'expenditure' => 0,
-                        'carry_forward_amount' => 0,
-                    ];
-                }
-                
-                // Aggregate amounts
-                $budgetHeadMap[$budgetKey]['available_fund'] += floatval($item->available_fund ?? 0);
-                $budgetHeadMap[$budgetKey]['mother_sanction_amount'] += floatval($item->mother_sanction_amount ?? 0);
-                $budgetHeadMap[$budgetKey]['carry_forward_amount'] += floatval($item->carry_forward_amount ?? 0);
+
+                $budgetHeadMap[$item->budget_head] = [
+                    'budget_head' => $item->budget_head,
+                    'category' => $item->category,
+                    'available_fund' => floatval($item->available_fund ?? 0),
+                    'mother_sanction_amount' => floatval($item->mother_sanction_amount ?? 0),
+                    'expenditure' => 0,
+                    'carry_forward_amount' => floatval($item->carry_forward_amount ?? 0),
+                ];
             }
-            
-            // Calculate expenditure for each budget head across all mother sanctions in this group
+
             $stateId = $firstItem->state_id;
-            $slsCode = $firstItem->sls_code;
-            
-            // Get all ky_ms_no values for this state + sls_code combination
+
+            // Expenditure spans all mother sanctions for this state + SLS (including prior revisions)
             $kyMsNos = $group->pluck('ky_ms_no')->unique()->filter()->values();
 
             $annualAllocationByBudgetHead = $this->getAnnualAllocationByBudgetHead(
@@ -484,33 +482,26 @@ public function list()
                 array_keys($budgetHeadMap),
                 $firstItem->financial_year
             );
-            
+
             $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($kyMsNos, $stateId, $annualAllocationByBudgetHead) {
-                // Calculate expenditure across all mother sanctions for this budget head
                 $expenditure = DB::table('daily_sanction')
                     ->whereIn('mother_sanction', $kyMsNos->toArray())
                     ->where('budget_head', $budgetData['budget_head'])
                     ->where('state_id', $stateId)
                     ->sum('center_share_amount');
-                
+
                 $budgetData['expenditure'] = floatval($expenditure ?? 0);
                 $budgetData['annual_allocation_individual'] = $annualAllocationByBudgetHead[$budgetData['budget_head']] ?? 0.0;
-                
+
                 return $budgetData;
             })->values();
 
-            // Calculate totals
-            $totalAmount = $group->sum('mother_sanction_amount');
-            $totalAvailableFund = $group->sum('available_fund');
+            $totalAmount = $displayRecords->sum('mother_sanction_amount');
+            $totalAvailableFund = $displayRecords->sum('available_fund');
             $annualAllocation = array_sum($annualAllocationByBudgetHead);
-            
-            // Get all unique ky_ms_no values for display
-            $allKyMsNos = $kyMsNos->toArray();
-            $kyMsNoDisplay = !empty($allKyMsNos) ? implode(', ', $allKyMsNos) : ($firstItem->ky_ms_no ?? '');
-            
-            // Determine status: if all records are inactive, show inactive; otherwise show active
-            $allStatuses = $group->pluck('status')->unique();
-            $isActive = $allStatuses->contains(1);
+
+            $displayKyMsNo = $firstItem->ky_ms_no ?? '';
+            $kyMsNoList = $displayKyMsNo ? [$displayKyMsNo] : [];
 
             return [
                 'id' => $firstItem->id,
@@ -520,8 +511,8 @@ public function list()
                 'file_no' => $firstItem->file_no,
                 'ifd_no' => $firstItem->ifd_no,
                 'sanction_date' => $firstItem->sanction_date,
-                'ky_ms_no' => $kyMsNoDisplay, // Display all ky_ms_no values
-                'ky_ms_no_list' => $allKyMsNos, // Array of all ky_ms_no for programmatic access
+                'ky_ms_no' => $displayKyMsNo,
+                'ky_ms_no_list' => $kyMsNoList,
                 'sls_name' => $firstItem->sls_name,
                 'pd_component' => $firstItem->pd_component,
                 'total_mother_sanction_amount' => $totalAmount,
@@ -1485,13 +1476,26 @@ public function getMotherSanctionDetails($kyMsNo)
     }
 
     /**
-     * Resolve program division ID from SLS via pd_and_sls_comp.
+     * Resolve program division ID from pd_component and/or SLS via pd_and_sls_comp.
+     *
+     * mother_sanction.pd_component may store either a program division name
+     * (md_program_divisions.division_name) or the SLS PD label (pd_and_sls_comp.slsPD).
      */
     private function resolveProgramDivisionIdFromSls(
         ?string $slsName,
         ?int $stateId,
         ?string $pdComponent
     ): ?int {
+        if ($pdComponent) {
+            $divisionId = DB::table('md_program_divisions')
+                ->whereRaw('division_name COLLATE utf8mb4_unicode_ci = ?', [trim($pdComponent)])
+                ->value('division_id');
+
+            if ($divisionId) {
+                return (int) $divisionId;
+            }
+        }
+
         if (empty($slsName)) {
             return null;
         }
