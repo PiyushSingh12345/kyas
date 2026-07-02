@@ -415,6 +415,21 @@ class MotherSanctionController extends Controller
         }
     }
 
+    /**
+     * Net mother sanction amount for list totals (excludes carry forward when it is baked into MS amount).
+     */
+    private function netMotherSanctionAmountForTotal(object $record): float
+    {
+        $ms = floatval($record->mother_sanction_amount ?? 0);
+        $carryForward = floatval($record->carry_forward_amount ?? 0);
+
+        if (($record->action_type ?? '') === 'REVISED') {
+            return $ms - $carryForward;
+        }
+
+        return $ms;
+    }
+
    
 public function list()
 {
@@ -485,7 +500,7 @@ public function list()
                 $firstItem->financial_year
             );
 
-            $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($kyMsNos, $stateId, $annualAllocationByBudgetHead) {
+            $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($kyMsNos, $stateId, $annualAllocationByBudgetHead, $group) {
                 $expenditure = DB::table('daily_sanction')
                     ->whereIn('mother_sanction', $kyMsNos->toArray())
                     ->where('budget_head', $budgetData['budget_head'])
@@ -494,6 +509,11 @@ public function list()
 
                 $budgetData['expenditure'] = floatval($expenditure ?? 0);
                 $budgetData['annual_allocation_individual'] = $annualAllocationByBudgetHead[$budgetData['budget_head']] ?? 0.0;
+                $budgetData['total_ms_amount'] = floatval(
+                    $group
+                        ->filter(fn($item) => ($item->budget_head ?? '') === $budgetData['budget_head'])
+                        ->sum(fn($item) => $this->netMotherSanctionAmountForTotal($item))
+                );
 
                 return $budgetData;
             })->sortBy('budget_head', SORT_NATURAL)->values();
@@ -1159,13 +1179,21 @@ public function updateStatus(Request $request)
     }
 }
 
-public function getMotherSanctionDetails($kyMsNo)
+public function getMotherSanctionDetails(Request $request, $kyMsNo)
 {
     try {
-        // Get all records with the same ky_ms_no
-        $records = MotherSanction::where('ky_ms_no', $kyMsNo)
-            ->with('state')
-            ->get();
+        $stateId = $request->query('state_id');
+
+        $query = MotherSanction::where('ky_ms_no', $kyMsNo)
+            ->where(function ($q) {
+                $q->where('status', 1)->orWhere('status', '1');
+            });
+
+        if ($stateId) {
+            $query->where('state_id', (int) $stateId);
+        }
+
+        $records = $query->with('state')->get();
 
         if ($records->isEmpty()) {
             return response()->json([

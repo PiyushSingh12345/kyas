@@ -234,12 +234,24 @@ public function store(Request $request)
 }
 
 
-    public function getMotherSanctionDetails($ky_ms_no)
+    public function getMotherSanctionDetails(Request $request, $ky_ms_no)
     {
-        $records = MotherSanction::join('pd_and_sls_comp', 'mother_sanction.sls_name', '=', 'pd_and_sls_comp.name')
+        $stateId = $request->query('state_id');
+
+        $query = MotherSanction::join('pd_and_sls_comp', function ($join) {
+                $join->on('mother_sanction.sls_name', '=', 'pd_and_sls_comp.name')
+                     ->on('mother_sanction.state_id', '=', 'pd_and_sls_comp.state_id');
+            })
             ->where('mother_sanction.ky_ms_no', $ky_ms_no)
-            ->where('mother_sanction.status', 1)
-            ->select(
+            ->where(function ($q) {
+                $q->where('mother_sanction.status', 1)->orWhere('mother_sanction.status', '1');
+            });
+
+        if ($stateId) {
+            $query->where('mother_sanction.state_id', (int) $stateId);
+        }
+
+        $records = $query->select(
                 'mother_sanction.ifd_no',
                 'mother_sanction.sls_name',
                 'mother_sanction.budget_head',
@@ -263,7 +275,7 @@ public function store(Request $request)
             'budget_head' => $item->budget_head,
             'available_fund' => $item->available_fund,
             'mother_sanction_amount' => $item->mother_sanction_amount,
-        ]);
+        ])->filter(fn ($item) => !empty($item['budget_head']))->values();
 
         return response()->json([
             'meta' => $meta,

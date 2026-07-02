@@ -459,8 +459,14 @@ const fetchMotherSanctions = async (stateId) => {
 }
 
 const fetchMotherSanctionDetails = async (kyMsNo) => {
+  if (!kyMsNo || !selectedState.value) {
+    clearDetails()
+    return
+  }
+
   try {
-    const res = await fetch(`/api/mother-sanction-details/${kyMsNo}`)
+    const params = new URLSearchParams({ state_id: String(selectedState.value) })
+    const res = await fetch(`/api/mother-sanction-details/${encodeURIComponent(kyMsNo)}?${params.toString()}`)
     if (res.ok) {
       const data = await res.json()
       // console.log(data)
@@ -579,8 +585,10 @@ watch(selectedState, (newState) => {
 })
 
 watch(selectedMotherSanction, (newKyMsNo) => {
-  if (newKyMsNo) {
+  if (newKyMsNo && selectedState.value) {
     fetchMotherSanctionDetails(newKyMsNo)
+  } else {
+    clearDetails()
   }
 })
 

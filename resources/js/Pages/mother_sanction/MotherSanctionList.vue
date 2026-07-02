@@ -111,11 +111,23 @@
                                       <td class="text-center">{{ budget.budget_head }}</td>
                                       <td class="text-center">{{ budget.category }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.annual_allocation_individual) }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(calculateTotalMsAmount(budget, item)) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(calculateTotalMsAmount(budget)) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget, item)) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget)) }}</td>
                                       <td class="text-center currency-cell">{{ formatCarryForwardAmount(budget.carry_forward_amount || 0) }}</td>
+                                    </tr>
+                                    <tr
+                                      v-if="item.budget_heads && item.budget_heads.length > 0"
+                                      class="budget-head-total-row"
+                                    >
+                                      <td colspan="2" class="text-center">Total</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(item.budget_head_totals.annual_allocation) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(item.budget_head_totals.ms_amount) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(item.budget_head_totals.effective_ms_amount) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(item.budget_head_totals.expenditure) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(item.budget_head_totals.available_fund) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCarryForwardAmount(item.budget_head_totals.carry_forward) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
                                       <td colspan="8" class="text-center text-muted">No budget heads available</td>
@@ -337,7 +349,10 @@ const secondTableData = computed(() => {
   
   // The backend now provides data already grouped with budget_heads by state + sls_code
   // We just need to transform it for the second table format
-  return motherSanctions.value.map(item => ({
+  return motherSanctions.value.map(item => {
+    const budget_heads = item.budget_heads || [];
+
+    return {
     ky_ms_no: item.ky_ms_no, // This now contains comma-separated list of all ky_ms_no values
     ky_ms_no_list: item.ky_ms_no_list || [], // Array of all ky_ms_no values
     financial_year: item.financial_year,
@@ -350,7 +365,8 @@ const secondTableData = computed(() => {
     total_mother_sanction_amount: item.effective_total_ms ?? item.total_mother_sanction_amount,
     effective_total_ms: item.effective_total_ms ?? item.total_mother_sanction_amount,
     is_revised: Boolean(item.is_revised),
-    budget_heads: item.budget_heads || [],
+    budget_heads,
+    budget_head_totals: getBudgetHeadTotals(budget_heads),
     total_expenditure: 0,
     annual_allocation: item.annual_allocation || 0,
     sl_scode: item.sls_code || item.sls_name?.substring(0, 2) || '', // Use sls_code from DB, fallback to substring
@@ -358,7 +374,8 @@ const secondTableData = computed(() => {
     ifd_no: item.ifd_no || '',
     pd_component: item.pd_component || '',
     remark: item.remark || '',
-  }));
+  };
+  });
 });
 
 // Method to calculate available balance
@@ -368,42 +385,55 @@ const calculateAvailableBalance = (row) => {
   return (totalAllocated - totalExpenditure).toFixed(2);
 };
 
-const calculateTotalMsAmount = (budget, item) => {
-  const effectiveMs = parseFloat(budget.mother_sanction_amount) || 0;
-  const expenditure = parseFloat(budget.expenditure) || 0;
-
-  if (!item?.is_revised) {
-    return effectiveMs;
-  }
-
-  return effectiveMs + expenditure;
+const calculateTotalMsAmount = (budget) => {
+  return parseFloat(budget.total_ms_amount ?? budget.mother_sanction_amount) || 0;
 };
 
 // Available Fund = MS Amount - Expenditure
-const calculateAvailableFund = (budget, item) => {
-  const msAmount = calculateTotalMsAmount(budget, item);
+const calculateAvailableFund = (budget) => {
+  const msAmount = calculateTotalMsAmount(budget);
   const expenditure = parseFloat(budget.expenditure) || 0;
   return msAmount - expenditure;
 };
 
-const calculateRowTotalExpenditure = (item) => {
+const calculateTotalMs = (item) => {
   if (!item?.budget_heads?.length) {
-    return 0;
+    return parseFloat(item.effective_total_ms ?? item.total_mother_sanction_amount) || 0;
   }
 
   return item.budget_heads.reduce((sum, budget) => {
-    return sum + (parseFloat(budget.expenditure) || 0);
+    return sum + calculateTotalMsAmount(budget);
   }, 0);
 };
 
-const calculateTotalMs = (item) => {
-  const effectiveTotal = parseFloat(item.effective_total_ms ?? item.total_mother_sanction_amount) || 0;
-
-  if (!item?.is_revised) {
-    return effectiveTotal;
+const getBudgetHeadTotals = (budgetHeads) => {
+  if (!budgetHeads?.length) {
+    return {
+      annual_allocation: 0,
+      ms_amount: 0,
+      effective_ms_amount: 0,
+      expenditure: 0,
+      available_fund: 0,
+      carry_forward: 0,
+    };
   }
 
-  return effectiveTotal + calculateRowTotalExpenditure(item);
+  return budgetHeads.reduce((totals, budget) => {
+    totals.annual_allocation += parseFloat(budget.annual_allocation_individual) || 0;
+    totals.ms_amount += calculateTotalMsAmount(budget);
+    totals.effective_ms_amount += parseFloat(budget.mother_sanction_amount) || 0;
+    totals.expenditure += parseFloat(budget.expenditure) || 0;
+    totals.available_fund += calculateAvailableFund(budget);
+    totals.carry_forward += parseFloat(budget.carry_forward_amount) || 0;
+    return totals;
+  }, {
+    annual_allocation: 0,
+    ms_amount: 0,
+    effective_ms_amount: 0,
+    expenditure: 0,
+    available_fund: 0,
+    carry_forward: 0,
+  });
 };
 
 // Method to format date
@@ -562,7 +592,7 @@ const confirmClose = async () => {
   // Prepare budget heads data with old values for backend processing
   const budgetHeadsData = closeItem.value.budget_heads.map(budget => {
     const oldExpenditure = parseFloat(budget.expenditure) || 0
-    const oldAvailableFund = calculateAvailableFund(budget, closeItem.value) // MS Amount - Expenditure
+    const oldAvailableFund = calculateAvailableFund(budget) // MS Amount - Expenditure
     const oldMsAmount = parseFloat(budget.mother_sanction_amount) || 0
     
     return {
@@ -663,9 +693,9 @@ const confirmRevise = async () => {
       const budgetHeadsForForm = reviseItem.value.budget_heads.map(budget => ({
         budget_head: budget.budget_head,
         category: budget.category,
-        available_amount: budget.available_fund || calculateAvailableFund(budget, reviseItem.value),
+        available_amount: budget.available_fund || calculateAvailableFund(budget),
         sanction_amount: '',
-        carry_forward: calculateAvailableFund(budget, reviseItem.value) || '0.00000'
+        carry_forward: calculateAvailableFund(budget) || '0.00000'
       }));
       
       // Create query parameters for prefilling the form
@@ -814,6 +844,18 @@ const confirmRevise = async () => {
 
 .budget-head-table .table tbody tr:nth-child(even) {
   background-color: #f8f9fa;
+}
+
+.budget-head-table .budget-head-total-row td {
+  font-weight: 700;
+  background-color: #e9ecef;
+  border-top: 2px solid #dee2e6;
+}
+
+.budget-head-table .budget-head-total-row td {
+  font-weight: 700;
+  background-color: #e9ecef;
+  border-top: 2px solid #dee2e6;
 }
 
 /* Toggle switch styling */
