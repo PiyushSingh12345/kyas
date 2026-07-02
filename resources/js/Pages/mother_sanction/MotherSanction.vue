@@ -174,7 +174,13 @@
                             {{ fundAllocations }}
                           </td> -->
                           <td>
-                            <select v-model="row.budget_head" class="form-select" @change="fetchBudgetDetails(row)">
+                            <select
+                              v-model="row.budget_head"
+                              class="form-select"
+                              :class="{ 'tableform-control-withoutbg': row.revise_locked }"
+                              :disabled="row.revise_locked"
+                              @change="fetchBudgetDetails(row)"
+                            >
                               <option value="">--- Budget Head ---</option>
                               <option 
                                 v-for="(item, idx) in getBudgetHeadOptions(row)"
@@ -212,10 +218,15 @@
                               type="number" 
                               v-model="row.carry_forward" 
                               class="form-control tableform-control-withoutbg"
+                              :disabled="row.revise_locked"
                             >
                           </td>
                           <td class="text-center">
-                            <button class="btn btn-sm btn-danger" @click="removeReappropriationRow(index)" v-if="reappropriations.length > 1">×</button>
+                            <button
+                              class="btn btn-sm btn-danger"
+                              @click="removeReappropriationRow(index)"
+                              v-if="reappropriations.length > 1 && (!isReviseMode || !row.revise_locked)"
+                            >×</button>
                           </td>
                         </tr>
                        
@@ -698,6 +709,7 @@ const getBudgetHeadOptions = (row) => {
 };
 
 const isPrefilling = ref(false);
+const isReviseMode = ref(false);
 
 const selectedStateName = computed(() => {
   const state = states.value.find(s => String(s.id) === String(selectedState.value));
@@ -983,6 +995,7 @@ const prefillFormFromURL = async () => {
     try {
     console.log('Prefilling form from URL parameters');
     const isRevise = urlParams.get('revise') === 'true';
+    isReviseMode.value = isRevise;
     
     // Prefill basic fields
     if (urlParams.get('financial_year')) {
@@ -1041,13 +1054,13 @@ const prefillFormFromURL = async () => {
         if (Array.isArray(budgetHeadsData) && budgetHeadsData.length > 0) {
           reappropriations.value = budgetHeadsData.map(budget => {
             if (isRevise) {
-              // For revise: carry_forward = available amount, sanction_amount = MS amount
               return {
                 budget_head: budget.budget_head || '',
                 category: budget.category || '',
                 available_amount: budget.available_amount || '',
-                sanction_amount: budget.sanction_amount || '',
-                carry_forward: budget.carry_forward || '0.00000'
+                sanction_amount: '',
+                carry_forward: budget.carry_forward || '0.00000',
+                revise_locked: true
               };
             }
 

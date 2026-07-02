@@ -496,7 +496,7 @@ public function list()
                 $budgetData['annual_allocation_individual'] = $annualAllocationByBudgetHead[$budgetData['budget_head']] ?? 0.0;
 
                 return $budgetData;
-            })->values();
+            })->sortBy('budget_head', SORT_NATURAL)->values();
 
             $totalAmount = $displayRecords->sum('mother_sanction_amount');
             $totalAvailableFund = $displayRecords->sum('available_fund');
@@ -504,6 +504,9 @@ public function list()
 
             $displayKyMsNo = $firstItem->ky_ms_no ?? '';
             $kyMsNoList = $displayKyMsNo ? [$displayKyMsNo] : [];
+
+            $hasInactiveRecords = $group->contains(fn($item) => (int) ($item->status ?? 0) === 0);
+            $isRevised = $kyMsNos->count() > 1 || ($isActive && $hasInactiveRecords);
 
             return [
                 'id' => $firstItem->id,
@@ -518,7 +521,9 @@ public function list()
                 'sls_name' => $firstItem->sls_name,
                 'pd_component' => $firstItem->pd_component,
                 'remark' => $firstItem->remark,
+                'effective_total_ms' => $totalAmount,
                 'total_mother_sanction_amount' => $totalAmount,
+                'is_revised' => $isRevised,
                 'total_available_fund' => $totalAvailableFund,
                 'annual_allocation' => $annualAllocation,
                 'budget_heads' => $budgetHeads,

@@ -70,7 +70,8 @@
                               <th>SLS Details</th>
                               <th>SLS Code</th>
                               <th>Total Annual Allocation</th>
-                              <th>MS Total Amount</th>
+                              <th>Total MS</th>
+                              <th>Effective Total MS</th>
                               <th>Budget Head</th>
                               <th>Action</th>
                               <th>Status</th>
@@ -86,7 +87,8 @@
                             <td>{{ item.sls_name }}</td>
                             <td>{{ item.sl_scode }}</td>
                             <td class="currency-cell">{{ formatCurrency(item.annual_allocation) }}</td>
-                            <td class="currency-cell">{{ formatCurrency(item.total_mother_sanction_amount) }}</td>
+                            <td class="currency-cell">{{ formatCurrency(calculateTotalMs(item)) }}</td>
+                            <td class="currency-cell">{{ formatCurrency(item.effective_total_ms) }}</td>
 
                             <td>
                               <div class="budget-head-table">
@@ -98,6 +100,7 @@
                                       <th class="text-center">Category</th>
                                       <th class="text-center">Annual Allocation</th>
                                       <th class="text-center">MS Amount</th>
+                                      <th class="text-center">Effective MS Amount</th>
                                       <th class="text-center">Expenditure</th>
                                       <th class="text-center">Available Fund</th>
                                       <th class="text-center">Carry Forward Amount</th>
@@ -108,13 +111,14 @@
                                       <td class="text-center">{{ budget.budget_head }}</td>
                                       <td class="text-center">{{ budget.category }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.annual_allocation_individual) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(calculateTotalMsAmount(budget, item)) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget)) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget, item)) }}</td>
                                       <td class="text-center currency-cell">{{ formatCarryForwardAmount(budget.carry_forward_amount || 0) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
-                                      <td colspan="7" class="text-center text-muted">No budget heads available</td>
+                                      <td colspan="8" class="text-center text-muted">No budget heads available</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -156,7 +160,7 @@
                           </tr>
                           
                           <tr v-if="secondTableData.length === 0">
-                            <td colspan="9" class="text-center text-muted py-4">
+                            <td colspan="12" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No mother sanction data available
                             </td>
@@ -343,9 +347,11 @@ const secondTableData = computed(() => {
     sls_name: item.sls_name,
     sls_id: item.sls_id || '',
     ms_sequence_no: item.ms_sequence_no || '',
-    total_mother_sanction_amount: item.total_mother_sanction_amount,
+    total_mother_sanction_amount: item.effective_total_ms ?? item.total_mother_sanction_amount,
+    effective_total_ms: item.effective_total_ms ?? item.total_mother_sanction_amount,
+    is_revised: Boolean(item.is_revised),
     budget_heads: item.budget_heads || [],
-    total_expenditure: 0, // This would come from daily sanctions if available
+    total_expenditure: 0,
     annual_allocation: item.annual_allocation || 0,
     sl_scode: item.sls_code || item.sls_name?.substring(0, 2) || '', // Use sls_code from DB, fallback to substring
     status: item.status || 'active', // Default to active if not specified - can be 'active', 'inactive', or 'close'
@@ -362,11 +368,42 @@ const calculateAvailableBalance = (row) => {
   return (totalAllocated - totalExpenditure).toFixed(2);
 };
 
-// Method to calculate available fund (MS Amount - Expenditure)
-const calculateAvailableFund = (budget) => {
-  const msAmount = parseFloat(budget.mother_sanction_amount) || 0;
+const calculateTotalMsAmount = (budget, item) => {
+  const effectiveMs = parseFloat(budget.mother_sanction_amount) || 0;
+  const expenditure = parseFloat(budget.expenditure) || 0;
+
+  if (!item?.is_revised) {
+    return effectiveMs;
+  }
+
+  return effectiveMs + expenditure;
+};
+
+// Available Fund = MS Amount - Expenditure
+const calculateAvailableFund = (budget, item) => {
+  const msAmount = calculateTotalMsAmount(budget, item);
   const expenditure = parseFloat(budget.expenditure) || 0;
   return msAmount - expenditure;
+};
+
+const calculateRowTotalExpenditure = (item) => {
+  if (!item?.budget_heads?.length) {
+    return 0;
+  }
+
+  return item.budget_heads.reduce((sum, budget) => {
+    return sum + (parseFloat(budget.expenditure) || 0);
+  }, 0);
+};
+
+const calculateTotalMs = (item) => {
+  const effectiveTotal = parseFloat(item.effective_total_ms ?? item.total_mother_sanction_amount) || 0;
+
+  if (!item?.is_revised) {
+    return effectiveTotal;
+  }
+
+  return effectiveTotal + calculateRowTotalExpenditure(item);
 };
 
 // Method to format date
@@ -525,7 +562,7 @@ const confirmClose = async () => {
   // Prepare budget heads data with old values for backend processing
   const budgetHeadsData = closeItem.value.budget_heads.map(budget => {
     const oldExpenditure = parseFloat(budget.expenditure) || 0
-    const oldAvailableFund = calculateAvailableFund(budget) // MS Amount - Expenditure
+    const oldAvailableFund = calculateAvailableFund(budget, closeItem.value) // MS Amount - Expenditure
     const oldMsAmount = parseFloat(budget.mother_sanction_amount) || 0
     
     return {
@@ -626,9 +663,9 @@ const confirmRevise = async () => {
       const budgetHeadsForForm = reviseItem.value.budget_heads.map(budget => ({
         budget_head: budget.budget_head,
         category: budget.category,
-        available_amount: budget.available_fund || calculateAvailableFund(budget), // This will be used to fetch available fund
-        sanction_amount: budget.mother_sanction_amount || '', // MS amount field
-        carry_forward: calculateAvailableFund(budget) || '0.00000' // Available amount in carry forward field
+        available_amount: budget.available_fund || calculateAvailableFund(budget, reviseItem.value),
+        sanction_amount: '',
+        carry_forward: calculateAvailableFund(budget, reviseItem.value) || '0.00000'
       }));
       
       // Create query parameters for prefilling the form
