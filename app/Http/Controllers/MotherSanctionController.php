@@ -430,6 +430,27 @@ class MotherSanctionController extends Controller
         return $ms;
     }
 
+    /**
+     * Find mother sanction records scoped to the same state and SLS as the list row.
+     */
+    private function findMotherSanctionRecordsForStatusUpdate(
+        array $kyMsNos,
+        ?int $stateId,
+        ?string $slsName
+    ) {
+        $query = MotherSanction::whereIn('ky_ms_no', $kyMsNos);
+
+        if ($stateId) {
+            $query->where('state_id', $stateId);
+        }
+
+        if ($slsName !== null && $slsName !== '') {
+            $query->where('sls_name', $slsName);
+        }
+
+        return $query->get();
+    }
+
    
 public function list()
 {
@@ -450,9 +471,9 @@ public function list()
             ->orderBy('ms.created_at', 'desc')
             ->get();
 
-        // Group data by state_id and sls_code to get all budget heads
+        // Group data by state_id and sls_name so actions affect only the matching SLS row
         $groupedData = $data->groupBy(function($item) {
-            return ($item->state_id ?? '') . '|' . ($item->sls_code ?? '');
+            return ($item->state_id ?? '') . '|' . ($item->sls_name ?? '');
         });
 
         // Transform the grouped data
@@ -527,6 +548,9 @@ public function list()
 
             $hasInactiveRecords = $group->contains(fn($item) => (int) ($item->status ?? 0) === 0);
             $isRevised = $kyMsNos->count() > 1 || ($isActive && $hasInactiveRecords);
+            $rowStatus = $isActive
+                ? 'active'
+                : ((($firstItem->action_type ?? '') === 'CLOSED') ? 'close' : 'inactive');
 
             return [
                 'id' => $firstItem->id,
@@ -550,7 +574,7 @@ public function list()
                 'uc_received_from_State' => $firstItem->uc_received_from_State,
                 'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
                 'last_id' => $firstItem->last_id,
-                'status' => $isActive ? 'active' : 'inactive',
+                'status' => $rowStatus,
                 'action_type' => $firstItem->action_type ?? 'FRESH_CREATE',
                 'created_at' => $firstItem->created_at,
                 'updated_at' => $firstItem->updated_at,
@@ -947,13 +971,15 @@ public function updateStatus(Request $request)
         // Accept either a single ky_ms_no (string) or an array of ky_ms_no values
         $request->validate([
             'ky_ms_no' => 'required', // Can be string or array
-            // Added "close" as a valid action for full closure via Close button
-            // Added "revise" as a valid action to add Available Fund to MS Amount
-            'action' => 'required|in:deactivate,activate,close,revise'
+            'action' => 'required|in:deactivate,activate,close,revise',
+            'state_id' => 'required|integer',
+            'sls_name' => 'required|string',
         ]);
 
         $kyMsNoInput = $request->input('ky_ms_no');
         $action = $request->input('action');
+        $stateId = (int) $request->input('state_id');
+        $slsName = $this->sanitizeTextInput($request->input('sls_name'));
 
         // Normalize to array: if string, convert to array; if already array, use as is
         $kyMsNos = is_array($kyMsNoInput) ? $kyMsNoInput : [$kyMsNoInput];
@@ -970,21 +996,19 @@ public function updateStatus(Request $request)
             ], 400);
         }
 
-        // Find all records with any of the provided ky_ms_no values
-        $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
+        // Find records for the given KY MS No(s) within the same state and SLS only
+        $records = $this->findMotherSanctionRecordsForStatusUpdate($kyMsNos, $stateId, $slsName);
 
         if ($records->isEmpty()) {
             return response()->json([
-                'message' => 'No records found with the given KY MS No(s).',
+                'message' => 'No records found with the given KY MS No(s) for the selected state and SLS.',
                 'success' => false
             ], 404);
         }
 
         if ($action === 'deactivate') {
-            // Deactivate all records with the provided ky_ms_no values (used by status toggle)
+            // Deactivate records for this state + SLS only (used by status toggle)
             DB::beginTransaction();
-            
-            $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
             
             foreach ($records as $record) {
                 $this->saveHistory($record, 'DEACTIVATED', 'Record deactivated');
@@ -1002,10 +1026,8 @@ public function updateStatus(Request $request)
                 'updated_count' => $records->count()
             ]);
         } elseif ($action === 'activate') {
-            // Activate all records with the provided ky_ms_no values
+            // Activate records for this state + SLS only
             DB::beginTransaction();
-            
-            $records = MotherSanction::whereIn('ky_ms_no', $kyMsNos)->get();
             
             foreach ($records as $record) {
                 $this->saveHistory($record, 'ACTIVATED', 'Record activated');

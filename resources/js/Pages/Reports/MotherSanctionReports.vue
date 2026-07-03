@@ -832,7 +832,9 @@ const confirmStatusChange = async () => {
         },
         body: JSON.stringify({
           ky_ms_no: selectedItem.value.ky_ms_no,
-          action: action
+          action: action,
+          state_id: selectedItem.value.state_id,
+          sls_name: selectedItem.value.sls_name || '',
         })
       });
 

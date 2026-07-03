@@ -510,7 +510,9 @@ const confirmStatusChange = async () => {
         },
         body: JSON.stringify({
           ky_ms_no: kyMsNos, // Send array of ky_ms_no values
-          action: action
+          action: action,
+          state_id: selectedItem.value.state_id,
+          sls_name: selectedItem.value.sls_name || '',
         })
       });
 
@@ -614,6 +616,8 @@ const confirmClose = async () => {
       body: JSON.stringify({
         ky_ms_no: kyMsNosToClose,
         action: 'close',
+        state_id: closeItem.value.state_id,
+        sls_name: closeItem.value.sls_name || '',
         financial_year: closeItem.value.financial_year,
         budget_heads: budgetHeadsData // Send budget heads data with old values
       })
@@ -681,7 +685,9 @@ const confirmRevise = async () => {
       },
       body: JSON.stringify({
         ky_ms_no: kyMsNosToRevise,
-        action: 'revise'
+        action: 'revise',
+        state_id: reviseItem.value.state_id,
+        sls_name: reviseItem.value.sls_name || '',
       })
     });
 
