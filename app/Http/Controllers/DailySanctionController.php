@@ -121,6 +121,11 @@ public function list(Request $request)
             ];
         }
 
+        foreach ($budgetHeadsByNo as &$heads) {
+            usort($heads, fn ($a, $b) => strnatcasecmp($a['budget_head'], $b['budget_head']));
+        }
+        unset($heads);
+
         $data = $items->map(function ($item) use ($stateAmounts, $dailySanctionAmounts, $motherSanctionAmounts, $budgetHeadsByNo) {
             $item->full_sls_name = $item->slsComponent ? $item->slsComponent->full_sls_name : null;
             $item->sls_pd = $item->slsComponent ? $item->slsComponent->slsPD : null;
@@ -275,7 +280,9 @@ public function store(Request $request)
             'budget_head' => $item->budget_head,
             'available_fund' => $item->available_fund,
             'mother_sanction_amount' => $item->mother_sanction_amount,
-        ])->filter(fn ($item) => !empty($item['budget_head']))->values();
+        ])->filter(fn ($item) => !empty($item['budget_head']))
+            ->sortBy('budget_head', SORT_NATURAL)
+            ->values();
 
         return response()->json([
             'meta' => $meta,

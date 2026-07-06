@@ -1236,7 +1236,7 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
             ];
         })->filter(function($item) {
             return !empty($item['budget_head']);
-        })->values();
+        })->sortBy('budget_head', SORT_NATURAL)->values();
 
         return response()->json([
             'meta' => [
