@@ -416,6 +416,8 @@ Route::post('/debug-excel', function(Request $request) {
     Route::get('/api/mother-sanction-bulk-upload-lookup', [MotherSanctionController::class, 'getBulkUploadLookup']);
     Route::post('/api/mother-sanction-bulk-insert', [MotherSanctionController::class, 'bulkInsert']);
     Route::get('/api/sls-data/{stateId}', [MotherSanctionController::class, 'getSlsData']);
+    Route::get('/api/sls-pd/{stateId}/{slsIdentifier}', [MotherSanctionController::class, 'getSlsPdMapping'])
+        ->where('slsIdentifier', '.*');
 
     Route::get('/api/fund-allocation/{slsId}/{stateId}', [MotherSanctionController::class, 'getFundAllocationData']);
 

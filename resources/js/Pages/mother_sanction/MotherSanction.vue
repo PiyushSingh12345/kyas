@@ -102,7 +102,7 @@
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
                         <label for="slsId">SLS Name</label>
-                        <select class="form-control" v-model="selectedSlsId" @change="fetchFundAllocationData">
+                        <select class="form-control" v-model="selectedSlsId" @change="onSlsSelected">
                           <option value="">--- Select SLS Name ---</option>
                           <option v-for="sls in slsData" :key="sls.id" :value="sls.name">{{ sls.full_sls_name }}</option>
                         </select>
@@ -1014,7 +1014,9 @@ const prefillFormFromURL = async () => {
     
     if (urlParams.get('sls_name')) {
       selectedSlsId.value = urlParams.get('sls_name');
-      // Fetch fund allocation data after pd_component is set
+      if (!urlParams.get('pd_component')) {
+        await syncPdComponentFromSelectedSls();
+      }
       await fetchFundAllocationData();
     }
     
@@ -1198,6 +1200,9 @@ async function fetchSlsData() {
     const res = await fetch(`/api/sls-data/${selectedState.value}`);
     if (res.ok) {
       slsData.value = await res.json();
+      if (selectedSlsId.value) {
+        await syncPdComponentFromSelectedSls();
+      }
     } else {
       console.error('Failed to fetch SLS data');
     }
@@ -1205,6 +1210,57 @@ async function fetchSlsData() {
     console.error('Error fetching SLS data:', error);
   }
 }
+
+const findSelectedSlsRecord = () => {
+  if (!selectedSlsId.value) {
+    return null;
+  }
+
+  return slsData.value.find(
+    (item) => item.name === selectedSlsId.value || item.full_sls_name === selectedSlsId.value
+  ) || null;
+};
+
+const syncPdComponentFromSelectedSls = async () => {
+  if (!selectedSlsId.value) {
+    pdComponent.value = '';
+    return;
+  }
+
+  const sls = findSelectedSlsRecord();
+  const mappedPd = sls?.slsPD ? String(sls.slsPD).trim() : '';
+
+  if (mappedPd) {
+    pdComponent.value = mappedPd;
+    return;
+  }
+
+  if (!selectedState.value) {
+    pdComponent.value = '';
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `/api/sls-pd/${selectedState.value}/${encodeURIComponent(selectedSlsId.value)}`
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      pdComponent.value = data.slsPD ? String(data.slsPD).trim() : '';
+    } else {
+      pdComponent.value = '';
+    }
+  } catch (error) {
+    console.error('Error fetching SLS PD mapping:', error);
+    pdComponent.value = '';
+  }
+};
+
+const onSlsSelected = async () => {
+  await syncPdComponentFromSelectedSls();
+  await fetchFundAllocationData();
+};
 
 
 
@@ -1226,20 +1282,16 @@ const fetchFundAllocationData = async () => {
       const data = await response.json();
       fundAllocations.value = data;
 
-      if (data.length > 0 && !pdComponent.value) {
-        pdComponent.value = data[0].slsPD;
-      } else if (data.length === 0 && !pdComponent.value) {
-        pdComponent.value = '';
+      if (!pdComponent.value && data.length > 0 && data[0].slsPD) {
+        pdComponent.value = String(data[0].slsPD).trim();
       }
     } else {
       console.error('Failed to fetch fund allocation data');
       fundAllocations.value = [];
-      pdComponent.value = '';
     }
   } catch (error) {
     console.error('Error fetching fund allocation data:', error);
     fundAllocations.value = [];
-    pdComponent.value = '';
   }
 };
 

@@ -34,10 +34,24 @@ class MotherSanctionController extends Controller
     public function getSlsData($stateId)
     {
         $slsData = SlsPDComponent::where('state_id', $stateId)
-                                 ->select('id', 'name','sls_code','full_sls_name')
+                                 ->select('id', 'name', 'sls_code', 'full_sls_name', 'slsPD')
                                  ->get();
 
         return response()->json($slsData);
+    }
+
+    /**
+     * Return mapped PD (slsPD) for a selected SLS within a state.
+     */
+    public function getSlsPdMapping($stateId, $slsIdentifier)
+    {
+        $pdRow = $this->findPdAndSlsCompRow($slsIdentifier, (int) $stateId);
+
+        return response()->json([
+            'slsPD' => $pdRow?->slsPD ?? '',
+            'sls_name' => $pdRow?->name ?? '',
+            'full_sls_name' => $pdRow?->full_sls_name ?? '',
+        ]);
     }
 
     public function getBudgetDetails($id)
@@ -62,16 +76,18 @@ class MotherSanctionController extends Controller
         $budgetPhase = $request->query('budget_phase', 'BE');
         $pdComponent = $request->query('pd_component');
 
-        $programDivisionId = $this->resolveProgramDivisionIdFromSls($slsId, (int) $stateId, $pdComponent);
+        $pdRow = $this->findPdAndSlsCompRow($slsId, (int) $stateId);
+        $resolvedPdComponent = $pdComponent ?: (isset($pdRow->slsPD) ? trim((string) $pdRow->slsPD) : null);
+
+        $programDivisionId = $this->resolveProgramDivisionIdFromSls(
+            $slsId,
+            (int) $stateId,
+            $resolvedPdComponent
+        );
 
         if (!$programDivisionId) {
             return response()->json([]);
         }
-
-        $pdRow = DB::table('pd_and_sls_comp')
-            ->where('state_id', $stateId)
-            ->where('name', $slsId)
-            ->first();
 
         $query = DB::table('pdwise_aap_allocation as pda')
             ->join('budget_heads as bh', 'pda.bh_id', '=', 'bh.id')
@@ -83,7 +99,7 @@ class MotherSanctionController extends Controller
             ->select('bh.budget as budget', 'pda.amount', 'bh.category')
             ->get()
             ->map(function ($item) use ($pdRow) {
-                $item->slsPD = $pdRow->slsPD ?? '';
+                $item->slsPD = isset($pdRow->slsPD) ? $pdRow->slsPD : '';
                 return $item;
             });
 
@@ -1557,6 +1573,28 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
     }
 
     /**
+     * Find an SLS row in pd_and_sls_comp by short name or full SLS label.
+     */
+    private function findPdAndSlsCompRow(?string $slsIdentifier, ?int $stateId): ?object
+    {
+        if (empty($slsIdentifier) || !$stateId) {
+            return null;
+        }
+
+        $trimmed = trim($slsIdentifier);
+
+        return DB::table('pd_and_sls_comp')
+            ->where('state_id', $stateId)
+            ->where(function ($query) use ($trimmed) {
+                $query->whereRaw('TRIM(name) = ?', [$trimmed])
+                    ->orWhereRaw('TRIM(full_sls_name) = ?', [$trimmed])
+                    ->orWhereRaw('name COLLATE utf8mb4_unicode_ci = ?', [$trimmed])
+                    ->orWhereRaw('full_sls_name COLLATE utf8mb4_unicode_ci = ?', [$trimmed]);
+            })
+            ->first();
+    }
+
+    /**
      * Resolve program division ID from pd_component and/or SLS via pd_and_sls_comp.
      *
      * mother_sanction.pd_component may store either a program division name
@@ -1581,6 +1619,19 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
             return null;
         }
 
+        $pdRow = $this->findPdAndSlsCompRow($slsName, $stateId);
+        $slsPd = $pdRow->slsPD ?? null;
+
+        if ($slsPd) {
+            $divisionId = DB::table('md_program_divisions')
+                ->whereRaw('division_name COLLATE utf8mb4_unicode_ci = ?', [trim($slsPd)])
+                ->value('division_id');
+
+            if ($divisionId) {
+                return (int) $divisionId;
+            }
+        }
+
         $programDivisionQuery = DB::table('pd_and_sls_comp as psc')
             ->join('md_program_divisions as md', function ($join) {
                 $join->on(
@@ -1589,14 +1640,23 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                     DB::raw('md.division_name COLLATE utf8mb4_unicode_ci')
                 );
             })
-            ->where('psc.name', $slsName);
+            ->where(function ($query) use ($slsName) {
+                $trimmed = trim($slsName);
+                $query->whereRaw('TRIM(psc.name) = ?', [$trimmed])
+                    ->orWhereRaw('TRIM(psc.full_sls_name) = ?', [$trimmed])
+                    ->orWhereRaw('psc.name COLLATE utf8mb4_unicode_ci = ?', [$trimmed])
+                    ->orWhereRaw('psc.full_sls_name COLLATE utf8mb4_unicode_ci = ?', [$trimmed]);
+            });
 
         if ($stateId) {
             $programDivisionQuery->where('psc.state_id', $stateId);
         }
 
         if ($pdComponent) {
-            $programDivisionQuery->where('psc.slsPD', $pdComponent);
+            $programDivisionQuery->whereRaw(
+                'psc.slsPD COLLATE utf8mb4_unicode_ci = ?',
+                [trim($pdComponent)]
+            );
         }
 
         $programDivisionId = $programDivisionQuery->value('md.division_id');
