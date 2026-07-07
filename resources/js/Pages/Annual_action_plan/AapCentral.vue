@@ -151,7 +151,7 @@
 											<!-- <th rowspan="2" class="align-middle"></th> -->
 											<th class="align-middle fw-sticky"></th>
 											  <th v-for="pd in programDivisions" :key="pd.division_id" colspan="1">
-												  {{ pd.division_name }}<br/>(Proposed by KY)<br/>by as per BE
+												  {{ pd.division_name }}<br/>(Proposed by KY)<br/>by as per {{ selectedPhase }}
 											  </th>
 											  <th class="align-middle">Final Allocation</th>
 											  <!-- <th rowspan="2" class="align-middle">Remarks</th> -->
@@ -526,21 +526,28 @@
 	}
   }
 
-  // Function to handle budget phase change
-  const onBudgetPhaseChange = async () => {
-	await fetchBudgetHeads()
-	// Clear existing allocations when phase changes
+  const reloadAllocationData = async () => {
 	allocationData.value = {}
+	remarksData.value = {}
+	initializeAllocationData()
 	await fetchExistingAllocations()
   }
 
-  // Function to handle financial year change
-  const onFinancialYearChange = async () => {
-	await fetchBudgetHeads()
-	// Clear existing allocations when financial year changes
-	allocationData.value = {}
-	await fetchExistingAllocations()
+  const onFilterChange = async () => {
+	error.value = null
+	try {
+	  await fetchBudgetHeads()
+	  await reloadAllocationData()
+	} catch (err) {
+	  console.error('Error reloading data for selected filters:', err)
+	  error.value = 'Failed to load data for the selected financial year and budget phase'
+	} finally {
+	  nextTick(updateFixedScrollBarWidth)
+	}
   }
+
+  const onBudgetPhaseChange = () => onFilterChange()
+  const onFinancialYearChange = () => onFilterChange()
   
   // Fetch program divisions from API
   const fetchProgramDivisions = async () => {

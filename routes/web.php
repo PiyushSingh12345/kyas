@@ -502,7 +502,7 @@ Route::get('/md-user-types', function () {
     if (request()->header('X-Inertia')) {
         return \Inertia\Inertia::location(route('dashboard'));
     }
-    return MdUserType::select('md_user_type_id', 'user_type_name')->get();
+    return MdUserType::select('md_user_type_id', 'user_type_name')->where('is_active', 1)->get();
 });
 
 
