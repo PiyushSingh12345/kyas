@@ -291,8 +291,8 @@ public function store(Request $request)
     }
 
     /**
-     * Get sum of daily sanction amounts by budget head
-     * This returns the total of all center_share_amount for each budget_head
+     * Get total MS amount and sum of daily sanction amounts by budget head for an SLS.
+     * Balanced Fund Available = total_ms_amount - total_daily_sanctioned (per budget_head + sls).
      */
     public function getDailySanctionAmountsByBudgetHead(Request $request)
     {
@@ -300,6 +300,7 @@ public function store(Request $request)
             $budgetHeads = $request->query('budget_heads');
             $stateId = $request->query('state_id');
             $financialYear = $request->query('financial_year');
+            $slsName = $request->query('sls_name');
 
             if (!$budgetHeads) {
                 return response()->json([
@@ -318,22 +319,26 @@ public function store(Request $request)
                 $budgetHeads = [$budgetHeads];
             }
 
-            // Build query
-            $query = DB::table('daily_sanction')
-                ->where('status', 1)
-                ->whereIn(DB::raw('TRIM(budget_head)'), array_map('trim', $budgetHeads));
+            $trimmedBudgetHeads = array_values(array_filter(array_map('trim', $budgetHeads)));
 
-            // Add optional filters
+            // Sum of daily sanction amounts per budget head (same SLS)
+            $dailyQuery = DB::table('daily_sanction')
+                ->where('status', 1)
+                ->whereIn(DB::raw('TRIM(budget_head)'), $trimmedBudgetHeads);
+
             if ($stateId) {
-                $query->where('state_id', $stateId);
+                $dailyQuery->where('state_id', $stateId);
             }
 
             if ($financialYear) {
-                $query->where('financial_year', $financialYear);
+                $dailyQuery->where('financial_year', $financialYear);
             }
 
-            // Get sum of center_share_amount grouped by budget_head
-            $results = $query
+            if ($slsName) {
+                $dailyQuery->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
+            }
+
+            $dailyResults = $dailyQuery
                 ->select(
                     DB::raw('TRIM(budget_head) as budget_head'),
                     DB::raw('SUM(center_share_amount) as total_amount')
@@ -344,11 +349,44 @@ public function store(Request $request)
                     return [trim($item->budget_head) => floatval($item->total_amount ?? 0)];
                 });
 
-            // Ensure all requested budget heads are in the result (with 0 if not found)
+            // Total mother sanction amount per budget head for the same SLS
+            $msQuery = DB::table('mother_sanction')
+                ->where(function ($q) {
+                    $q->where('status', 1)->orWhere('status', '1');
+                })
+                ->whereIn(DB::raw('TRIM(budget_head)'), $trimmedBudgetHeads)
+                ->whereNotNull('mother_sanction_amount');
+
+            if ($stateId) {
+                $msQuery->where('state_id', $stateId);
+            }
+
+            if ($financialYear) {
+                $msQuery->where('financial_year', $financialYear);
+            }
+
+            if ($slsName) {
+                $msQuery->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
+            }
+
+            $msResults = $msQuery
+                ->select(
+                    DB::raw('TRIM(budget_head) as budget_head'),
+                    DB::raw('SUM(mother_sanction_amount) as total_amount')
+                )
+                ->groupBy(DB::raw('TRIM(budget_head)'))
+                ->get()
+                ->mapWithKeys(function ($item) {
+                    return [trim($item->budget_head) => floatval($item->total_amount ?? 0)];
+                });
+
+            // Ensure all requested budget heads are in the result
             $data = [];
-            foreach ($budgetHeads as $bh) {
-                $bh = trim($bh);
-                $data[$bh] = $results->get($bh, 0);
+            foreach ($trimmedBudgetHeads as $bh) {
+                $data[$bh] = [
+                    'total_ms_amount' => $msResults->get($bh, 0),
+                    'total_daily_sanctioned' => $dailyResults->get($bh, 0),
+                ];
             }
 
             return response()->json([

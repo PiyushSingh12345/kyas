@@ -257,7 +257,8 @@ const slsName = ref('')
 const slsID = ref('')
 const remark = ref('')
 const sanctionDetails = ref([])
-const balancedFundData = ref({}) // Store balanced fund amounts by budget head
+// Store balanced fund data by budget head: { total_ms_amount, total_daily_sanctioned }
+const balancedFundData = ref({})
 
 // PDF Upload state
 const selectedFile = ref(null)
@@ -491,7 +492,8 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
   }
 }
 
-// Fetch balanced fund available (sum of daily sanction amounts) for budget heads
+// Fetch balanced fund available for budget heads of the selected SLS:
+// Total MS amount (budget head + SLS) - Sum of daily sanctions (budget head + same SLS)
 const fetchBalancedFundAvailable = async (budgetHeads) => {
   if (!budgetHeads || budgetHeads.length === 0) {
     balancedFundData.value = {}
@@ -511,6 +513,10 @@ const fetchBalancedFundAvailable = async (budgetHeads) => {
       params.append('financial_year', financialYear.value)
     }
 
+    if (slsName.value) {
+      params.append('sls_name', slsName.value)
+    }
+
     const res = await fetch(`/api/daily-sanction-amounts-by-budget-head?${params.toString()}`)
     if (res.ok) {
       const data = await res.json()
@@ -528,21 +534,19 @@ const fetchBalancedFundAvailable = async (budgetHeads) => {
   }
 }
 
-// Get balanced fund available for a row: Mother Sanctioned Amount - total already daily sanctioned
+// Get balanced fund available for a row:
+// Total MS amount of the budget head for the SLS - Sum of daily sanctions for that budget head + SLS
 const getBalancedFundAvailable = (row) => {
-  if (!row || !row.budget_head) return '0.00000'
-  const motherSanctioned = parseFloat(row.mother_sanction_amount || 0)
-  const alreadySanctioned = parseFloat(balancedFundData.value[row.budget_head] || 0)
-  const amount = Math.max(0, motherSanctioned - alreadySanctioned)
-  return amount.toFixed(5)
+  return getBalancedFundAvailableNumeric(row).toFixed(5)
 }
 
 // Get balanced fund available as numeric value for comparison
 const getBalancedFundAvailableNumeric = (row) => {
   if (!row || !row.budget_head) return 0
-  const motherSanctioned = parseFloat(row.mother_sanction_amount || 0)
-  const alreadySanctioned = parseFloat(balancedFundData.value[row.budget_head] || 0)
-  return Math.max(0, motherSanctioned - alreadySanctioned)
+  const fundData = balancedFundData.value[row.budget_head] || {}
+  const totalMsAmount = parseFloat(fundData.total_ms_amount || 0)
+  const alreadySanctioned = parseFloat(fundData.total_daily_sanctioned || 0)
+  return Math.max(0, totalMsAmount - alreadySanctioned)
 }
 
 // Check if the entered amount exceeds balanced fund available
