@@ -208,17 +208,24 @@
                           <td>
                            <input 
                               type="number" 
-                              v-model="row.sanction_amount" 
+                              :value="row.sanction_amount"
                               class="form-control tableform-control-withoutbg"
-                              @input="checkSanctionAmount(row)"
+                              min="0"
+                              step="any"
+                              :max="getMaxAllowedSanctionAmount(row)"
+                              @input="onSanctionAmountInput(row, $event)"
                             >
                           </td>
                           <td>
                            <input 
                               type="number" 
-                              v-model="row.carry_forward" 
+                              :value="row.carry_forward"
                               class="form-control tableform-control-withoutbg"
+                              min="0"
+                              step="any"
+                              :max="getMaxAllowedCarryForwardAmount(row)"
                               :disabled="row.revise_locked"
+                              @input="onCarryForwardInput(row, $event)"
                             >
                           </td>
                           <td class="text-center">
@@ -573,6 +580,7 @@ const getReleasedAmountCacheKey = (budgetHead) => {
     selectedState.value,
     selectedSlsId.value,
     financialYear.value,
+    pdComponent.value,
   ].join('|')
 }
 
@@ -639,26 +647,140 @@ const fetchReleasedAmount = async (budgetHead) => {
   }
 }
 
-// Function to get current available fund amount
-// Formula: Current Available Fund Amount = (Total Allocation corresponding to the budget head) - (Total M.S Release)
-const getCurrentAvailableFundAmount = (row) => {
+// Current Available Fund = PD budget head allocation - total MS created for that PD and budget head
+const getCurrentAvailableFundAmountNumeric = (row) => {
   if (!row.budget_head) {
-    return '0.00000';
+    return 0;
   }
-  
-  // Total Allocation = available_amount (sum of all allocations for this budget head corresponding to SLS and state)
-  const totalAllocation = parseFloat(row.available_amount) || 0;
-  
-  // Total M.S Release for this budget head within the selected state/SLS/FY
+
+  const pdAllocation = parseFloat(row.available_amount) || 0;
   const cacheKey = getReleasedAmountCacheKey(row.budget_head);
-  const totalMsRelease = releasedAmounts.value[cacheKey] || 0;
-  
-  // Current Available Fund Amount = Total Allocation - Total M.S Release
-  const currentAvailable = totalAllocation - totalMsRelease;
-  
-  // Format to 5 decimal places
-  return currentAvailable >= 0 ? currentAvailable.toFixed(5) : '0.00000';
-}
+  const totalMsCreated = releasedAmounts.value[cacheKey] || 0;
+  const currentAvailable = pdAllocation - totalMsCreated;
+
+  return currentAvailable > 0 ? currentAvailable : 0;
+};
+
+const getCurrentAvailableFundAmount = (row) => {
+  return getCurrentAvailableFundAmountNumeric(row).toFixed(5);
+};
+
+const SANCTION_LIMIT_MESSAGE = 'Mother Sanction Amount + Carry Forward cannot exceed Current Available Fund Amount.';
+
+const getRowTotalSanctionEntry = (row) => {
+  const sanction = parseFloat(row.sanction_amount) || 0;
+  const carryForward = parseFloat(row.carry_forward) || 0;
+  return sanction + carryForward;
+};
+
+const exceedsCurrentAvailableFund = (row) => {
+  return getRowTotalSanctionEntry(row) > getCurrentAvailableFundAmountNumeric(row);
+};
+
+const getMaxAllowedSanctionAmount = (row) => {
+  const available = getCurrentAvailableFundAmountNumeric(row);
+  const carryForward = parseFloat(row.carry_forward) || 0;
+  return Math.max(0, available - carryForward);
+};
+
+const getMaxAllowedCarryForwardAmount = (row) => {
+  const available = getCurrentAvailableFundAmountNumeric(row);
+  const sanction = parseFloat(row.sanction_amount) || 0;
+  return Math.max(0, available - sanction);
+};
+
+const formatLimitedAmount = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) {
+    return '';
+  }
+
+  return String(num);
+};
+
+let lastSanctionLimitFlashAt = 0;
+
+const showSanctionLimitFlash = () => {
+  const now = Date.now();
+  if (now - lastSanctionLimitFlashAt < 1500) {
+    return;
+  }
+
+  lastSanctionLimitFlashAt = now;
+  showFlashMessage('danger', SANCTION_LIMIT_MESSAGE, 'fas fa-exclamation-triangle');
+};
+
+const parseInputAmount = (value) => {
+  if (value === '' || value === null || value === undefined) {
+    return 0;
+  }
+
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const applySanctionLimitOnInput = (row, changedField, rawValue, event) => {
+  if (!row.budget_head) {
+    return;
+  }
+
+  const available = getCurrentAvailableFundAmountNumeric(row);
+
+  if (rawValue === '' || rawValue === null) {
+    if (changedField === 'sanction') {
+      row.sanction_amount = '';
+    } else {
+      row.carry_forward = '';
+    }
+    return;
+  }
+
+  const typedValue = parseInputAmount(rawValue);
+  const otherValue = changedField === 'sanction'
+    ? parseInputAmount(row.carry_forward)
+    : parseInputAmount(row.sanction_amount);
+
+  const total = changedField === 'sanction'
+    ? typedValue + otherValue
+    : otherValue + typedValue;
+
+  if (total <= available) {
+    if (changedField === 'sanction') {
+      row.sanction_amount = rawValue;
+    } else {
+      row.carry_forward = rawValue;
+    }
+    return;
+  }
+
+  showSanctionLimitFlash();
+
+  const cappedValue = changedField === 'sanction'
+    ? Math.max(0, available - otherValue)
+    : Math.max(0, available - otherValue);
+
+  const formattedValue = formatLimitedAmount(cappedValue);
+
+  if (changedField === 'sanction') {
+    row.sanction_amount = formattedValue;
+  } else {
+    row.carry_forward = formattedValue === '' ? '0.00000' : formattedValue;
+  }
+
+  if (event?.target) {
+    event.target.value = changedField === 'sanction'
+      ? row.sanction_amount
+      : row.carry_forward;
+  }
+};
+
+const onSanctionAmountInput = (row, event) => {
+  applySanctionLimitOnInput(row, 'sanction', event.target.value, event);
+};
+
+const onCarryForwardInput = (row, event) => {
+  applySanctionLimitOnInput(row, 'carry_forward', event.target.value, event);
+};
 
 const handleUcFileChange = (e) => {
   const file = e.target.files[0];
@@ -678,16 +800,6 @@ const handleUcFileChange = (e) => {
 };
 
 
-
-const checkSanctionAmount = (row) => {
-  const sanction = parseFloat(row.sanction_amount);
-  const available = parseFloat(row.available_amount);
-
-  if (!isNaN(sanction) && !isNaN(available) && sanction > available) {
-    alert("    Sanction amount exceeds available funds!");
-    row.sanction_amount = ''; // Optionally reset the value
-  }
-};
 
 const selectedBudgetHeads = computed(() =>
   reappropriations.value.map(row => row.budget_head).filter(Boolean)
@@ -740,6 +852,19 @@ const validateForm = () => {
 
   if (!hasBudgetData) {
     showFlashMessage('danger', 'Please add at least one budget allocation with sanction amount.', 'fas fa-exclamation-triangle');
+    return false;
+  }
+
+  const exceedsAvailableFund = reappropriations.value.some((row) => {
+    return row.budget_head && row.sanction_amount && exceedsCurrentAvailableFund(row);
+  });
+
+  if (exceedsAvailableFund) {
+    showFlashMessage(
+      'danger',
+      SANCTION_LIMIT_MESSAGE,
+      'fas fa-exclamation-triangle'
+    );
     return false;
   }
 
@@ -1260,6 +1385,12 @@ const syncPdComponentFromSelectedSls = async () => {
 const onSlsSelected = async () => {
   await syncPdComponentFromSelectedSls();
   await fetchFundAllocationData();
+  releasedAmounts.value = {};
+  for (const row of reappropriations.value) {
+    if (row.budget_head) {
+      await fetchBudgetDetails(row);
+    }
+  }
 };
 
 
@@ -1381,6 +1512,20 @@ watch([selectedSlsId, selectedState, financialYear], () => {
   }
   clearAllBudgetDetails();
   releasedAmounts.value = {};
+});
+
+watch(pdComponent, async () => {
+  if (isPrefilling.value || !pdComponent.value) {
+    return;
+  }
+
+  releasedAmounts.value = {};
+
+  for (const row of reappropriations.value) {
+    if (row.budget_head) {
+      await fetchBudgetDetails(row);
+    }
+  }
 });
 
 // Watch for changes in budget heads to refresh released amounts

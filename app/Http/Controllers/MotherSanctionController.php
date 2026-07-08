@@ -371,7 +371,8 @@ class MotherSanctionController extends Controller
     }
 
     /**
-     * Get sum of mother_sanction_amount for a given budget_head and pd_component
+     * Get sum of mother sanction amounts for a budget head scoped to the selected PD.
+     * Uses net MS (excludes carry forward on revised records) across all created records.
      */
     public function getMotherSanctionReleasedAmount(Request $request)
     {
@@ -392,7 +393,6 @@ class MotherSanctionController extends Controller
 
             $query = DB::table('mother_sanction')
                 ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
-                ->where('status', 1)
                 ->whereNotNull('mother_sanction_amount');
 
             if ($stateId) {
@@ -400,7 +400,11 @@ class MotherSanctionController extends Controller
             }
 
             if ($slsName) {
-                $query->where('sls_name', $slsName);
+                $trimmedSls = trim($slsName);
+                $query->where(function ($slsQuery) use ($trimmedSls) {
+                    $slsQuery->whereRaw('TRIM(sls_name) = ?', [$trimmedSls])
+                        ->orWhereRaw('TRIM(sls_name) COLLATE utf8mb4_unicode_ci = ?', [$trimmedSls]);
+                });
             }
 
             if ($financialYear) {
@@ -410,11 +414,30 @@ class MotherSanctionController extends Controller
                 }
             }
 
-            if ($pdComponent) {
-                $query->whereRaw('TRIM(pd_component) COLLATE utf8mb4_unicode_ci = TRIM(?) COLLATE utf8mb4_unicode_ci', [$pdComponent]);
+            $pdMatchValues = $this->getPdComponentMatchValues(
+                $pdComponent,
+                $slsName,
+                $stateId ? (int) $stateId : null
+            );
+
+            if (!empty($pdMatchValues)) {
+                $query->where(function ($pdQuery) use ($pdMatchValues) {
+                    foreach ($pdMatchValues as $pdValue) {
+                        $pdQuery->orWhereRaw(
+                            'TRIM(pd_component) COLLATE utf8mb4_unicode_ci = ?',
+                            [trim($pdValue)]
+                        );
+                    }
+                });
+            } elseif ($pdComponent) {
+                $query->whereRaw(
+                    'TRIM(pd_component) COLLATE utf8mb4_unicode_ci = TRIM(?)',
+                    [trim($pdComponent)]
+                );
             }
-            
-            $totalReleased = $query->sum('mother_sanction_amount');
+
+            $records = $query->get();
+            $totalReleased = $records->sum(fn ($record) => $this->netMotherSanctionAmountForTotal($record));
 
             return response()->json([
                 'success' => true,
@@ -429,6 +452,48 @@ class MotherSanctionController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * PD labels that should match mother_sanction.pd_component for a selected form PD.
+     *
+     * @return array<int, string>
+     */
+    private function getPdComponentMatchValues(
+        ?string $pdComponent,
+        ?string $slsName,
+        ?int $stateId
+    ): array {
+        $values = [];
+
+        if ($pdComponent) {
+            $values[] = trim($pdComponent);
+        }
+
+        if ($pdComponent) {
+            $divisionName = DB::table('md_program_divisions')
+                ->whereRaw('division_name COLLATE utf8mb4_unicode_ci = ?', [trim($pdComponent)])
+                ->value('division_name');
+
+            if ($divisionName) {
+                $values[] = trim($divisionName);
+            }
+        }
+
+        $pdRow = $this->findPdAndSlsCompRow($slsName, $stateId);
+        if ($pdRow && !empty($pdRow->slsPD)) {
+            $values[] = trim((string) $pdRow->slsPD);
+
+            $mappedDivisionName = DB::table('md_program_divisions')
+                ->whereRaw('division_name COLLATE utf8mb4_unicode_ci = ?', [trim((string) $pdRow->slsPD)])
+                ->value('division_name');
+
+            if ($mappedDivisionName) {
+                $values[] = trim($mappedDivisionName);
+            }
+        }
+
+        return array_values(array_unique(array_filter($values)));
     }
 
     /**
