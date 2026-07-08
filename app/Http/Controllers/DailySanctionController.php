@@ -291,15 +291,31 @@ public function store(Request $request)
     }
 
     /**
+     * Net mother sanction amount (excludes carry forward baked into revised MS amounts).
+     * Matches MotherSanctionController::netMotherSanctionAmountForTotal and Mother Sanction List totals.
+     */
+    private function netMotherSanctionAmountForTotal(object $record): float
+    {
+        $ms = floatval($record->mother_sanction_amount ?? 0);
+        $carryForward = floatval($record->carry_forward_amount ?? 0);
+
+        if (($record->action_type ?? '') === 'REVISED') {
+            return $ms - $carryForward;
+        }
+
+        return $ms;
+    }
+
+    /**
      * Get total MS amount and sum of daily sanction amounts by budget head for an SLS.
-     * Balanced Fund Available = total_ms_amount - total_daily_sanctioned (per budget_head + sls).
+     * Balanced Fund Available = net total_ms_amount - total_daily_sanctioned (per budget_head + sls + state),
+     * same as Available Fund on the Mother Sanction List page.
      */
     public function getDailySanctionAmountsByBudgetHead(Request $request)
     {
         try {
             $budgetHeads = $request->query('budget_heads');
             $stateId = $request->query('state_id');
-            $financialYear = $request->query('financial_year');
             $slsName = $request->query('sls_name');
 
             if (!$budgetHeads) {
@@ -321,20 +337,29 @@ public function store(Request $request)
 
             $trimmedBudgetHeads = array_values(array_filter(array_map('trim', $budgetHeads)));
 
-            // Sum of daily sanction amounts per budget head (same SLS)
+            $kyMsNos = [];
+            if ($stateId && $slsName) {
+                $kyMsNos = DB::table('mother_sanction')
+                    ->where('state_id', (int) $stateId)
+                    ->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName])
+                    ->whereNotNull('ky_ms_no')
+                    ->pluck('ky_ms_no')
+                    ->unique()
+                    ->values()
+                    ->toArray();
+            }
+
+            // Expenditure: total daily sanctions for budget head + state + SLS (matches Mother Sanction List)
             $dailyQuery = DB::table('daily_sanction')
-                ->where('status', 1)
                 ->whereIn(DB::raw('TRIM(budget_head)'), $trimmedBudgetHeads);
 
             if ($stateId) {
-                $dailyQuery->where('state_id', $stateId);
+                $dailyQuery->where('state_id', (int) $stateId);
             }
 
-            if ($financialYear) {
-                $dailyQuery->where('financial_year', $financialYear);
-            }
-
-            if ($slsName) {
+            if (!empty($kyMsNos)) {
+                $dailyQuery->whereIn('mother_sanction', $kyMsNos);
+            } elseif ($slsName) {
                 $dailyQuery->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
             }
 
@@ -349,20 +374,13 @@ public function store(Request $request)
                     return [trim($item->budget_head) => floatval($item->total_amount ?? 0)];
                 });
 
-            // Total mother sanction amount per budget head for the same SLS
+            // Net mother sanction total per budget head (excludes carry forward on revised records)
             $msQuery = DB::table('mother_sanction')
-                ->where(function ($q) {
-                    $q->where('status', 1)->orWhere('status', '1');
-                })
                 ->whereIn(DB::raw('TRIM(budget_head)'), $trimmedBudgetHeads)
                 ->whereNotNull('mother_sanction_amount');
 
             if ($stateId) {
-                $msQuery->where('state_id', $stateId);
-            }
-
-            if ($financialYear) {
-                $msQuery->where('financial_year', $financialYear);
+                $msQuery->where('state_id', (int) $stateId);
             }
 
             if ($slsName) {
@@ -370,15 +388,10 @@ public function store(Request $request)
             }
 
             $msResults = $msQuery
-                ->select(
-                    DB::raw('TRIM(budget_head) as budget_head'),
-                    DB::raw('SUM(mother_sanction_amount) as total_amount')
-                )
-                ->groupBy(DB::raw('TRIM(budget_head)'))
+                ->select('budget_head', 'mother_sanction_amount', 'carry_forward_amount', 'action_type')
                 ->get()
-                ->mapWithKeys(function ($item) {
-                    return [trim($item->budget_head) => floatval($item->total_amount ?? 0)];
-                });
+                ->groupBy(fn ($item) => trim((string) $item->budget_head))
+                ->map(fn ($records) => $records->sum(fn ($record) => $this->netMotherSanctionAmountForTotal($record)));
 
             // Ensure all requested budget heads are in the result
             $data = [];

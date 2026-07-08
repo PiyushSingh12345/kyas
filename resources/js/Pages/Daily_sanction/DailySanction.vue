@@ -493,7 +493,7 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
 }
 
 // Fetch balanced fund available for budget heads of the selected SLS:
-// Total MS amount (budget head + SLS) - Sum of daily sanctions (budget head + same SLS)
+// Net total MS (without carry forward) - total daily sanctions (same budget head, SLS, and state)
 const fetchBalancedFundAvailable = async (budgetHeads) => {
   if (!budgetHeads || budgetHeads.length === 0) {
     balancedFundData.value = {}
@@ -507,10 +507,6 @@ const fetchBalancedFundAvailable = async (budgetHeads) => {
     
     if (selectedState.value) {
       params.append('state_id', selectedState.value)
-    }
-    
-    if (financialYear.value) {
-      params.append('financial_year', financialYear.value)
     }
 
     if (slsName.value) {
@@ -534,8 +530,7 @@ const fetchBalancedFundAvailable = async (budgetHeads) => {
   }
 }
 
-// Get balanced fund available for a row:
-// Total MS amount of the budget head for the SLS - Sum of daily sanctions for that budget head + SLS
+// Balanced Fund Available = net MS total (excl. carry forward) - daily sanctions for same budget head, SLS, and state
 const getBalancedFundAvailable = (row) => {
   return getBalancedFundAvailableNumeric(row).toFixed(5)
 }
