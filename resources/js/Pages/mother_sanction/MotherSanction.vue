@@ -686,6 +686,27 @@ const getMaxAllowedCarryForwardAmount = (row) => {
   return Math.max(0, available - sanction);
 };
 
+const motherSanctionExceedsAvailableFund = (row) => {
+  if (!row.budget_head || row.sanction_amount === '' || row.sanction_amount == null) {
+    return false;
+  }
+
+  const sanction = parseFloat(row.sanction_amount) || 0;
+  return sanction > getCurrentAvailableFundAmountNumeric(row);
+};
+
+const capMotherSanctionAmount = (row) => {
+  const available = getCurrentAvailableFundAmountNumeric(row);
+  const sanction = parseFloat(row.sanction_amount) || 0;
+
+  if (sanction <= available) {
+    return false;
+  }
+
+  row.sanction_amount = available > 0 ? formatLimitedAmount(available) : '';
+  return true;
+};
+
 const formatLimitedAmount = (value) => {
   const num = parseFloat(value);
   if (isNaN(num) || num <= 0) {
@@ -705,12 +726,9 @@ const applySanctionLimitOnInput = (row, changedField) => {
   const carryForward = parseFloat(row.carry_forward) || 0;
 
   if (changedField === 'sanction') {
-    if (sanction <= available) {
-      return;
+    if (capMotherSanctionAmount(row)) {
+      showFlashMessage('danger', MOTHER_SANCTION_LIMIT_MESSAGE, 'fas fa-exclamation-triangle');
     }
-
-    showFlashMessage('danger', MOTHER_SANCTION_LIMIT_MESSAGE, 'fas fa-exclamation-triangle');
-    row.sanction_amount = available > 0 ? formatLimitedAmount(available) : '';
     return;
   }
 
@@ -727,6 +745,20 @@ const applySanctionLimitOnInput = (row, changedField) => {
 
 const onSanctionAmountInput = (row) => {
   applySanctionLimitOnInput(row, 'sanction');
+};
+
+const validateMotherSanctionAmountLimits = () => {
+  const invalidRows = reappropriations.value.filter(
+    (row) => row.budget_head && row.sanction_amount && motherSanctionExceedsAvailableFund(row)
+  );
+
+  if (!invalidRows.length) {
+    return true;
+  }
+
+  invalidRows.forEach((row) => capMotherSanctionAmount(row));
+  showFlashMessage('danger', MOTHER_SANCTION_LIMIT_MESSAGE, 'fas fa-exclamation-triangle');
+  return false;
 };
 
 const onCarryForwardInput = (row) => {
@@ -806,24 +838,7 @@ const validateForm = () => {
     return false;
   }
 
-  const exceedsAvailableFund = reappropriations.value.some((row) => {
-    if (!row.budget_head || !row.sanction_amount) {
-      return false;
-    }
-
-    const available = getCurrentAvailableFundAmountNumeric(row);
-    const sanction = parseFloat(row.sanction_amount) || 0;
-    const carryForward = parseFloat(row.carry_forward) || 0;
-
-    return sanction > available || sanction + carryForward > available;
-  });
-
-  if (exceedsAvailableFund) {
-    showFlashMessage(
-      'danger',
-      MOTHER_SANCTION_LIMIT_MESSAGE,
-      'fas fa-exclamation-triangle'
-    );
+  if (!validateMotherSanctionAmountLimits()) {
     return false;
   }
 
