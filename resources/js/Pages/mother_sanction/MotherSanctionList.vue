@@ -59,6 +59,7 @@
 
                     <!-- Data Tables -->
                     <div>
+                      <div ref="reportTableScrollWrapper" class="report-table-scroll-wrapper" @scroll="onTableWrapperScroll">
                       <div class="table-responsive">
                         <table class="table table-bordered table-head-bg-primary">
                           <thead>
@@ -180,6 +181,7 @@
                           </tbody>
                         </table>
                       </div>
+                      </div>
                     </div>
                     
                     
@@ -190,6 +192,15 @@
               </div>
             </div>
           </div>
+        </div>
+        <!-- Fixed horizontal scrollbar at bottom of viewport -->
+        <div
+          v-show="showFixedScrollBar"
+          ref="fixedScrollBar"
+          class="fixed-horizontal-scrollbar"
+          @scroll="onFixedScrollBarScroll"
+        >
+          <div ref="fixedScrollBarInner" class="fixed-horizontal-scrollbar-inner"></div>
         </div>
         <Footer />
     </div>
@@ -270,10 +281,23 @@ import { Link } from '@inertiajs/vue3'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import { useFixedHorizontalScroll } from '../../Composables/useFixedHorizontalScroll'
 
 const motherSanctions = ref([])
 const isLoading = ref(false)
 const error = ref(null)
+
+const {
+  reportTableScrollWrapper,
+  fixedScrollBar,
+  fixedScrollBarInner,
+  showFixedScrollBar,
+  onTableWrapperScroll,
+  onFixedScrollBarScroll,
+  refreshFixedHorizontalScroll,
+} = useFixedHorizontalScroll({
+  shouldUpdate: () => !isLoading.value && !error.value,
+})
 const showConfirmDialog = ref(false)
 const selectedItem = ref(null)
 const selectedIndex = ref(null)
@@ -312,6 +336,7 @@ const hideFlashMessage = () => {
 
 onMounted(async () => {
   await fetchMotherSanctions()
+  refreshFixedHorizontalScroll()
 })
 
 const fetchMotherSanctions = async () => {
@@ -340,6 +365,7 @@ const fetchMotherSanctions = async () => {
     error.value = 'Network error occurred while fetching data';
   } finally {
     isLoading.value = false
+    refreshFixedHorizontalScroll()
   }
 };
 

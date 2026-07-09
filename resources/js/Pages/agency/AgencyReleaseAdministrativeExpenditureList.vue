@@ -55,6 +55,7 @@
 
                   <!-- Data Table -->
                   <div v-else>
+                    <div ref="reportTableScrollWrapper" class="report-table-scroll-wrapper" @scroll="onTableWrapperScroll">
                     <div class="table-responsive">
                       <table class="table table-bordered table-head-bg-primary">
                         <thead>
@@ -111,12 +112,22 @@
                         </tbody>
                       </table>
                     </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+      <!-- Fixed horizontal scrollbar at bottom of viewport -->
+      <div
+        v-show="showFixedScrollBar"
+        ref="fixedScrollBar"
+        class="fixed-horizontal-scrollbar"
+        @scroll="onFixedScrollBarScroll"
+      >
+        <div ref="fixedScrollBarInner" class="fixed-horizontal-scrollbar-inner"></div>
       </div>
       <Footer />
     </div>
@@ -295,10 +306,24 @@ import { ref, onMounted, watch, computed } from 'vue'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import { useFixedHorizontalScroll } from '../../Composables/useFixedHorizontalScroll'
 
 const adminExpList = ref([])
 const isLoading = ref(false)
 const error = ref(null)
+
+const {
+  reportTableScrollWrapper,
+  fixedScrollBar,
+  fixedScrollBarInner,
+  showFixedScrollBar,
+  onTableWrapperScroll,
+  onFixedScrollBarScroll,
+  refreshFixedHorizontalScroll,
+} = useFixedHorizontalScroll({
+  shouldUpdate: () => !isLoading.value && !error.value,
+})
+
 const showCloseDialog = ref(false)
 const closeItem = ref(null)
 const closeIndex = ref(null)
@@ -358,6 +383,7 @@ const hideFlashMessage = () => {
 onMounted(async () => {
   await fetchAdminExpList()
   await Promise.all([fetchBudgetHeads(), fetchProgramDivisions()])
+  refreshFixedHorizontalScroll()
 })
 
 watch(() => [editForm.value.budgetHead, editForm.value.programDivision], () => {
@@ -384,6 +410,7 @@ const fetchAdminExpList = async () => {
     error.value = 'Network error occurred while fetching Administrative Expenditure data';
   } finally {
     isLoading.value = false
+    refreshFixedHorizontalScroll()
   }
 };
 

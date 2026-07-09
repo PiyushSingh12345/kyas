@@ -169,6 +169,7 @@
                       </div>
                     </div>
                     
+                    <div ref="reportTableScrollWrapper" class="report-table-scroll-wrapper" @scroll="onTableWrapperScroll">
                     <div class="table-responsive mt-1" id="reportTable">
                       <table class="table table-bordered table-head-bg-primary">
                         <thead>
@@ -244,6 +245,7 @@
                       </table>
 
                     </div>
+                    </div>
 
                     <!-- <div class="table-responsive">
                       <table class="table table-bordered table-head-bg-primary">
@@ -282,6 +284,15 @@
             </div>
           </div>
         </div>
+        <!-- Fixed horizontal scrollbar at bottom of viewport -->
+        <div
+          v-show="showFixedScrollBar"
+          ref="fixedScrollBar"
+          class="fixed-horizontal-scrollbar"
+          @scroll="onFixedScrollBarScroll"
+        >
+          <div ref="fixedScrollBarInner" class="fixed-horizontal-scrollbar-inner"></div>
+        </div>
         <Footer />
     </div>
   </div>
@@ -297,6 +308,7 @@ import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
 import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
 import { useAmountIn } from '../../Composables/useAmountIn'
+import { useFixedHorizontalScroll } from '../../Composables/useFixedHorizontalScroll'
 
 const motherSanctions = ref([])
 const allMotherSanctions = ref([])
@@ -308,6 +320,18 @@ const searchTerm = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
 const { amountIn, amountInText, formatAmount } = useAmountIn('Rupees', 'Rupees')
+
+const {
+  reportTableScrollWrapper,
+  fixedScrollBar,
+  fixedScrollBarInner,
+  showFixedScrollBar,
+  onTableWrapperScroll,
+  onFixedScrollBarScroll,
+  refreshFixedHorizontalScroll,
+} = useFixedHorizontalScroll({
+  shouldUpdate: () => !isLoading.value && !errorMessage.value,
+})
 
 // Function to format date to dd-mm-yyyy format
 const formatDate = (dateString) => {
@@ -370,6 +394,7 @@ const fetchDailySanctions = async (financialYear = '') => {
     errorMessage.value = `Error fetching data: ${error.message}`
   } finally {
     isLoading.value = false
+    refreshFixedHorizontalScroll()
   }
 }
 
@@ -575,6 +600,7 @@ const exportToPDF = () => {
 
 onMounted(async () => {
   await fetchDailySanctions('')
+  refreshFixedHorizontalScroll()
 });
 </script>
 

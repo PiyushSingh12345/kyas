@@ -38,7 +38,9 @@
                       </div>
                       <p class="mt-2 mb-0 text-muted">Loading daily sanctions...</p>
                     </div>
-                    <div v-else class="table-responsive mt-1">
+                    <div v-else>
+                      <div ref="reportTableScrollWrapper" class="report-table-scroll-wrapper" @scroll="onTableWrapperScroll">
+                      <div class="table-responsive mt-1">
                       <table class="table table-bordered table-head-bg-primary">
                         <thead>
                         <tr>
@@ -112,6 +114,8 @@
                       </table>
 
                     </div>
+                    </div>
+                    </div>
                     <div v-if="!loading && paginationMeta.total > 0" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3">
                       <div class="text-muted small">
                         Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} entries
@@ -170,6 +174,15 @@
             </div>
           </div>
         </div>
+        <!-- Fixed horizontal scrollbar at bottom of viewport -->
+        <div
+          v-show="showFixedScrollBar"
+          ref="fixedScrollBar"
+          class="fixed-horizontal-scrollbar"
+          @scroll="onFixedScrollBarScroll"
+        >
+          <div ref="fixedScrollBarInner" class="fixed-horizontal-scrollbar-inner"></div>
+        </div>
         <Footer />
     </div>
   </div>
@@ -182,9 +195,22 @@ import { Link } from '@inertiajs/vue3'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
 import Footer from '../Common/Footer.vue'
+import { useFixedHorizontalScroll } from '../../Composables/useFixedHorizontalScroll'
 
 const motherSanctions = ref([])
 const loading = ref(false)
+
+const {
+  reportTableScrollWrapper,
+  fixedScrollBar,
+  fixedScrollBarInner,
+  showFixedScrollBar,
+  onTableWrapperScroll,
+  onFixedScrollBarScroll,
+  refreshFixedHorizontalScroll,
+} = useFixedHorizontalScroll({
+  shouldUpdate: () => !loading.value,
+})
 const currentPage = ref(1)
 const perPage = ref(20)
 const paginationMeta = ref({
@@ -214,6 +240,7 @@ const fetchList = async (page = 1) => {
     motherSanctions.value = []
   } finally {
     loading.value = false
+    refreshFixedHorizontalScroll()
   }
 }
 
@@ -263,6 +290,7 @@ const formatCurrency = (amount) => {
 
 onMounted(() => {
   fetchList(1)
+  refreshFixedHorizontalScroll()
 })
 </script>
 

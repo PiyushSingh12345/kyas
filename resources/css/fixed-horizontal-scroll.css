@@ -1,0 +1,92 @@
+/* Horizontal scroll wrapper for report table - scrollbar at bottom of wrapper + fixed bar at viewport bottom */
+.report-table-scroll-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  background: #fff;
+  padding: 0;
+  margin-top: 4px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar {
+  height: 10px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar-track {
+  background: #f1f3f5;
+  border-radius: 0 0 6px 6px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: #868e96;
+  border-radius: 5px;
+}
+
+.report-table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #495057;
+}
+
+.report-table-scroll-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: #868e96 #f1f3f5;
+}
+
+.report-table-scroll-wrapper .table-responsive {
+  margin-bottom: 0;
+  min-width: max-content;
+  width: max-content;
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+.report-table-scroll-wrapper table {
+  min-width: max-content;
+  width: max-content;
+}
+
+/* Fixed horizontal scrollbar at bottom of viewport */
+.fixed-horizontal-scrollbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #f1f3f5;
+  z-index: 1030;
+  border-top: 1px solid #dee2e6;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.fixed-horizontal-scrollbar-inner {
+  height: 1px;
+  pointer-events: none;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar {
+  height: 12px;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: #e9ecef;
+  border-radius: 0;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: #868e96;
+  border-radius: 6px;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #495057;
+}
+
+.fixed-horizontal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #868e96 #e9ecef;
+}
