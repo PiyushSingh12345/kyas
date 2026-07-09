@@ -371,16 +371,15 @@ class MotherSanctionController extends Controller
     }
 
     /**
-     * Get sum of mother sanction amounts for a budget head scoped to the selected PD.
+     * Get sum of mother sanction amounts for a budget head scoped to the selected program division (PD) and FY.
      * Uses net MS (excludes carry forward on revised records) across all created records.
+     * Not filtered by state or SLS.
      */
     public function getMotherSanctionReleasedAmount(Request $request)
     {
         try {
             $budgetHead = $request->query('budget_head');
             $pdComponent = $request->query('pd_component');
-            $stateId = $request->query('state_id');
-            $slsName = $request->query('sls_name');
             $financialYear = $request->query('financial_year');
 
             if (!$budgetHead) {
@@ -391,21 +390,16 @@ class MotherSanctionController extends Controller
                 ], 400);
             }
 
+            if (!$pdComponent) {
+                return response()->json([
+                    'success' => true,
+                    'total_released' => 0
+                ]);
+            }
+
             $query = DB::table('mother_sanction')
                 ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
                 ->whereNotNull('mother_sanction_amount');
-
-            if ($stateId) {
-                $query->where('state_id', $stateId);
-            }
-
-            if ($slsName) {
-                $trimmedSls = trim($slsName);
-                $query->where(function ($slsQuery) use ($trimmedSls) {
-                    $slsQuery->whereRaw('TRIM(sls_name) = ?', [$trimmedSls])
-                        ->orWhereRaw('TRIM(sls_name) COLLATE utf8mb4_unicode_ci = ?', [$trimmedSls]);
-                });
-            }
 
             if ($financialYear) {
                 $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
@@ -414,11 +408,7 @@ class MotherSanctionController extends Controller
                 }
             }
 
-            $pdMatchValues = $this->getPdComponentMatchValues(
-                $pdComponent,
-                $slsName,
-                $stateId ? (int) $stateId : null
-            );
+            $pdMatchValues = $this->getPdComponentMatchValues($pdComponent);
 
             if (!empty($pdMatchValues)) {
                 $query->where(function ($pdQuery) use ($pdMatchValues) {
@@ -429,7 +419,7 @@ class MotherSanctionController extends Controller
                         );
                     }
                 });
-            } elseif ($pdComponent) {
+            } else {
                 $query->whereRaw(
                     'TRIM(pd_component) COLLATE utf8mb4_unicode_ci = TRIM(?)',
                     [trim($pdComponent)]
@@ -459,38 +449,56 @@ class MotherSanctionController extends Controller
      *
      * @return array<int, string>
      */
-    private function getPdComponentMatchValues(
-        ?string $pdComponent,
-        ?string $slsName,
-        ?int $stateId
-    ): array {
-        $values = [];
-
-        if ($pdComponent) {
-            $values[] = trim($pdComponent);
+    private function getPdComponentMatchValues(?string $pdComponent): array
+    {
+        if (!$pdComponent) {
+            return [];
         }
 
-        if ($pdComponent) {
+        $trimmed = trim($pdComponent);
+        $values = [$trimmed];
+
+        $divisionId = DB::table('md_program_divisions')
+            ->whereRaw('division_name COLLATE utf8mb4_unicode_ci = ?', [$trimmed])
+            ->value('division_id');
+
+        if (!$divisionId) {
+            $divisionId = DB::table('pd_and_sls_comp as psc')
+                ->join('md_program_divisions as md', function ($join) {
+                    $join->on(
+                        DB::raw('psc.slsPD COLLATE utf8mb4_unicode_ci'),
+                        '=',
+                        DB::raw('md.division_name COLLATE utf8mb4_unicode_ci')
+                    );
+                })
+                ->whereRaw('TRIM(psc.slsPD) COLLATE utf8mb4_unicode_ci = ?', [$trimmed])
+                ->value('md.division_id');
+        }
+
+        if ($divisionId) {
             $divisionName = DB::table('md_program_divisions')
-                ->whereRaw('division_name COLLATE utf8mb4_unicode_ci = ?', [trim($pdComponent)])
+                ->where('division_id', $divisionId)
                 ->value('division_name');
 
             if ($divisionName) {
                 $values[] = trim($divisionName);
             }
-        }
 
-        $pdRow = $this->findPdAndSlsCompRow($slsName, $stateId);
-        if ($pdRow && !empty($pdRow->slsPD)) {
-            $values[] = trim((string) $pdRow->slsPD);
+            $slsPdAliases = DB::table('pd_and_sls_comp as psc')
+                ->join('md_program_divisions as md', function ($join) {
+                    $join->on(
+                        DB::raw('psc.slsPD COLLATE utf8mb4_unicode_ci'),
+                        '=',
+                        DB::raw('md.division_name COLLATE utf8mb4_unicode_ci')
+                    );
+                })
+                ->where('md.division_id', $divisionId)
+                ->pluck('psc.slsPD')
+                ->map(fn ($value) => trim((string) $value))
+                ->filter()
+                ->all();
 
-            $mappedDivisionName = DB::table('md_program_divisions')
-                ->whereRaw('division_name COLLATE utf8mb4_unicode_ci = ?', [trim((string) $pdRow->slsPD)])
-                ->value('division_name');
-
-            if ($mappedDivisionName) {
-                $values[] = trim($mappedDivisionName);
-            }
+            $values = array_merge($values, $slsPdAliases);
         }
 
         return array_values(array_unique(array_filter($values)));
