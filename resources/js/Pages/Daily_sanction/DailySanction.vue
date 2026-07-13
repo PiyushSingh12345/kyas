@@ -82,7 +82,7 @@
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="financialYear">F.Y</label>
+                        <label for="financialYear">F.Y</label><span class="text-danger">*</span>
                         <select v-model="financialYear" class="form-select" id="financialYear">
                           <option disabled value="">Select Financial Year</option>
                           <option value="2026-2027">2026–2027</option>
@@ -98,7 +98,7 @@
                     <!-- State -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="stateSelect">State</label>
+                        <label for="stateSelect">State</label><span class="text-danger">*</span>
                         <select v-model="selectedState" class="form-select" id="stateSelect">
                           <option disabled value="">--- Select State ---</option>
                           <option v-for="state in states" :key="state.id" :value="state.id">
@@ -111,7 +111,7 @@
                     <!-- DS Date -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="dsDate">DS Date</label>
+                        <label for="dsDate">DS Date</label><span class="text-danger">*</span>
                         <input type="date" class="form-control" id="dsDate" v-model="dsDate">
                       </div>
                     </div>
@@ -119,7 +119,7 @@
                     <!-- Daily Sanction No -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="dailySanctionNo">Daily Sanction No</label>
+                        <label for="dailySanctionNo">Daily Sanction No</label><span class="text-danger">*</span>
                         <input type="text" class="form-control" id="dailySanctionNo" v-model="dailySanctionNo" placeholder="Enter Daily Sanction No">
                       </div>
                     </div>
@@ -127,7 +127,7 @@
                     <!-- Mother Sanction -->
                     <div class="col-md-6 col-lg-3">
 					  <div class="form-group">
-					    <label for="motherSanction">Mother Sanction</label>
+					    <label for="motherSanction">Mother Sanction</label><span class="text-danger">*</span>
 					    <select v-model="selectedMotherSanction" class="form-select" id="motherSanction">
 					      <option disabled value="">-- Select --</option>
 					      <option v-for="item in motherSanctions" :key="item.id" :value="item.ky_ms_no">

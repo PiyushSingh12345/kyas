@@ -61,6 +61,7 @@
                         <table class="table table-bordered table-head-bg-primary">
                           <thead>
                             <tr>
+                              <th>Tranche / Step</th>
                               <th>Fy</th>
                               <th>State</th>
                               <th>MS NO</th>
@@ -76,7 +77,10 @@
                           </thead>
                           
                           <tbody>
-                          <tr v-for="(item, index) in historyData" :key="`${item.id}-${index}`">
+                          <tr v-for="(item, index) in historyData" :key="`${item.id}-${item.tranche_no}-${index}`">
+                            <td class="text-center">
+                              <span class="badge bg-dark">{{ item.step_label || (`Tranche ${item.tranche_no || '-'}`) }}</span>
+                            </td>
                             <td>{{ item.financial_year }}</td>
                             <td>{{ item.state?.name || '' }}</td>
                             <td>{{ item.ky_ms_no }}</td>
@@ -92,7 +96,9 @@
                                       <th class="text-center">Budget Head</th>
                                       <th class="text-center">Category</th>
                                       <th class="text-center">Annual Allocation</th>
+                                      <th class="text-center">Total MS</th>
                                       <th class="text-center">MS Amount</th>
+                                      <th class="text-center">Effective MS Amount</th>
                                       <th class="text-center">Expenditure</th>
                                       <th class="text-center">Available Fund</th>
                                       <th class="text-center">Carry Forward Amount</th>
@@ -103,13 +109,15 @@
                                       <td class="text-center">{{ budget.budget_head }}</td>
                                       <td class="text-center">{{ budget.category }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.annual_allocation_individual) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.total_ms_amount ?? budget.ms_amount ?? budget.mother_sanction_amount) }}</td>
+                                      <td class="text-center currency-cell">{{ formatCurrency(budget.ms_amount ?? budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.mother_sanction_amount) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.expenditure) }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(calculateAvailableFund(budget)) }}</td>
                                       <td class="text-center currency-cell">{{ formatCarryForwardAmount(budget.carry_forward_amount || 0) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
-                                      <td colspan="7" class="text-center text-muted">No budget heads available</td>
+                                      <td colspan="9" class="text-center text-muted">No budget heads available</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -136,7 +144,7 @@
                           </tr>
                           
                           <tr v-if="historyData.length === 0">
-                            <td colspan="11" class="text-center text-muted py-4">
+                            <td colspan="12" class="text-center text-muted py-4">
                               <i class="fas fa-info-circle me-2"></i>
                               No mother sanction history available
                             </td>
@@ -295,9 +303,10 @@ const formatActionType = (actionType) => {
 };
 
 const calculateAvailableFund = (budget) => {
-  const msAmount = parseFloat(budget.mother_sanction_amount) || 0;
+  // Available Fund = Total MS - Expenditure (same rule as Mother Sanction List)
+  const totalMs = parseFloat(budget.total_ms_amount ?? budget.ms_amount ?? budget.mother_sanction_amount) || 0;
   const expenditure = parseFloat(budget.expenditure) || 0;
-  return msAmount - expenditure;
+  return totalMs - expenditure;
 };
 
 const formatCarryForwardAmount = (amount) => {

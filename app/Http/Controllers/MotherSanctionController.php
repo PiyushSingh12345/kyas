@@ -1447,7 +1447,8 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
     }
 
     /**
-     * Get mother sanction history list
+     * Get mother sanction history list grouped by tranche / step.
+     * Each create or revised-create batch (all budget heads together) is one row.
      */
     public function historyList()
     {
@@ -1463,61 +1464,120 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                     $join->on(DB::raw('msh.sls_name COLLATE utf8mb4_unicode_ci'), '=', DB::raw('pdc.name COLLATE utf8mb4_unicode_ci'))
                          ->on(DB::raw('msh.pd_component COLLATE utf8mb4_unicode_ci'), '=', DB::raw('pdc.slsPD COLLATE utf8mb4_unicode_ci'));
                 })
-                ->orderBy('msh.history_timestamp', 'desc')
+                ->orderBy('msh.history_timestamp', 'asc')
+                ->orderBy('msh.history_id', 'asc')
                 ->get();
 
-            $transformedData = $history->map(function ($item) {
-                $budgetHeads = [];
-                if (!empty($item->budget_head)) {
-                    $expenditure = $this->calculateExpenditureForPdAndBudgetHead(
-                        (string) $item->budget_head,
-                        $item->pd_component ?? null,
-                        $item->financial_year ?? null,
-                        $item->state_id ? (int) $item->state_id : null,
-                        $item->sls_name ?? null
-                    );
+            // Tranche steps = create / revised-create history entries (one per budget head at save time)
+            $createEvents = $history->filter(function ($item) {
+                $description = strtolower((string) ($item->change_description ?? ''));
+                return str_contains($description, 'record created');
+            })->values();
 
-                    $annualAllocationByBudgetHead = $this->getAnnualAllocationByBudgetHead(
-                        $item->sls_name,
-                        $item->state_id,
-                        $item->pd_component,
-                        [$item->budget_head],
-                        $item->financial_year
-                    );
+            $batches = $this->groupHistoryIntoTrancheBatches($createEvents);
 
-                    $budgetHeads[] = [
-                        'budget_head' => $item->budget_head,
-                        'category' => $item->category,
-                        'annual_allocation_individual' => $annualAllocationByBudgetHead[$item->budget_head] ?? 0.0,
-                        'mother_sanction_amount' => floatval($item->mother_sanction_amount ?? 0),
-                        'expenditure' => floatval($expenditure ?? 0),
-                        'available_fund' => floatval($item->available_fund ?? 0),
-                        'carry_forward_amount' => floatval($item->carry_forward_amount ?? 0),
-                    ];
-                }
+            // Tranche numbers per state + SLS + PD (chronological)
+            // Cumulative Total MS per BH: sum of tranche MS Amounts (CF excluded) up to this step
+            $trancheCounters = [];
+            $cumulativeMsByScopeBh = [];
+            $transformedData = collect($batches)->map(function (array $batch) use (&$trancheCounters, &$cumulativeMsByScopeBh) {
+                $first = $batch[0];
+                $scopeKey = ($first->state_id ?? '') . '|' . ($first->sls_name ?? '') . '|' . ($first->pd_component ?? '');
+                $trancheCounters[$scopeKey] = ($trancheCounters[$scopeKey] ?? 0) + 1;
+                $trancheNo = $trancheCounters[$scopeKey];
+
+                $budgetHeadKeys = collect($batch)
+                    ->pluck('budget_head')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $annualAllocationByBudgetHead = $this->getAnnualAllocationByBudgetHead(
+                    $first->sls_name,
+                    $first->state_id,
+                    $first->pd_component,
+                    $budgetHeadKeys,
+                    $first->financial_year
+                );
+
+                $historyTimestamp = $first->history_timestamp
+                    ? Carbon::parse($first->history_timestamp, 'Asia/Kolkata')
+                    : null;
+
+                // One nested row per budget head in this tranche (prefer first BH entry in batch)
+                $budgetHeads = collect($batch)
+                    ->groupBy(fn ($item) => trim((string) ($item->budget_head ?? '')))
+                    ->filter(fn ($_, $bh) => $bh !== '')
+                    ->map(function ($bhItems, $budgetHeadKey) use ($annualAllocationByBudgetHead, $historyTimestamp, $first, $scopeKey, &$cumulativeMsByScopeBh) {
+                        $item = $bhItems->sortBy('history_id')->first();
+                        $msStored = floatval($item->mother_sanction_amount ?? 0);
+                        $carryForward = floatval($item->carry_forward_amount ?? 0);
+                        $actionType = strtoupper((string) ($item->action_type ?? ''));
+                        $msNet = in_array($actionType, ['REVISED', 'REVISE'], true)
+                            ? max(0.0, $msStored - $carryForward)
+                            : $msStored;
+
+                        $bhKey = trim((string) $budgetHeadKey);
+                        $cumKey = $scopeKey . '|' . $bhKey;
+                        $cumulativeMsByScopeBh[$cumKey] = ($cumulativeMsByScopeBh[$cumKey] ?? 0.0) + $msNet;
+
+                        $expenditure = $this->calculateExpenditureUpToTimestamp(
+                            (string) $item->budget_head,
+                            $item->pd_component ?? $first->pd_component ?? null,
+                            $item->financial_year ?? $first->financial_year ?? null,
+                            $item->state_id ? (int) $item->state_id : null,
+                            $item->sls_name ?? $first->sls_name ?? null,
+                            $historyTimestamp
+                        );
+
+                        return [
+                            'budget_head' => $item->budget_head,
+                            'category' => $item->category,
+                            'annual_allocation_individual' => $annualAllocationByBudgetHead[$item->budget_head] ?? 0.0,
+                            'total_ms_amount' => floatval($cumulativeMsByScopeBh[$cumKey]),
+                            'ms_amount' => $msNet,
+                            'mother_sanction_amount' => $msStored,
+                            'expenditure' => $expenditure,
+                            'available_fund' => floatval($item->available_fund ?? 0),
+                            'carry_forward_amount' => $carryForward,
+                        ];
+                    })
+                    ->sortBy('budget_head', SORT_NATURAL)
+                    ->values()
+                    ->all();
+
+                $isFresh = str_contains(strtolower((string) ($first->change_description ?? '')), 'new mother sanction');
+                $stepLabel = $isFresh
+                    ? 'Tranche ' . $trancheNo . ' (Fresh Create)'
+                    : 'Tranche ' . $trancheNo . ' (Revised)';
 
                 return [
-                    'id' => $item->history_id,
-                    'financial_year' => $item->financial_year,
-                    'state_id' => $item->state_id,
-                    'ky_ms_no' => $item->ky_ms_no,
-                    'sls_name' => $item->sls_name,
-                    'sls_code' => $item->sls_code ?? '',
-                    'pd_component' => $item->pd_component,
-                    'sanction_date' => $item->sanction_date,
+                    'id' => $first->history_id,
+                    'tranche_no' => $trancheNo,
+                    'step_label' => $stepLabel,
+                    'financial_year' => $first->financial_year,
+                    'state_id' => $first->state_id,
+                    'ky_ms_no' => $first->ky_ms_no,
+                    'sls_name' => $first->sls_name,
+                    'sls_code' => $first->sls_code ?? '',
+                    'pd_component' => $first->pd_component,
+                    'sanction_date' => $first->sanction_date,
                     'budget_heads' => $budgetHeads,
-                    'action_type' => $item->action_type,
-                    'changed_by' => $item->changed_by,
-                    'history_timestamp' => $item->history_timestamp
-                        ? Carbon::parse($item->history_timestamp, 'Asia/Kolkata')->format('c')
+                    'action_type' => $first->action_type,
+                    'changed_by' => $first->changed_by,
+                    'history_timestamp' => $historyTimestamp
+                        ? $historyTimestamp->format('c')
                         : null,
-                    'change_description' => $item->change_description,
+                    'change_description' => $first->change_description,
                     'state' => [
-                        'id' => $item->state_id,
-                        'name' => $item->state_name ?? '',
+                        'id' => $first->state_id,
+                        'name' => $first->state_name ?? '',
                     ],
                 ];
-            })->values();
+            })
+                ->sortByDesc(fn ($row) => $row['history_timestamp'] ?? '')
+                ->values();
 
             return response()->json($transformedData);
         } catch (\Exception $e) {
@@ -1531,6 +1591,147 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Cluster create/revise-create history rows that belong to the same tranche save.
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $createEvents
+     * @return array<int, array<int, object>>
+     */
+    private function groupHistoryIntoTrancheBatches($createEvents): array
+    {
+        $batches = [];
+
+        foreach ($createEvents as $item) {
+            $itemTime = Carbon::parse($item->history_timestamp ?? now(), 'Asia/Kolkata');
+            $placed = false;
+
+            foreach ($batches as &$batch) {
+                $first = $batch[0];
+                $firstTime = Carbon::parse($first->history_timestamp ?? now(), 'Asia/Kolkata');
+                $sameScope =
+                    (int) ($first->state_id ?? 0) === (int) ($item->state_id ?? 0)
+                    && trim((string) ($first->sls_name ?? '')) === trim((string) ($item->sls_name ?? ''))
+                    && trim((string) ($first->ky_ms_no ?? '')) === trim((string) ($item->ky_ms_no ?? ''))
+                    && trim((string) ($first->pd_component ?? '')) === trim((string) ($item->pd_component ?? ''));
+                $sameKind = $this->historyCreateKind($first) === $this->historyCreateKind($item);
+                $withinWindow = abs($firstTime->diffInSeconds($itemTime)) <= 10;
+
+                if ($sameScope && $sameKind && $withinWindow) {
+                    $batch[] = $item;
+                    $placed = true;
+                    break;
+                }
+            }
+            unset($batch);
+
+            if (!$placed) {
+                $batches[] = [$item];
+            }
+        }
+
+        return $batches;
+    }
+
+    private function historyCreateKind(object $item): string
+    {
+        $description = strtolower((string) ($item->change_description ?? ''));
+        if (str_contains($description, 'revised mother sanction record created')) {
+            return 'revised_create';
+        }
+        if (str_contains($description, 'new mother sanction record created')) {
+            return 'fresh_create';
+        }
+
+        return strtoupper((string) ($item->action_type ?? 'OTHER'));
+    }
+
+    /**
+     * Expenditure as of a history timestamp (DS created on/before that moment).
+     */
+    private function calculateExpenditureUpToTimestamp(
+        string $budgetHead,
+        ?string $pdComponent,
+        ?string $financialYear,
+        ?int $stateId,
+        ?string $slsName,
+        ?Carbon $upto
+    ): float {
+        if ($budgetHead === '') {
+            return 0.0;
+        }
+
+        // Fall back to full multi-tranche expenditure when no timestamp is available
+        if (!$upto) {
+            return $this->calculateExpenditureForPdAndBudgetHead(
+                $budgetHead,
+                $pdComponent,
+                $financialYear,
+                $stateId,
+                $slsName
+            );
+        }
+
+        $msQuery = DB::table('mother_sanction')
+            ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead]);
+
+        if ($stateId) {
+            $msQuery->where('state_id', $stateId);
+        }
+        if ($slsName !== null && $slsName !== '') {
+            $msQuery->where('sls_name', $slsName);
+        }
+        if ($financialYear) {
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+            if (!empty($yearVariants)) {
+                $msQuery->whereIn('financial_year', $yearVariants);
+            }
+        }
+        if ($pdComponent) {
+            $pdMatchValues = $this->getPdComponentMatchValues($pdComponent);
+            if (!empty($pdMatchValues)) {
+                $msQuery->where(function ($pdQuery) use ($pdMatchValues) {
+                    foreach ($pdMatchValues as $pdValue) {
+                        $pdQuery->orWhereRaw(
+                            'TRIM(pd_component) COLLATE utf8mb4_unicode_ci = ?',
+                            [trim($pdValue)]
+                        );
+                    }
+                });
+            }
+        }
+
+        $kyMsNos = $msQuery->pluck('ky_ms_no')->unique()->filter()->values()->all();
+
+        $dsQuery = DB::table('daily_sanction')
+            ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
+            ->where('created_at', '<=', $upto->format('Y-m-d H:i:s'));
+
+        if ($stateId) {
+            $dsQuery->where('state_id', $stateId);
+        }
+        if ($financialYear) {
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+            if (!empty($yearVariants)) {
+                $dsQuery->whereIn('financial_year', $yearVariants);
+            }
+        }
+
+        $dsQuery->where(function ($query) use ($kyMsNos, $slsName) {
+            if (!empty($kyMsNos)) {
+                $query->whereIn('mother_sanction', $kyMsNos);
+            }
+            if ($slsName !== null && $slsName !== '') {
+                if (!empty($kyMsNos)) {
+                    $query->orWhereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
+                } else {
+                    $query->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
+                }
+            }
+        });
+
+        return floatval($dsQuery->sum('center_share_amount') ?? 0);
     }
 
     /**

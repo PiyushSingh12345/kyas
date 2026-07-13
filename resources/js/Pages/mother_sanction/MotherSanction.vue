@@ -25,7 +25,7 @@
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="financialYear">F.Y</label>
+                        <label for="financialYear">F.Y</label><span class="text-danger">*</span>
                         <select class="form-select" v-model="financialYear">
                           <option disabled value="">Select Financial Year</option>
                           <option value="2026-2027">2026–2027</option>
@@ -40,6 +40,8 @@
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
                         <label for="stateSelect">State</label>
+                        <!-- write * for field that are required and mandatory -->
+                        <span class="text-danger">*</span>
                        <select v-model="selectedState" @change="fetchSlsData" class="form-select" id="stateSelect">
                           <option value="">--- Select State ---</option>
                           <option v-for="state in states" :key="state.id" :value="state.id">
@@ -52,7 +54,7 @@
                     <!-- MS Sequence No. -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="msSequence">MS Sequence No.</label>
+                        <label for="msSequence">MS Sequence No.</label><span class="text-danger">*</span>
                         <select class="form-select" v-model="msSequenceNo" id="msSequence">
                           <option value="">Select</option>
                           <option value="1">1</option>
@@ -72,7 +74,7 @@
 
                      <div class="col-md-6 col-lg-3">
                         <div class="form-group">
-                          <label for="ifdNo">IFD No.</label>
+                          <label for="ifdNo">IFD No.</label><span class="text-danger">*</span>
                           <input type="text" class="form-control" id="ifdNo" v-model="ifdNo">
                         </div>
                       </div>
@@ -80,7 +82,7 @@
                     <!-- Sanction Date -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="sanctionDate">Sanction Date</label>
+                        <label for="sanctionDate">Sanction Date</label><span class="text-danger">*</span>
                         <input type="date" class="form-control" id="sanctionDate" v-model="sanctionDate">
                       </div>
                     </div>
@@ -101,7 +103,7 @@
                     <!-- SLS ID -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="slsId">SLS Name</label>
+                        <label for="slsId">SLS Name</label><span class="text-danger">*</span>
                         <select class="form-control" v-model="selectedSlsId" @change="onSlsSelected">
                           <option value="">--- Select SLS Name ---</option>
                           <option v-for="sls in slsData" :key="sls.id" :value="sls.name">{{ sls.full_sls_name }}</option>
@@ -112,7 +114,7 @@
                     <!-- PD/Component -->
                     <div class="col-md-6 col-lg-3">
                       <div class="form-group">
-                        <label for="pdComponent">PD/Component</label>
+                        <label for="pdComponent">PD/Component</label><span class="text-danger">*</span>
                         <input
                             type="text"
                             class="form-control"
@@ -149,7 +151,7 @@
                       <tbody>
                         <tr>
                           <td width="20%">
-                            <label class="highlight_textbox">Budget Head</label>
+                            <label class="highlight_textbox">Budget Head <span class="text-danger">*</span></label>
                           </td>
                           <td>
                             <label class="highlight_textbox">Category</label>
@@ -161,7 +163,7 @@
                             <label class="highlight_textbox">Current Available Fund Amount</label>
                           </td>
                           <td>
-                            <label class="highlight_textbox">Mother Sanction Amount</label>
+                            <label class="highlight_textbox">Mother Sanction Amount<span class="text-danger">*</span></label>
                           </td>
                           <td>
                             <label class="highlight_textbox">Carry Forward</label>
