@@ -432,8 +432,12 @@ const populateFormFromPdf = async (data) => {
       center_share_amount: detail.center_share_amount || 0
     }))
     
-    // Fetch balanced fund available for all budget heads
-    await fetchBalancedFundAvailable(data.sanction_details.map(d => d.budget_head).filter(Boolean))
+    // Fetch balanced fund available for all budget heads (multi-tranche Total MS / Expenditure)
+    await fetchBalancedFundAvailable(
+      data.sanction_details.map(d => d.budget_head).filter(Boolean),
+      data.pd_component || '',
+      data.financial_year || financialYear.value
+    )
   }
 }
 
@@ -470,15 +474,24 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
     const res = await fetch(`/api/mother-sanction-details/${encodeURIComponent(kyMsNo)}?${params.toString()}`)
     if (res.ok) {
       const data = await res.json()
-      // console.log(data)
       ifdNo.value = data.meta.ifd_no
       slsName.value = data.meta.sls_name
       slsID.value = data.meta.sls_code
-      sanctionDetails.value = data.entries
+      if (data.meta.financial_year) {
+        financialYear.value = data.meta.financial_year
+      }
+      sanctionDetails.value = (data.entries || []).map(entry => ({
+        ...entry,
+        center_share_amount: entry.center_share_amount || ''
+      }))
       
-      // Fetch balanced fund available for all budget heads
+      // Fetch balanced fund available for all budget heads (same Total MS / Expenditure as MS List)
       if (data.entries && data.entries.length > 0) {
-        await fetchBalancedFundAvailable(data.entries.map(e => e.budget_head))
+        await fetchBalancedFundAvailable(
+          data.entries.map(e => e.budget_head),
+          data.meta?.pd_component || '',
+          data.meta?.financial_year || financialYear.value
+        )
       }
     } else {
       ifdNo.value = ''
@@ -492,9 +505,8 @@ const fetchMotherSanctionDetails = async (kyMsNo) => {
   }
 }
 
-// Fetch balanced fund available for budget heads of the selected SLS:
-// Net total MS (without carry forward) - total daily sanctions (same budget head, SLS, and state)
-const fetchBalancedFundAvailable = async (budgetHeads) => {
+// Fetch balanced fund available using same multi-tranche Total MS / Expenditure as Mother Sanction List
+const fetchBalancedFundAvailable = async (budgetHeads, pdComponent = '', fy = '') => {
   if (!budgetHeads || budgetHeads.length === 0) {
     balancedFundData.value = {}
     return
@@ -513,11 +525,30 @@ const fetchBalancedFundAvailable = async (budgetHeads) => {
       params.append('sls_name', slsName.value)
     }
 
+    if (pdComponent) {
+      params.append('pd_component', pdComponent)
+    }
+
+    const year = fy || financialYear.value
+    if (year) {
+      params.append('financial_year', year)
+    }
+
     const res = await fetch(`/api/daily-sanction-amounts-by-budget-head?${params.toString()}`)
     if (res.ok) {
       const data = await res.json()
       if (data.success && data.data) {
         balancedFundData.value = data.data
+        // Keep displayed Mother Sanctioned Amount in sync with Total MS
+        sanctionDetails.value = sanctionDetails.value.map(row => {
+          const fundData = data.data[row.budget_head]
+          if (!fundData) return row
+          return {
+            ...row,
+            mother_sanction_amount: fundData.total_ms_amount,
+            available_fund: fundData.available_fund ?? Math.max(0, fundData.total_ms_amount - fundData.total_daily_sanctioned),
+          }
+        })
       } else {
         balancedFundData.value = {}
       }
@@ -530,7 +561,7 @@ const fetchBalancedFundAvailable = async (budgetHeads) => {
   }
 }
 
-// Balanced Fund Available = net MS total (excl. carry forward) - daily sanctions for same budget head, SLS, and state
+// Balanced Fund Available = Total MS (excl. CF, all tranches) - Expenditure (all DS for BH + PD)
 const getBalancedFundAvailable = (row) => {
   return getBalancedFundAvailableNumeric(row).toFixed(5)
 }
@@ -539,7 +570,10 @@ const getBalancedFundAvailable = (row) => {
 const getBalancedFundAvailableNumeric = (row) => {
   if (!row || !row.budget_head) return 0
   const fundData = balancedFundData.value[row.budget_head] || {}
-  const totalMsAmount = parseFloat(fundData.total_ms_amount || 0)
+  if (fundData.available_fund != null) {
+    return Math.max(0, parseFloat(fundData.available_fund) || 0)
+  }
+  const totalMsAmount = parseFloat(fundData.total_ms_amount || row.mother_sanction_amount || 0)
   const alreadySanctioned = parseFloat(fundData.total_daily_sanctioned || 0)
   return Math.max(0, totalMsAmount - alreadySanctioned)
 }
@@ -624,7 +658,7 @@ const submitForm = async () => {
     entries: sanctionDetails.value.map(entry => ({
       budget_head: sanitizeTextInput(entry.budget_head),
       mother_sanction_amount: entry.mother_sanction_amount,
-      available_amount: entry.available_fund,
+      available_amount: getBalancedFundAvailableNumeric(entry),
       center_share_amount: entry.center_share_amount || 0,
     }))
   }
