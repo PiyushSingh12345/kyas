@@ -80,9 +80,25 @@
                             required
                           >
                             <option value="">--- Select Budget Head ---</option>
-                            <option v-for="head in budgetHeads" :key="head.id" :value="head.budget">
+                            <!-- <option v-for="head in budgetHeads" :key="head.id" :value="head.budget">
                               {{ head.budget }} - {{ head.description }}
-                            </option>
+                            </option> -->
+
+                            <option value="2435.60.103.04.00.09">2435.60.103.04.00.09</option>
+                            <option value="2435.60.103.04.00.11">2435.60.103.04.00.11</option>
+                            <option value="2435.60.103.04.00.12">2435.60.103.04.00.12</option>
+                            <option value="2435.60.103.04.00.13">2435.60.103.04.00.13</option>
+                            <option value="2435.60.103.04.00.16">2435.60.103.04.00.16</option>
+                            <option value="2435.60.103.04.00.19">2435.60.103.04.00.19</option>
+                            <option value="2435.60.103.04.00.26">2435.60.103.04.00.26</option>
+                            <option value="2435.60.103.04.00.28">2435.60.103.04.00.28</option>
+                            <option value="2435.60.103.04.00.29">2435.60.103.04.00.29</option>
+                            <option value="2435.60.103.04.00.36">2435.60.103.04.00.36</option>
+                            <option value="2435.60.103.04.00.49">2435.60.103.04.00.49</option>
+                            <option value="2435.60.103.04.01.28">2435.60.103.04.01.28</option>
+                            <option value="2435.60.103.04.96.13">2435.60.103.04.96.13</option>
+                            <option value="2435.60.789.02.00.26">2435.60.789.02.00.26</option>
+                            <option value="2435.60.796.02.00.26">2435.60.796.02.00.26</option>
                           </select>
                         </div>
                       </div>

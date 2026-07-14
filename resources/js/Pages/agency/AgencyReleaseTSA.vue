@@ -80,9 +80,19 @@
                             required
                           >
                             <option value="">--- Select Budget Head ---</option>
-                            <option v-for="head in budgetHeads" :key="head.id" :value="head.budget">
+                            <!-- <option v-for="head in budgetHeads" :key="head.id" :value="head.budget">
                               {{ head.budget }} - {{ head.description }}
-                            </option>
+                            </option> -->
+                            <option value="2435.60.103.04.00.31">2435.60.103.04.00.31</option>
+                            <option value="2435.60.103.04.00.33">2435.60.103.04.00.33</option>
+                            <option value="2435.60.103.04.00.35">2435.60.103.04.00.35</option>
+                            <option value="2435.60.103.04.01.31">2435.60.103.04.01.31</option>
+                            <option value="2435.60.103.04.01.35">2435.60.103.04.01.35</option>
+                            <option value="2435.60.103.04.02.31">2435.60.103.04.02.31</option>
+                            <option value="2435.60.789.02.00.31">2435.60.789.02.00.31</option>
+                            <option value="2435.60.789.02.00.33">2435.60.789.02.00.33</option>
+                            <option value="2435.60.796.02.00.31">2435.60.796.02.00.31</option>
+                            <option value="2435.60.796.02.00.33">2435.60.796.02.00.33</option>
                           </select>
                         </div>
                       </div>
