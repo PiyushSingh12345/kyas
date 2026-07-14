@@ -42,7 +42,7 @@
                     <!-- Financial Year -->
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label>F.Y</label>
+                        <label>F.Y</label><span class="text-danger">*</span>
                         <select class="form-select" v-model="selectedYear">
                           <option value="" disabled>Select Financial Year</option>
                           <option v-for="year in financialYears" :key="year" :value="year">{{ year }}</option>
@@ -53,7 +53,7 @@
                     <!-- Budget Phase -->
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label>Budget Phase</label>
+                        <label>Budget Phase</label><span class="text-danger">*</span>
                         <select class="form-select" v-model="selectedPhase">
                           <option value="" disabled>Budget Phase</option>
                           <option v-for="phase in budgetPhases" :key="phase" :value="phase">{{ phase }}</option>
@@ -64,7 +64,7 @@
                     <!-- RO Date -->
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label>RO Date</label>
+                        <label>RO Date</label><span class="text-danger">*</span>
                         <input type="date" class="form-control" v-model="roDate" />
                       </div>
                     </div>
@@ -105,7 +105,7 @@
                     <!-- From Budget Head -->
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label>From Budget Head</label>
+                        <label>From Budget Head</label><span class="text-danger">*</span>
                         <select class="form-select" v-model="selectedFromBudgetHead">
                           <option value="" disabled>--Select--</option>
                           <option :value="999">Other</option>
@@ -141,7 +141,7 @@
                     <!-- Re-Appropriation Amt -->
                     <div class="col-md-6 col-lg-4">
                       <div class="form-group">
-                        <label>Re-Appropriation Amt (₹ In Lakhs)</label>
+                        <label>Re-Appropriation Amt (₹ In Lakhs)</label><span class="text-danger">*</span>
                         <input
                           type="text"
                           class="form-control"
@@ -170,7 +170,7 @@
                       <div class="row">
                         <div class="col-md-6 col-lg-4">
                           <div class="form-group">
-                            <label>To Budget Head</label>
+                            <label>To Budget Head</label><span class="text-danger">*</span>
                             <select class="form-select" v-model="selectedToBudgetHead">
                               <option value="" disabled>--Select--</option>
                               <option v-for="head in budgetHeads" :key="head.id" :value="head.id">{{ head.budget }}</option>
