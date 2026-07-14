@@ -153,6 +153,7 @@
 											  <th v-for="pd in programDivisions" :key="pd.division_id" colspan="1">
 												  {{ pd.division_name }}<br/>(Proposed by KY)<br/>by as per {{ selectedPhase }}
 											  </th>
+											  <th class="align-middle">Budget Phase Amount<br/>({{ selectedPhase }})</th>
 											  <th class="align-middle">Final Allocation</th>
 											  <!-- <th rowspan="2" class="align-middle">Remarks</th> -->
 										  </tr>
@@ -161,6 +162,7 @@
 											  <th v-for="pd in programDivisions" :key="pd.division_id">
 												 ₹ In Lakhs
 											  </th>
+											  <th class="align-middle">₹ In Lakhs</th>
 											  <th class="align-middle">₹ In Lakhs</th>
 										  </tr>
 									  </thead>
@@ -176,6 +178,7 @@
 												   :title="`Total for ${pd.division_name} under ${category.label}`">
 												{{ calculateMajorHeadTotalForPD(category.label, pd.division_id) }}
 											  </td>
+											  <td class="text-center fw-bold"></td>
 											  <td class="text-center fw-bold grand-total-cell" title="Grand total for all program divisions">
 												{{ calculateMajorHeadTotal(category.label) }}
 											  </td>
@@ -193,6 +196,7 @@
 												   :title="`Total for ${pd.division_name} under ${category.label}${category.budgetHeads.length === 1 ? ' (Single record)' : ''}`">
 												{{ calculateSubcategoryTotalForPD(category.label, pd.division_id, category.parentMajorHead) }}
 											  </td>
+											  <td class="text-center fw-bold"></td>
 											  <td class="text-center fw-bold grand-total-cell" title="Grand total for all program divisions">
 												{{ calculateSubcategoryTotal(category.label, category.parentMajorHead) }}
 											  </td>
@@ -201,7 +205,8 @@
 											<!-- Individual Budget Head Rows -->
 											<tr v-for="bh in category.budgetHeads" :key="`bh_${bh.bh_id}`" 
 												 v-if="category.type === 'subcategory'"
-												 class="budget-head-row">
+												 class="budget-head-row"
+												 :class="{ 'table-danger': isRowOverBudget(bh.bh_id) }">
 											  <td class="text-start fw-sticky" :style="{ paddingLeft: '60px' }">
 												{{ bh.budget_code }} - {{ bh.budget_name }}
 											  </td>
@@ -209,14 +214,20 @@
 												<input 
 													type="number" 
 													class="form-control tableform-control-withoutbg" 
+													:class="{ 'is-invalid': isRowOverBudget(bh.bh_id) }"
 													v-model="allocationData[bh.bh_id][pd.division_id]"
-													@blur="formatInputValue(bh.bh_id, pd.division_id)"
+													@blur="onAllocationBlur(bh.bh_id, pd.division_id)"
 													placeholder="0.00000"
 													step="0.00001"
 													min="0"
 												>
 											  </td>
-											  <td class="text-center fw-bold bg-success-subtle">
+											  <td class="text-center fw-bold bg-info-subtle" :title="`Allocated amount for ${selectedPhase} on Budget Phase page`">
+												{{ formatBudgetPhaseAmount(bh.bh_id) }}
+											  </td>
+											  <td class="text-center fw-bold"
+												  :class="isRowOverBudget(bh.bh_id) ? 'bg-danger-subtle text-danger' : 'bg-success-subtle'"
+												  :title="isRowOverBudget(bh.bh_id) ? `Exceeds Budget Phase amount of ${formatBudgetPhaseAmount(bh.bh_id)}` : 'Sum of all PD allocations'">
 												{{ calculateRowTotal(bh.bh_id) }}
 											  </td>
 											</tr>
@@ -227,6 +238,9 @@
 											  <td class="fw-sticky">Total</td>
 											  <td v-for="pd in programDivisions" :key="pd.division_id">
 												  {{ calculateColumnTotal(pd.division_id) }}
+											  </td>
+											  <td class="text-center">
+												  {{ formatToFiveDecimals(totalBudgetPhaseAmount) }}
 											  </td>
 											  <td class="text-center grand-total">
 												  {{ calculateGrandTotal() }}
@@ -320,6 +334,7 @@
   const programDivisions = ref([])
   const allocationData = ref({})
   const remarksData = ref({})
+  const budgetPhaseAmounts = ref({}) // bh_id => amount allocated on Budget Phase page
   const loading = ref(true)
   const error = ref(null)
   const submitting = ref(false)
@@ -526,6 +541,52 @@
 	}
   }
 
+  // Fetch Budget Phase amounts for the selected FY + phase (limit for PD totals)
+  const fetchBudgetPhaseAmounts = async () => {
+	try {
+	  const apiUrl = `/api/budget-heads?phase=${selectedPhase.value}&year=${selectedFinancialYear.value}`
+	  const response = await fetch(apiUrl)
+	  if (!response.ok) throw new Error('Failed to fetch budget phase amounts')
+	  const data = await response.json()
+	  const amounts = {}
+	  data.forEach(item => {
+		amounts[item.id] = item.amount !== null && item.amount !== undefined
+		  ? parseFloat(item.amount)
+		  : 0
+	  })
+	  budgetPhaseAmounts.value = amounts
+	} catch (err) {
+	  console.error('Error fetching budget phase amounts:', err)
+	  budgetPhaseAmounts.value = {}
+	}
+  }
+
+  const getBudgetPhaseAmount = (bhId) => {
+	const amount = budgetPhaseAmounts.value[bhId]
+	return amount !== null && amount !== undefined ? parseFloat(amount) || 0 : 0
+  }
+
+  const formatBudgetPhaseAmount = (bhId) => {
+	return formatToFiveDecimals(getBudgetPhaseAmount(bhId))
+  }
+
+  const isRowOverBudget = (bhId) => {
+	const rowTotal = parseFloat(calculateRowTotal(bhId)) || 0
+	const allowed = getBudgetPhaseAmount(bhId)
+	// Allow tiny floating-point tolerance
+	return rowTotal > allowed + 0.000001
+  }
+
+  const totalBudgetPhaseAmount = computed(() => {
+	return getAllBudgetHeads().reduce((sum, bh) => {
+	  return addWithPrecision(sum, getBudgetPhaseAmount(bh.bh_id))
+	}, 0)
+  })
+
+  const getExceededBudgetHeads = () => {
+	return getAllBudgetHeads().filter(bh => isRowOverBudget(bh.bh_id))
+  }
+
   const reloadAllocationData = async () => {
 	allocationData.value = {}
 	remarksData.value = {}
@@ -536,7 +597,7 @@
   const onFilterChange = async () => {
 	error.value = null
 	try {
-	  await fetchBudgetHeads()
+	  await Promise.all([fetchBudgetHeads(), fetchBudgetPhaseAmounts()])
 	  await reloadAllocationData()
 	} catch (err) {
 	  console.error('Error reloading data for selected filters:', err)
@@ -909,6 +970,12 @@
 	}
   }
 
+  const onAllocationBlur = (bhId, pdId) => {
+	// Format only — do not alert on blur so users can freely reduce values
+	// when a row is already over the Budget Phase limit. Validation runs on Submit.
+	formatInputValue(bhId, pdId)
+  }
+
   // Helper function to add two numbers with 5 decimal precision
   const addWithPrecision = (a, b) => {
 	const numA = parseFloat(a) || 0
@@ -1120,6 +1187,23 @@
 	submitting.value = true
 	
 	try {
+	  // Block submit if any budget head's PD total exceeds Budget Phase amount
+	  const exceeded = getExceededBudgetHeads()
+	  if (exceeded.length > 0) {
+		const details = exceeded.slice(0, 5).map(bh => {
+		  const total = calculateRowTotal(bh.bh_id)
+		  const allowed = formatBudgetPhaseAmount(bh.bh_id)
+		  return `• ${bh.budget_code} - ${bh.budget_name}: ${total} > ${allowed}`
+		}).join('\n')
+		const more = exceeded.length > 5 ? `\n...and ${exceeded.length - 5} more` : ''
+		alert(
+		  `PD allocation totals cannot exceed the Budget Phase (${selectedPhase.value}) amount for the same Financial Year.\n\n` +
+		  `The following budget head(s) exceed the limit:\n${details}${more}`
+		)
+		submitting.value = false
+		return
+	  }
+
 	  // Prepare data for submission
 	  const submissionData = []
 	  
@@ -1172,7 +1256,8 @@
 	  })
   
 	  if (!response.ok) {
-		throw new Error('Failed to save allocation data')
+		const errorResult = await response.json().catch(() => null)
+		throw new Error(errorResult?.message || 'Failed to save allocation data')
 	  }
   
 	  const result = await response.json()
@@ -1313,8 +1398,8 @@
 	try {
 	  console.log('Component mounted, starting to load data...')
 	  
-	  console.log('Fetching budget heads and program divisions...')
-	  await Promise.all([fetchBudgetHeads(), fetchProgramDivisions()])
+	  console.log('Fetching budget heads, program divisions, and budget phase amounts...')
+	  await Promise.all([fetchBudgetHeads(), fetchProgramDivisions(), fetchBudgetPhaseAmounts()])
 	  
 	  console.log('Data fetched, initializing allocation data...')
 	  console.log('Budget Heads:', budgetHeads.value)

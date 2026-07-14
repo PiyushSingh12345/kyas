@@ -12,6 +12,7 @@ use App\Models\PdAndSlsComp;
 use App\Models\BudgetHead;
 use App\Models\StatewiseAapAllocation;
 use App\Models\PdwiseAapAllocation;
+use App\Models\BudgetPhase;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB as DBFacade;
 use Carbon\Carbon;
@@ -490,6 +491,27 @@ class AnnualActionPlanController extends Controller
                 ], 422);
             }
 
+            // Ensure sum of all PD amounts for each budget head does not exceed
+            // the Budget Phase amount for the same financial year and budget phase.
+            $exceededHeads = $this->validatePdTotalsAgainstBudgetPhase($request->allocations);
+            if (!empty($exceededHeads)) {
+                $messages = array_map(function ($item) {
+                    return sprintf(
+                        '%s: PD total %s exceeds Budget Phase (%s) amount of %s',
+                        $item['label'],
+                        number_format($item['pd_total'], 5, '.', ''),
+                        $item['budget_phase'],
+                        number_format($item['allowed'], 5, '.', '')
+                    );
+                }, $exceededHeads);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'PD allocation totals cannot exceed the Budget Phase amount for the same Financial Year and Budget Phase. ' . implode('; ', $messages),
+                    'exceeded' => $exceededHeads,
+                ], 422);
+            }
+
             DB::beginTransaction();
 
             try {
@@ -552,6 +574,100 @@ class AnnualActionPlanController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Validate that projected PD totals per budget head do not exceed
+     * the Budget Phase budget_amount for the same FY and phase.
+     *
+     * @param  array  $allocations
+     * @return array List of exceeded heads (empty if all valid)
+     */
+    private function validatePdTotalsAgainstBudgetPhase(array $allocations): array
+    {
+        // Group incoming amounts by (financial_year, budget_phase, bh_id) => [pd_id => amount]
+        $incoming = [];
+        foreach ($allocations as $allocation) {
+            $fy = $allocation['financial_year'];
+            $phase = $allocation['budget_phase'] ?? null;
+            $phaseKey = ($phase === null || $phase === '') ? '__null__' : $phase;
+            $bhId = (int) $allocation['bh_id'];
+            $pdId = (int) $allocation['pd_id'];
+            $key = $fy . '|' . $phaseKey . '|' . $bhId;
+
+            if (!isset($incoming[$key])) {
+                $incoming[$key] = [
+                    'financial_year' => $fy,
+                    'budget_phase' => ($phase === null || $phase === '') ? null : $phase,
+                    'bh_id' => $bhId,
+                    'pd_amounts' => [],
+                ];
+            }
+            $incoming[$key]['pd_amounts'][$pdId] = (float) $allocation['amount'];
+        }
+
+        $exceeded = [];
+
+        foreach ($incoming as $group) {
+            $fy = $group['financial_year'];
+            $phase = $group['budget_phase'];
+            $bhId = $group['bh_id'];
+
+            // Allowed amount from Budget Phase page
+            $phaseQuery = BudgetPhase::where('budget_head_id', $bhId)
+                ->where('financial_year', $fy)
+                ->where('status', 1);
+
+            if ($phase === null) {
+                $phaseQuery->whereNull('budget_phase');
+            } else {
+                $phaseQuery->where('budget_phase', $phase);
+            }
+
+            $budgetPhase = $phaseQuery->first();
+            $allowed = $budgetPhase ? (float) $budgetPhase->budget_amount : 0.0;
+
+            // Existing PD allocations for this head / FY / phase (to merge with incoming)
+            $existingQuery = PdwiseAapAllocation::where('bh_id', $bhId)
+                ->where('financial_year', $fy);
+
+            if ($phase === null) {
+                $existingQuery->whereNull('budget_phase');
+            } else {
+                $existingQuery->where('budget_phase', $phase);
+            }
+
+            $merged = [];
+            foreach ($existingQuery->get(['pd_id', 'amount']) as $row) {
+                $merged[(int) $row->pd_id] = (float) $row->amount;
+            }
+
+            // Overlay incoming amounts
+            foreach ($group['pd_amounts'] as $pdId => $amount) {
+                $merged[$pdId] = (float) $amount;
+            }
+
+            $pdTotal = array_sum($merged);
+
+            // Tiny tolerance for float precision
+            if ($pdTotal > $allowed + 0.000001) {
+                $budgetHead = BudgetHead::find($bhId);
+                $label = $budgetHead
+                    ? ($budgetHead->budget . ' - ' . $budgetHead->description)
+                    : ('Budget head #' . $bhId);
+
+                $exceeded[] = [
+                    'bh_id' => $bhId,
+                    'label' => $label,
+                    'financial_year' => $fy,
+                    'budget_phase' => $phase ?? 'N/A',
+                    'pd_total' => $pdTotal,
+                    'allowed' => $allowed,
+                ];
+            }
+        }
+
+        return $exceeded;
     }
 
     /**
