@@ -241,7 +241,7 @@
           </div>
           <div class="modal-body">
             <p>Do you really want to proceed?</p>
-            <p class="text-muted small mt-2">This will add back the available amount to the budget phase amount for BE corresponding to the budget head respectively. MS amount will be equal to Expenditure amount, available amount will become zero, and status will be set to close.</p>
+            <p class="text-muted small mt-2">This will return unused funds (Total MS − Expenditure) for the same Budget Head and PD so they can be used for a new Mother Sanction. MS Amount and Effective MS Amount will both become equal to Expenditure, available fund will become zero, and status will be set to close.</p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" @click="closeCloseDialog">Cancel</button>
@@ -654,7 +654,7 @@ const confirmClose = async () => {
       await fetchMotherSanctions();
       showFlashMessage(
         'success',
-        'Record closed successfully. MS Amount is now equal to Expenditure, Available Fund has been added back to BE budget phase and set to zero, and status is set to close.',
+        'Record closed successfully. MS Amount and Effective MS Amount equal Expenditure. Unused fund (Total MS − Expenditure) is available again for the same Budget Head and PD.',
         'fas fa-check-circle'
       );
     } else {

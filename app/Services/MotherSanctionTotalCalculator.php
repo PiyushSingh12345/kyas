@@ -37,16 +37,43 @@ class MotherSanctionTotalCalculator
             return 0.0;
         }
 
+        // Closed chains: unused MS has been returned, so Total MS equals Expenditure for that scope.
+        $byScope = $records->groupBy(
+            fn ($record) => ($record->state_id ?? '') . '|' . trim((string) ($record->sls_name ?? ''))
+        );
+
+        $total = 0.0;
         $creationNetById = $this->loadCreationNetAmountsByRecordId(
             $records->pluck('id')->unique()->filter()->values()->all()
         );
 
-        // Each mother_sanction row is one tranche — do not unique by ky_ms_no.
-        return floatval(
-            $records
-                ->unique('id')
-                ->sum(fn ($record) => $this->netMotherSanctionAmountForTotal($record, $creationNetById))
-        );
+        foreach ($byScope as $scopeRecords) {
+            $hasActive = $scopeRecords->contains(fn ($r) => (int) ($r->status ?? 0) === 1);
+            $hasClosed = $scopeRecords->contains(
+                fn ($r) => strtoupper((string) ($r->action_type ?? '')) === 'CLOSED'
+            );
+
+            if (!$hasActive && $hasClosed) {
+                $sample = $scopeRecords->first();
+                $total += $this->expenditure(
+                    $budgetHead,
+                    $pdComponent ?: ($sample->pd_component ?? null),
+                    $financialYear ?: ($sample->financial_year ?? null),
+                    $sample->state_id ? (int) $sample->state_id : $stateId,
+                    $sample->sls_name ?? $slsName
+                );
+                continue;
+            }
+
+            $total += floatval(
+                $scopeRecords
+                    ->filter(fn ($r) => strtoupper((string) ($r->action_type ?? '')) !== 'CLOSED')
+                    ->unique('id')
+                    ->sum(fn ($record) => $this->netMotherSanctionAmountForTotal($record, $creationNetById))
+            );
+        }
+
+        return floatval($total);
     }
 
     /**
@@ -191,6 +218,22 @@ class MotherSanctionTotalCalculator
         }
 
         return $this->netAmountExcludingCarryForward($record);
+    }
+
+    /**
+     * Public wrappers used by MotherSanctionController list chains.
+     */
+    public function netAmountForRecord(object $record, array $creationNetById = []): float
+    {
+        return $this->netMotherSanctionAmountForTotal($record, $creationNetById);
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    public function loadCreationNetAmountsByRecordIdPublic(array $recordIds): array
+    {
+        return $this->loadCreationNetAmountsByRecordId($recordIds);
     }
 
     /**

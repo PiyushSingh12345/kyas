@@ -455,13 +455,15 @@ class MotherSanctionController extends Controller
 
     /**
      * Find mother sanction records scoped to the same state and SLS as the list row.
+     * Close covers the full open generation for that state + SLS (not only displayed ky_ms_no).
      */
     private function findMotherSanctionRecordsForStatusUpdate(
         array $kyMsNos,
         ?int $stateId,
-        ?string $slsName
+        ?string $slsName,
+        ?string $action = null
     ) {
-        $query = MotherSanction::whereIn('ky_ms_no', $kyMsNos);
+        $query = MotherSanction::query();
 
         if ($stateId) {
             $query->where('state_id', $stateId);
@@ -471,6 +473,19 @@ class MotherSanctionController extends Controller
             $query->where('sls_name', $slsName);
         }
 
+        if ($action === 'close') {
+            $query->where(function ($q) {
+                $q->whereNull('action_type')
+                    ->orWhereRaw('UPPER(action_type) <> ?', ['CLOSED']);
+            });
+
+            return $query->get();
+        }
+
+        if (!empty($kyMsNos)) {
+            $query->whereIn('ky_ms_no', $kyMsNos);
+        }
+
         return $query->get();
     }
 
@@ -478,7 +493,6 @@ class MotherSanctionController extends Controller
 public function list()
 {
     try {
-        // Get all records with relations and join with pd_and_sls_comp table
         $data = DB::table('mother_sanction as ms')
             ->select([
                 'ms.*',
@@ -486,138 +500,26 @@ public function list()
                 'pdc.sls_code'
             ])
             ->join('states as s', 'ms.state_id', '=', 's.id')
-            ->leftJoin('pd_and_sls_comp as pdc', function($join) {
+            ->leftJoin('pd_and_sls_comp as pdc', function ($join) {
                 $join->on('ms.sls_name', '=', 'pdc.name')
                      ->on('ms.state_id', '=', 'pdc.state_id');
             })
-            // Show all records regardless of status
             ->orderBy('ms.created_at', 'desc')
             ->get();
 
-        // Group data by state_id and sls_name so actions affect only the matching SLS row
-        $groupedData = $data->groupBy(function($item) {
+        // Group by state + SLS, then split into open chain + closed generation rows
+        $groupedData = $data->groupBy(function ($item) {
             return ($item->state_id ?? '') . '|' . ($item->sls_name ?? '');
         });
 
-        // Transform the grouped data
-        $transformedData = $groupedData->map(function($group) {
-            $pickLatestBatch = function ($records) {
-                return $records
-                    ->groupBy('ky_ms_no')
-                    ->sortByDesc(fn($batch) => $batch->max('created_at'))
-                    ->first() ?? collect();
-            };
+        $transformedData = $groupedData->flatMap(function ($group) {
+            return collect($this->splitMotherSanctionGroupIntoListChains($group))
+                ->map(fn ($chain) => $this->transformMotherSanctionListChain($chain));
+        })
+            ->filter()
+            ->sortByDesc(fn ($row) => $row['created_at'] ?? '')
+            ->values();
 
-            // Show the latest active mother sanction batch; older revisions remain inactive in DB
-            $activeRecords = $group->filter(fn($item) => (int) ($item->status ?? 0) === 1);
-            $isActive = $activeRecords->isNotEmpty();
-            $displayRecords = $pickLatestBatch($isActive ? $activeRecords : $group);
-            $firstItem = $displayRecords->sortByDesc('created_at')->first() ?? $group->first();
-
-            // Budget head amounts come from the displayed batch only (not summed across inactive revisions)
-            $budgetHeadMap = [];
-            foreach ($displayRecords as $item) {
-                if (empty($item->budget_head)) {
-                    continue;
-                }
-
-                $budgetHeadMap[$item->budget_head] = [
-                    'budget_head' => $item->budget_head,
-                    'category' => $item->category,
-                    'available_fund' => floatval($item->available_fund ?? 0),
-                    'mother_sanction_amount' => floatval($item->mother_sanction_amount ?? 0),
-                    'expenditure' => 0,
-                    'carry_forward_amount' => floatval($item->carry_forward_amount ?? 0),
-                ];
-            }
-
-            $stateId = $firstItem->state_id;
-
-            // Expenditure spans all mother sanctions for this state + SLS (including prior revisions)
-            $kyMsNos = $group->pluck('ky_ms_no')->unique()->filter()->values();
-
-            $annualAllocationByBudgetHead = $this->getAnnualAllocationByBudgetHead(
-                $firstItem->sls_name,
-                $firstItem->state_id,
-                $firstItem->pd_component,
-                array_keys($budgetHeadMap),
-                $firstItem->financial_year
-            );
-
-            $pdComponent = $firstItem->pd_component ?? '';
-            $financialYear = $firstItem->financial_year ?? null;
-            $slsName = $firstItem->sls_name ?? null;
-
-            $budgetHeads = collect($budgetHeadMap)->map(function($budgetData) use ($stateId, $annualAllocationByBudgetHead, $pdComponent, $financialYear, $slsName) {
-                // Expenditure = sum of all daily sanctions for this BH + PD across every tranche
-                $budgetData['expenditure'] = $this->calculateExpenditureForPdAndBudgetHead(
-                    $budgetData['budget_head'],
-                    $pdComponent,
-                    $financialYear,
-                    $stateId ? (int) $stateId : null,
-                    $slsName
-                );
-                $budgetData['annual_allocation_individual'] = $annualAllocationByBudgetHead[$budgetData['budget_head']] ?? 0.0;
-                // Total MS = sum of create/revise tranche amounts for this PD + BH (CF excluded each tranche)
-                $budgetData['total_ms_amount'] = $this->calculateTotalMsForPdAndBudgetHead(
-                    $budgetData['budget_head'],
-                    $pdComponent,
-                    $financialYear,
-                    $stateId ? (int) $stateId : null,
-                    $slsName
-                );
-
-                return $budgetData;
-            })->sortBy('budget_head', SORT_NATURAL)->values();
-
-            $totalAmount = $displayRecords->sum('mother_sanction_amount');
-            $totalAvailableFund = $displayRecords->sum('available_fund');
-            $annualAllocation = array_sum($annualAllocationByBudgetHead);
-
-            $displayKyMsNo = $firstItem->ky_ms_no ?? '';
-            $kyMsNoList = $displayKyMsNo ? [$displayKyMsNo] : [];
-
-            $hasInactiveRecords = $group->contains(fn($item) => (int) ($item->status ?? 0) === 0);
-            $isRevised = $kyMsNos->count() > 1 || ($isActive && $hasInactiveRecords);
-            $rowStatus = $isActive
-                ? 'active'
-                : ((($firstItem->action_type ?? '') === 'CLOSED') ? 'close' : 'inactive');
-
-            return [
-                'id' => $firstItem->id,
-                'financial_year' => $firstItem->financial_year,
-                'state_id' => $firstItem->state_id,
-                'ms_sequence_no' => $firstItem->ms_sequence_no,
-                'file_no' => $firstItem->file_no,
-                'ifd_no' => $firstItem->ifd_no,
-                'sanction_date' => $firstItem->sanction_date,
-                'ky_ms_no' => $displayKyMsNo,
-                'ky_ms_no_list' => $kyMsNoList,
-                'sls_name' => $firstItem->sls_name,
-                'pd_component' => $firstItem->pd_component,
-                'remark' => $firstItem->remark,
-                'effective_total_ms' => $totalAmount,
-                'total_mother_sanction_amount' => $totalAmount,
-                'is_revised' => $isRevised,
-                'total_available_fund' => $totalAvailableFund,
-                'annual_allocation' => $annualAllocation,
-                'budget_heads' => $budgetHeads,
-                'uc_received_from_State' => $firstItem->uc_received_from_State,
-                'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
-                'last_id' => $firstItem->last_id,
-                'status' => $rowStatus,
-                'action_type' => $firstItem->action_type ?? 'FRESH_CREATE',
-                'created_at' => $firstItem->created_at,
-                'updated_at' => $firstItem->updated_at,
-                'state' => [
-                    'id' => $firstItem->state_id,
-                    'name' => $firstItem->state_name
-                ],
-                'sls_code' => $firstItem->sls_code
-            ];
-        })->values();
-
-        // Log some debug information
         Log::info('MotherSanction list query executed', [
             'total_records' => $transformedData->count(),
             'sample_record' => $transformedData->first() ? [
@@ -625,6 +527,7 @@ public function list()
                 'sls_name' => $transformedData->first()['sls_name'],
                 'pd_component' => $transformedData->first()['pd_component'],
                 'sls_code' => $transformedData->first()['sls_code'],
+                'status' => $transformedData->first()['status'],
                 'budget_heads_count' => count($transformedData->first()['budget_heads'])
             ] : null
         ]);
@@ -635,13 +538,288 @@ public function list()
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
         ]);
-        
+
         return response()->json([
             'error' => 'An error occurred while fetching data',
             'message' => $e->getMessage()
         ], 500);
     }
 }
+
+    /**
+     * Split one state+SLS group into current open chain + each closed generation.
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $group
+     * @return array<int, array{records: \Illuminate\Support\Collection, is_closed: bool}>
+     */
+    private function splitMotherSanctionGroupIntoListChains($group): array
+    {
+        $openRecords = $group->filter(
+            fn ($item) => strtoupper((string) ($item->action_type ?? '')) !== 'CLOSED'
+        )->values();
+
+        $closedRecords = $group->filter(
+            fn ($item) => strtoupper((string) ($item->action_type ?? '')) === 'CLOSED'
+        )->values();
+
+        $chains = [];
+
+        if ($openRecords->isNotEmpty()) {
+            $chains[] = [
+                'records' => $openRecords,
+                'is_closed' => false,
+            ];
+        }
+
+        $closedBatches = [];
+        foreach ($closedRecords->sortBy('updated_at')->values() as $item) {
+            $itemTime = Carbon::parse($item->updated_at ?? $item->created_at ?? now());
+            $placed = false;
+
+            foreach ($closedBatches as &$batch) {
+                $first = $batch[0];
+                $firstTime = Carbon::parse($first->updated_at ?? $first->created_at ?? now());
+                $sameMsNo = trim((string) ($first->ky_ms_no ?? '')) === trim((string) ($item->ky_ms_no ?? ''));
+                $withinWindow = abs($firstTime->diffInSeconds($itemTime)) <= 120;
+
+                if ($sameMsNo || $withinWindow) {
+                    $batch[] = $item;
+                    $placed = true;
+                    break;
+                }
+            }
+            unset($batch);
+
+            if (!$placed) {
+                $closedBatches[] = [$item];
+            }
+        }
+
+        foreach ($closedBatches as $batch) {
+            $chains[] = [
+                'records' => collect($batch),
+                'is_closed' => true,
+            ];
+        }
+
+        return $chains;
+    }
+
+    /**
+     * Build one Mother Sanction list row from a chain of records.
+     *
+     * @param  array{records: \Illuminate\Support\Collection, is_closed: bool}  $chain
+     */
+    private function transformMotherSanctionListChain(array $chain): ?array
+    {
+        $group = $chain['records'];
+        $isClosedRow = (bool) ($chain['is_closed'] ?? false);
+
+        if ($group->isEmpty()) {
+            return null;
+        }
+
+        $pickLatestBatch = function ($records) {
+            return $records
+                ->groupBy('ky_ms_no')
+                ->sortByDesc(fn ($batch) => $batch->max('created_at'))
+                ->first() ?? collect();
+        };
+
+        $activeRecords = $group->filter(fn ($item) => (int) ($item->status ?? 0) === 1);
+        $isActive = $activeRecords->isNotEmpty();
+        $displayRecords = $pickLatestBatch($isActive ? $activeRecords : $group);
+        $firstItem = $displayRecords->sortByDesc('created_at')->first() ?? $group->first();
+
+        $budgetHeadMap = [];
+        foreach ($displayRecords as $item) {
+            if (empty($item->budget_head)) {
+                continue;
+            }
+
+            $budgetHeadMap[$item->budget_head] = [
+                'budget_head' => $item->budget_head,
+                'category' => $item->category,
+                'available_fund' => floatval($item->available_fund ?? 0),
+                'mother_sanction_amount' => floatval($item->mother_sanction_amount ?? 0),
+                'expenditure' => 0,
+                'carry_forward_amount' => floatval($item->carry_forward_amount ?? 0),
+            ];
+        }
+
+        if (empty($budgetHeadMap)) {
+            return null;
+        }
+
+        $stateId = $firstItem->state_id;
+        $kyMsNos = $group->pluck('ky_ms_no')->unique()->filter()->values();
+
+        $annualAllocationByBudgetHead = $this->getAnnualAllocationByBudgetHead(
+            $firstItem->sls_name,
+            $firstItem->state_id,
+            $firstItem->pd_component,
+            array_keys($budgetHeadMap),
+            $firstItem->financial_year
+        );
+
+        $pdComponent = $firstItem->pd_component ?? '';
+        $financialYear = $firstItem->financial_year ?? null;
+        $slsName = $firstItem->sls_name ?? null;
+
+        $hasInactiveRecords = $group->contains(fn ($item) => (int) ($item->status ?? 0) === 0);
+        $isRevised = $kyMsNos->count() > 1 || ($isActive && $hasInactiveRecords);
+        $rowStatus = $isClosedRow
+            ? 'close'
+            : ($isActive ? 'active' : 'inactive');
+
+        $chainKyMsNos = $kyMsNos->map(fn ($no) => (string) $no)->values()->all();
+
+        $budgetHeads = collect($budgetHeadMap)->map(function ($budgetData) use (
+            $stateId,
+            $annualAllocationByBudgetHead,
+            $financialYear,
+            $slsName,
+            $isClosedRow,
+            $chainKyMsNos,
+            $group
+        ) {
+            $expenditure = $this->calculateExpenditureForChainBudgetHead(
+                $budgetData['budget_head'],
+                $financialYear,
+                $stateId ? (int) $stateId : null,
+                $slsName,
+                $chainKyMsNos
+            );
+            $budgetData['expenditure'] = $expenditure;
+            $budgetData['annual_allocation_individual'] = $annualAllocationByBudgetHead[$budgetData['budget_head']] ?? 0.0;
+
+            if ($isClosedRow) {
+                $budgetData['total_ms_amount'] = $expenditure;
+                $budgetData['mother_sanction_amount'] = $expenditure;
+                $budgetData['available_fund'] = 0.0;
+            } else {
+                $budgetData['total_ms_amount'] = $this->calculateTotalMsForRecordIds(
+                    $group->pluck('id')->unique()->filter()->values()->all(),
+                    $budgetData['budget_head']
+                );
+            }
+
+            return $budgetData;
+        })->sortBy('budget_head', SORT_NATURAL)->values();
+
+        $totalAmount = $isClosedRow
+            ? floatval($budgetHeads->sum('mother_sanction_amount'))
+            : floatval($budgetHeads->sum('total_ms_amount'));
+        $totalAvailableFund = $isClosedRow ? 0.0 : floatval($budgetHeads->sum(function ($b) {
+            return max(0.0, floatval($b['total_ms_amount'] ?? 0) - floatval($b['expenditure'] ?? 0));
+        }));
+        $annualAllocation = array_sum($annualAllocationByBudgetHead);
+
+        $displayKyMsNo = $firstItem->ky_ms_no ?? '';
+        $kyMsNoList = $displayKyMsNo ? [$displayKyMsNo] : [];
+
+        return [
+            'id' => $firstItem->id,
+            'financial_year' => $firstItem->financial_year,
+            'state_id' => $firstItem->state_id,
+            'ms_sequence_no' => $firstItem->ms_sequence_no,
+            'file_no' => $firstItem->file_no,
+            'ifd_no' => $firstItem->ifd_no,
+            'sanction_date' => $firstItem->sanction_date,
+            'ky_ms_no' => $displayKyMsNo,
+            'ky_ms_no_list' => $kyMsNoList,
+            'sls_name' => $firstItem->sls_name,
+            'pd_component' => $firstItem->pd_component,
+            'remark' => $firstItem->remark,
+            'effective_total_ms' => $isClosedRow
+                ? $totalAmount
+                : floatval($displayRecords->sum('mother_sanction_amount')),
+            'total_mother_sanction_amount' => $totalAmount,
+            'is_revised' => $isRevised,
+            'total_available_fund' => $totalAvailableFund,
+            'annual_allocation' => $annualAllocation,
+            'budget_heads' => $budgetHeads,
+            'uc_received_from_State' => $firstItem->uc_received_from_State,
+            'signed_copy_of_mother_sanction' => $firstItem->signed_copy_of_mother_sanction,
+            'last_id' => $firstItem->last_id,
+            'status' => $rowStatus,
+            'action_type' => $isClosedRow ? 'CLOSED' : ($firstItem->action_type ?? 'FRESH_CREATE'),
+            'created_at' => $firstItem->created_at,
+            'updated_at' => $firstItem->updated_at,
+            'state' => [
+                'id' => $firstItem->state_id,
+                'name' => $firstItem->state_name
+            ],
+            'sls_code' => $firstItem->sls_code
+        ];
+    }
+
+    /**
+     * Total MS for a specific set of mother_sanction row ids (one open/closed chain).
+     */
+    private function calculateTotalMsForRecordIds(array $recordIds, string $budgetHead): float
+    {
+        if (empty($recordIds) || $budgetHead === '') {
+            return 0.0;
+        }
+
+        $records = DB::table('mother_sanction')
+            ->whereIn('id', $recordIds)
+            ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
+            ->whereNotNull('mother_sanction_amount')
+            ->get();
+
+        if ($records->isEmpty()) {
+            return 0.0;
+        }
+
+        $creationNetById = $this->msTotals->loadCreationNetAmountsByRecordIdPublic(
+            $records->pluck('id')->unique()->filter()->values()->all()
+        );
+
+        return floatval(
+            $records
+                ->unique('id')
+                ->sum(fn ($record) => $this->msTotals->netAmountForRecord($record, $creationNetById))
+        );
+    }
+
+    /**
+     * Expenditure for a list-row chain constrained to that chain's MS numbers.
+     */
+    private function calculateExpenditureForChainBudgetHead(
+        string $budgetHead,
+        ?string $financialYear,
+        ?int $stateId,
+        ?string $slsName,
+        array $kyMsNos
+    ): float {
+        if ($budgetHead === '') {
+            return 0.0;
+        }
+
+        $dsQuery = DB::table('daily_sanction')
+            ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead]);
+
+        if ($stateId) {
+            $dsQuery->where('state_id', $stateId);
+        }
+
+        if ($financialYear) {
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+            if (!empty($yearVariants)) {
+                $dsQuery->whereIn('financial_year', $yearVariants);
+            }
+        }
+
+        if (!empty($kyMsNos)) {
+            $dsQuery->whereIn('mother_sanction', $kyMsNos);
+        } elseif ($slsName) {
+            $dsQuery->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
+        }
+
+        return floatval($dsQuery->sum('center_share_amount') ?? 0);
+    }
 
 public function listReport(Request $request)
 {
@@ -1028,7 +1206,7 @@ public function updateStatus(Request $request)
         }
 
         // Find records for the given KY MS No(s) within the same state and SLS only
-        $records = $this->findMotherSanctionRecordsForStatusUpdate($kyMsNos, $stateId, $slsName);
+        $records = $this->findMotherSanctionRecordsForStatusUpdate($kyMsNos, $stateId, $slsName, $action);
 
         if ($records->isEmpty()) {
             return response()->json([
@@ -1133,52 +1311,77 @@ public function updateStatus(Request $request)
                 'updated_count' => $records->count()
             ]);
         } else {
-            // "Close" action triggered from Close button:
-            //  - MS Amount should become equal to Expenditure
-            //  - Available Fund should be added back to BE budget phase amount
-            //  - Record is marked inactive/closed
+            // Close:
+            // 1. Return (Total MS - Expenditure) so it is available for new MS of same BH + PD
+            // 2. Set MS Amount / Effective MS Amount = Expenditure
+            // 3. Mark active records closed and write CLOSED history
 
             DB::beginTransaction();
 
             $financialYear = $request->input('financial_year');
+            // Whole open generation for this state + SLS (active + inactive prior tranches)
+            $openRecords = $records->filter(
+                fn ($record) => strtoupper((string) ($record->action_type ?? '')) !== 'CLOSED'
+            );
+            $activeRecords = $openRecords->filter(fn ($record) => (int) ($record->status ?? 0) === 1);
 
-            foreach ($records as $record) {
-                // Expenditure across all DS for this BH + PD (all MS tranches)
+            if ($activeRecords->isEmpty()) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'No active mother sanction records found to close.',
+                    'success' => false
+                ], 400);
+            }
+
+            $updatedCount = 0;
+
+            foreach ($openRecords->groupBy(fn ($r) => trim((string) ($r->budget_head ?? ''))) as $budgetHeadName => $bhRecords) {
+                if ($budgetHeadName === '') {
+                    continue;
+                }
+
+                $sample = $bhRecords->first(
+                    fn ($r) => (int) ($r->status ?? 0) === 1
+                ) ?? $bhRecords->first();
+                $pdComponent = $sample->pd_component ?? null;
+                $fy = $financialYear ?: ($sample->financial_year ?? null);
+                $recordStateId = $sample->state_id ? (int) $sample->state_id : $stateId;
+                $recordSlsName = $sample->sls_name ?? $slsName;
+
+                $totalMs = $this->calculateTotalMsForPdAndBudgetHead(
+                    $budgetHeadName,
+                    $pdComponent,
+                    $fy,
+                    $recordStateId,
+                    $recordSlsName
+                );
                 $expenditure = $this->calculateExpenditureForPdAndBudgetHead(
-                    (string) ($record->budget_head ?? ''),
-                    $record->pd_component ?? null,
-                    $record->financial_year ?? null,
-                    $record->state_id ? (int) $record->state_id : null,
-                    $record->sls_name ?? null
+                    $budgetHeadName,
+                    $pdComponent,
+                    $fy,
+                    $recordStateId,
+                    $recordSlsName
                 );
 
-                $oldMsAmount = floatval($record->mother_sanction_amount ?: 0);
-                $oldAvailableFund = floatval($record->available_fund ?: 0);
+                // Unused amount returned for new Mother Sanction (same BH + PD)
+                $availableFundToReturn = max(0.0, $totalMs - $expenditure);
 
-                // Get available fund to add back to BE
-                $availableFundToReturn = $oldAvailableFund;
-
-                // Find BudgetHead by budget string
-                $budgetHead = BudgetHead::where('budget', $record->budget_head)->first();
-                
+                $budgetHead = BudgetHead::where('budget', $budgetHeadName)->first();
                 if ($budgetHead && $availableFundToReturn > 0) {
-                    // Find or create BE budget phase for this budget head and financial year
                     $budgetPhase = BudgetPhase::where('budget_head_id', $budgetHead->id)
                         ->where('budget_phase', 'BE')
-                        ->where('financial_year', $financialYear ?: $record->financial_year)
+                        ->where('financial_year', $fy)
                         ->where('status', 1)
                         ->first();
-                    
+
                     if ($budgetPhase) {
-                        // Add back the available amount to BE budget phase
                         $budgetPhase->budget_amount = floatval($budgetPhase->budget_amount) + $availableFundToReturn;
                         $budgetPhase->save();
                     } else {
-                        // Create BE budget phase if it doesn't exist
-                        $budgetPhase = BudgetPhase::create([
+                        BudgetPhase::create([
                             'budget_head_id' => $budgetHead->id,
                             'budget_phase' => 'BE',
-                            'financial_year' => $financialYear ?: $record->financial_year,
+                            'financial_year' => $fy,
                             'budget_amount' => $availableFundToReturn,
                             'status' => 1,
                             'draft_flag' => 0
@@ -1186,31 +1389,46 @@ public function updateStatus(Request $request)
                     }
                 }
 
-                // MS Amount should be equivalent to Expenditure
-                $record->mother_sanction_amount = $expenditure;
+                $historyWritten = false;
+                foreach ($bhRecords as $record) {
+                    $oldMsAmount = floatval($record->mother_sanction_amount ?: 0);
+                    $oldAvailableFund = floatval($record->available_fund ?: 0);
+                    $wasActive = (int) ($record->status ?? 0) === 1;
 
-                // Available fund is considered returned to BE, so set to zero here
-                $record->available_fund = 0;
+                    // Active rows become MS = Expenditure; prior inactive rows stay historically as-is but CLOSED
+                    if ($wasActive) {
+                        $record->mother_sanction_amount = $expenditure;
+                        $record->available_fund = 0;
+                        $record->carry_forward_amount = 0;
+                    }
 
-                // Mark record as inactive/closed
-                $record->status = 0;
-                $record->action_type = 'CLOSED';
+                    $record->status = 0;
+                    $record->action_type = 'CLOSED';
 
-                // Save history before update
-                $this->saveHistory($record, 'CLOSED', 
-                    "Record closed. MS Amount: {$oldMsAmount} -> {$expenditure}, Available Fund: {$oldAvailableFund} -> 0 (returned to BE)",
-                    $oldMsAmount, $expenditure, $oldAvailableFund, 0
-                );
+                    if ($wasActive || !$historyWritten) {
+                        $this->saveHistory(
+                            $record,
+                            'CLOSED',
+                            "Record closed. Total MS: {$totalMs}, Expenditure: {$expenditure}, Returned: {$availableFundToReturn}. MS Amount set equal to Expenditure.",
+                            $oldMsAmount,
+                            $wasActive ? $expenditure : $oldMsAmount,
+                            $oldAvailableFund,
+                            $wasActive ? 0 : $oldAvailableFund
+                        );
+                        $historyWritten = true;
+                    }
 
-                $record->save();
+                    $record->save();
+                    $updatedCount++;
+                }
             }
 
             DB::commit();
 
             return response()->json([
-                'message' => 'Records closed successfully. MS Amount updated to match expenditure, available fund returned to BE, and status set to close.',
+                'message' => 'Records closed successfully. MS Amount equals Expenditure, unused fund (Total MS - Expenditure) returned for the same Budget Head and PD, and status set to close.',
                 'success' => true,
-                'updated_count' => $records->count()
+                'updated_count' => $updatedCount
             ]);
         }
 
@@ -1468,23 +1686,47 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                 ->orderBy('msh.history_id', 'asc')
                 ->get();
 
-            // Tranche steps = create / revised-create history entries (one per budget head at save time)
+            // Tranche steps = create / revised-create, plus CLOSED steps
             $createEvents = $history->filter(function ($item) {
                 $description = strtolower((string) ($item->change_description ?? ''));
                 return str_contains($description, 'record created');
             })->values();
 
-            $batches = $this->groupHistoryIntoTrancheBatches($createEvents);
+            $closeEvents = $history->filter(function ($item) {
+                return strtoupper((string) ($item->action_type ?? '')) === 'CLOSED'
+                    || str_contains(strtolower((string) ($item->change_description ?? '')), 'record closed');
+            })->values();
 
-            // Tranche numbers per state + SLS + PD (chronological)
-            // Cumulative Total MS per BH: sum of tranche MS Amounts (CF excluded) up to this step
+            $batches = array_merge(
+                $this->groupHistoryIntoTrancheBatches($createEvents),
+                $this->groupHistoryIntoTrancheBatches($closeEvents)
+            );
+
+            // Keep chronological order before assigning tranche numbers / cumulatives
+            usort($batches, function (array $a, array $b) {
+                $ta = $a[0]->history_timestamp ?? '';
+                $tb = $b[0]->history_timestamp ?? '';
+                if ($ta === $tb) {
+                    return ((int) ($a[0]->history_id ?? 0)) <=> ((int) ($b[0]->history_id ?? 0));
+                }
+                return strcmp((string) $ta, (string) $tb);
+            });
+
+            // Tranche numbers per state + SLS + PD (chronological create/revise only)
+            // Cumulative Total MS per BH: sum of tranche MS Amounts (CF excluded) up to this step;
+            // on CLOSE, Total MS / MS Amount / Effective MS = Expenditure.
             $trancheCounters = [];
             $cumulativeMsByScopeBh = [];
             $transformedData = collect($batches)->map(function (array $batch) use (&$trancheCounters, &$cumulativeMsByScopeBh) {
                 $first = $batch[0];
                 $scopeKey = ($first->state_id ?? '') . '|' . ($first->sls_name ?? '') . '|' . ($first->pd_component ?? '');
-                $trancheCounters[$scopeKey] = ($trancheCounters[$scopeKey] ?? 0) + 1;
-                $trancheNo = $trancheCounters[$scopeKey];
+                $isClosedStep = strtoupper((string) ($first->action_type ?? '')) === 'CLOSED'
+                    || str_contains(strtolower((string) ($first->change_description ?? '')), 'record closed');
+
+                if (!$isClosedStep) {
+                    $trancheCounters[$scopeKey] = ($trancheCounters[$scopeKey] ?? 0) + 1;
+                }
+                $trancheNo = $trancheCounters[$scopeKey] ?? 0;
 
                 $budgetHeadKeys = collect($batch)
                     ->pluck('budget_head')
@@ -1509,7 +1751,14 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                 $budgetHeads = collect($batch)
                     ->groupBy(fn ($item) => trim((string) ($item->budget_head ?? '')))
                     ->filter(fn ($_, $bh) => $bh !== '')
-                    ->map(function ($bhItems, $budgetHeadKey) use ($annualAllocationByBudgetHead, $historyTimestamp, $first, $scopeKey, &$cumulativeMsByScopeBh) {
+                    ->map(function ($bhItems, $budgetHeadKey) use (
+                        $annualAllocationByBudgetHead,
+                        $historyTimestamp,
+                        $first,
+                        $scopeKey,
+                        &$cumulativeMsByScopeBh,
+                        $isClosedStep
+                    ) {
                         $item = $bhItems->sortBy('history_id')->first();
                         $msStored = floatval($item->mother_sanction_amount ?? 0);
                         $carryForward = floatval($item->carry_forward_amount ?? 0);
@@ -1520,7 +1769,6 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
 
                         $bhKey = trim((string) $budgetHeadKey);
                         $cumKey = $scopeKey . '|' . $bhKey;
-                        $cumulativeMsByScopeBh[$cumKey] = ($cumulativeMsByScopeBh[$cumKey] ?? 0.0) + $msNet;
 
                         $expenditure = $this->calculateExpenditureUpToTimestamp(
                             (string) $item->budget_head,
@@ -1531,15 +1779,25 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                             $historyTimestamp
                         );
 
+                        if ($isClosedStep) {
+                            // Closed: Total MS = MS Amount = Effective MS = Expenditure
+                            $cumulativeMsByScopeBh[$cumKey] = $expenditure;
+                            $msNet = $expenditure;
+                            $msStored = $expenditure;
+                            $carryForward = 0.0;
+                        } else {
+                            $cumulativeMsByScopeBh[$cumKey] = ($cumulativeMsByScopeBh[$cumKey] ?? 0.0) + $msNet;
+                        }
+
                         return [
                             'budget_head' => $item->budget_head,
                             'category' => $item->category,
                             'annual_allocation_individual' => $annualAllocationByBudgetHead[$item->budget_head] ?? 0.0,
-                            'total_ms_amount' => floatval($cumulativeMsByScopeBh[$cumKey]),
+                            'total_ms_amount' => floatval($cumulativeMsByScopeBh[$cumKey] ?? 0),
                             'ms_amount' => $msNet,
                             'mother_sanction_amount' => $msStored,
                             'expenditure' => $expenditure,
-                            'available_fund' => floatval($item->available_fund ?? 0),
+                            'available_fund' => $isClosedStep ? 0.0 : floatval($item->available_fund ?? 0),
                             'carry_forward_amount' => $carryForward,
                         ];
                     })
@@ -1547,10 +1805,15 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                     ->values()
                     ->all();
 
-                $isFresh = str_contains(strtolower((string) ($first->change_description ?? '')), 'new mother sanction');
-                $stepLabel = $isFresh
-                    ? 'Tranche ' . $trancheNo . ' (Fresh Create)'
-                    : 'Tranche ' . $trancheNo . ' (Revised)';
+                if ($isClosedStep) {
+                    $stepLabel = 'Closed'
+                        . ($trancheNo > 0 ? ' (after Tranche ' . $trancheNo . ')' : '');
+                } else {
+                    $isFresh = str_contains(strtolower((string) ($first->change_description ?? '')), 'new mother sanction');
+                    $stepLabel = $isFresh
+                        ? 'Tranche ' . $trancheNo . ' (Fresh Create)'
+                        : 'Tranche ' . $trancheNo . ' (Revised)';
+                }
 
                 return [
                     'id' => $first->history_id,
@@ -1636,7 +1899,15 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
 
     private function historyCreateKind(object $item): string
     {
+        $actionType = strtoupper((string) ($item->action_type ?? ''));
+        if ($actionType === 'CLOSED') {
+            return 'closed';
+        }
+
         $description = strtolower((string) ($item->change_description ?? ''));
+        if (str_contains($description, 'record closed')) {
+            return 'closed';
+        }
         if (str_contains($description, 'revised mother sanction record created')) {
             return 'revised_create';
         }
@@ -1644,7 +1915,7 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
             return 'fresh_create';
         }
 
-        return strtoupper((string) ($item->action_type ?? 'OTHER'));
+        return $actionType !== '' ? $actionType : 'OTHER';
     }
 
     /**
