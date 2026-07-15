@@ -657,7 +657,7 @@ const fetchReleasedAmount = async (budgetHead) => {
   }
 }
 
-// Current Available Fund = PD budget head allocation (FY) - total MS created for that PD, budget head, and FY
+// Current Available Fund = PD AA (FY) − (open Total MS + closed MS Amount for that PD, BH, FY)
 const getCurrentAvailableFundAmountNumeric = (row) => {
   if (!row.budget_head) {
     return 0;

@@ -376,8 +376,8 @@ class MotherSanctionController extends Controller
     }
 
     /**
-     * Get sum of mother sanction amounts for a budget head scoped to the selected program division (PD) and FY.
-     * Uses net MS (excludes carry forward on revised records) across all created records.
+     * Total MS charged against Annual Allocation for Current Available Fund on create.
+     * Includes open-chain nets and closed-generation MS Amounts (after close) for the BH + PD + FY.
      * Not filtered by state or SLS.
      */
     public function getMotherSanctionReleasedAmount(Request $request)
@@ -402,10 +402,14 @@ class MotherSanctionController extends Controller
                 ]);
             }
 
-            $totalReleased = $this->calculateTotalMsForPdAndBudgetHead(
+            // Include closed MS Amount so a fresh MS after close still reduces AA by the closed generation.
+            $totalReleased = $this->msTotals->totalMs(
                 $budgetHead,
                 $pdComponent,
-                $financialYear
+                $financialYear,
+                null,
+                null,
+                true
             );
 
             return response()->json([

@@ -14,13 +14,21 @@ class MotherSanctionTotalCalculator
 {
     /**
      * Total MS / MS Amount for a Budget Head (+ PD / FY / state / SLS).
+     *
+     * Default (list / Daily Sanction / close): open-chain create/revise nets only (CF excluded).
+     * Fully closed scopes contribute the closed MS Amount (= Expenditure for that generation).
+     *
+     * When $includeClosedGenerations is true (Current Available Fund on create):
+     * also subtract closed-generation MS Amount from Annual Allocation even if a new open
+     * MS exists for the same BH + PD after a recent close.
      */
     public function totalMs(
         string $budgetHead,
         ?string $pdComponent,
         ?string $financialYear = null,
         ?int $stateId = null,
-        ?string $slsName = null
+        ?string $slsName = null,
+        bool $includeClosedGenerations = false
     ): float {
         if ($budgetHead === '') {
             return 0.0;
@@ -37,7 +45,6 @@ class MotherSanctionTotalCalculator
             return 0.0;
         }
 
-        // Closed chains: unused MS has been returned, so Total MS equals Expenditure for that scope.
         $byScope = $records->groupBy(
             fn ($record) => ($record->state_id ?? '') . '|' . trim((string) ($record->sls_name ?? ''))
         );
@@ -48,36 +55,83 @@ class MotherSanctionTotalCalculator
         );
 
         foreach ($byScope as $scopeRecords) {
-            $hasActive = $scopeRecords->contains(fn ($r) => (int) ($r->status ?? 0) === 1);
-            $hasClosed = $scopeRecords->contains(
+            $closedRecords = $scopeRecords->filter(
                 fn ($r) => strtoupper((string) ($r->action_type ?? '')) === 'CLOSED'
             );
+            $openRecords = $scopeRecords->filter(
+                fn ($r) => strtoupper((string) ($r->action_type ?? '')) !== 'CLOSED'
+            );
 
-            if (!$hasActive && $hasClosed) {
-                $sample = $scopeRecords->first();
-                $total += $this->expenditure(
+            $includeClosedForScope = $includeClosedGenerations
+                || ($closedRecords->isNotEmpty() && $openRecords->isEmpty());
+
+            if ($includeClosedForScope && $closedRecords->isNotEmpty()) {
+                $sample = $closedRecords->first();
+                $total += $this->closedGenerationMsAmount(
                     $budgetHead,
-                    $pdComponent ?: ($sample->pd_component ?? null),
                     $financialYear ?: ($sample->financial_year ?? null),
                     $sample->state_id ? (int) $sample->state_id : $stateId,
-                    $sample->sls_name ?? $slsName
+                    $closedRecords
                 );
-                continue;
             }
 
-            $total += floatval(
-                $scopeRecords
-                    ->filter(fn ($r) => strtoupper((string) ($r->action_type ?? '')) !== 'CLOSED')
-                    ->unique('id')
-                    ->sum(fn ($record) => $this->netMotherSanctionAmountForTotal($record, $creationNetById))
-            );
+            if ($openRecords->isNotEmpty()) {
+                $total += floatval(
+                    $openRecords
+                        ->unique('id')
+                        ->sum(fn ($record) => $this->netMotherSanctionAmountForTotal($record, $creationNetById))
+                );
+            }
         }
 
         return floatval($total);
     }
 
     /**
-     * Expenditure for a Budget Head (+ PD): sum of all DS across every MS tranche.
+     * MS Amount locked by a closed generation (= Expenditure after close; matches list closed row).
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $closedRecords
+     */
+    private function closedGenerationMsAmount(
+        string $budgetHead,
+        ?string $financialYear,
+        ?int $stateId,
+        $closedRecords
+    ): float {
+        $closedKyMsNos = $closedRecords
+            ->pluck('ky_ms_no')
+            ->map(fn ($no) => trim((string) $no))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($closedKyMsNos)) {
+            return 0.0;
+        }
+
+        $dsQuery = DB::table('daily_sanction')
+            ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead])
+            ->whereIn('mother_sanction', $closedKyMsNos);
+
+        if ($stateId) {
+            $dsQuery->where('state_id', $stateId);
+        }
+
+        if ($financialYear) {
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+            if (!empty($yearVariants)) {
+                $dsQuery->whereIn('financial_year', $yearVariants);
+            }
+        }
+
+        return floatval($dsQuery->sum('center_share_amount') ?? 0);
+    }
+
+    /**
+     * Expenditure for a Budget Head (+ PD): sum of DS for the open MS chain when one exists.
+     * Closed-generation MS numbers are excluded so Balanced Fund matches Mother Sanction List
+     * after close + new MS for the same SLS/PD.
      */
     public function expenditure(
         string $budgetHead,
@@ -95,7 +149,16 @@ class MotherSanctionTotalCalculator
 
         $this->applyCommonMsFilters($msQuery, $pdComponent, $financialYear, $stateId, $slsName);
 
-        $kyMsNos = $msQuery->pluck('ky_ms_no')->unique()->filter()->values()->all();
+        $msRecords = $msQuery->get([
+            'id',
+            'ky_ms_no',
+            'status',
+            'action_type',
+            'state_id',
+            'sls_name',
+        ]);
+
+        $kyMsNos = $this->resolveKyMsNosForExpenditure($msRecords);
 
         $dsQuery = DB::table('daily_sanction')
             ->whereRaw('TRIM(budget_head) = TRIM(?)', [$budgetHead]);
@@ -116,16 +179,45 @@ class MotherSanctionTotalCalculator
                 $query->whereIn('mother_sanction', $kyMsNos);
             }
 
-            if ($slsName !== null && $slsName !== '') {
-                if (!empty($kyMsNos)) {
-                    $query->orWhereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
-                } else {
-                    $query->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
-                }
+            // Only fall back to SLS-wide match when there are no MS numbers at all
+            if (empty($kyMsNos) && $slsName !== null && $slsName !== '') {
+                $query->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName]);
             }
         });
 
         return floatval($dsQuery->sum('center_share_amount') ?? 0);
+    }
+
+    /**
+     * Prefer open-chain (non-CLOSED) MS numbers when an open generation exists.
+     * If the scope is fully closed, use closed MS numbers (Total MS = Expenditure path).
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $msRecords
+     * @return array<int, string>
+     */
+    private function resolveKyMsNosForExpenditure($msRecords): array
+    {
+        if ($msRecords->isEmpty()) {
+            return [];
+        }
+
+        $byScope = $msRecords->groupBy(
+            fn ($record) => ($record->state_id ?? '') . '|' . trim((string) ($record->sls_name ?? ''))
+        );
+
+        $kyMsNos = [];
+        foreach ($byScope as $scopeRecords) {
+            $open = $scopeRecords->filter(
+                fn ($r) => strtoupper((string) ($r->action_type ?? '')) !== 'CLOSED'
+            );
+
+            $source = $open->isNotEmpty() ? $open : $scopeRecords;
+            foreach ($source->pluck('ky_ms_no')->unique()->filter() as $no) {
+                $kyMsNos[] = (string) $no;
+            }
+        }
+
+        return array_values(array_unique($kyMsNos));
     }
 
     /**
@@ -147,12 +239,15 @@ class MotherSanctionTotalCalculator
                 continue;
             }
 
+            // Mother Sanctioned Amount = Total MS of open chain (CF excluded; CLOSED generations excluded)
             $totalMs = $this->totalMs($bh, $pdComponent, $financialYear, $stateId, $slsName);
+            // Expenditure = DS linked to open-chain MS numbers only (not prior closed generation)
             $expenditure = $this->expenditure($bh, $pdComponent, $financialYear, $stateId, $slsName);
 
             $data[$bh] = [
                 'total_ms_amount' => $totalMs,
                 'total_daily_sanctioned' => $expenditure,
+                // Balanced Fund Available = Total MS - Expenditure (same as MS List Available Fund)
                 'available_fund' => max(0.0, $totalMs - $expenditure),
             ];
         }

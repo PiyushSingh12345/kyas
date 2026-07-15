@@ -561,7 +561,7 @@ const fetchBalancedFundAvailable = async (budgetHeads, pdComponent = '', fy = ''
   }
 }
 
-// Balanced Fund Available = Total MS (excl. CF, all tranches) - Expenditure (all DS for BH + PD)
+// Balanced Fund Available = Total MS (open chain, excl. CF) - Expenditure (open-chain DS only)
 const getBalancedFundAvailable = (row) => {
   return getBalancedFundAvailableNumeric(row).toFixed(5)
 }
@@ -570,11 +570,16 @@ const getBalancedFundAvailable = (row) => {
 const getBalancedFundAvailableNumeric = (row) => {
   if (!row || !row.budget_head) return 0
   const fundData = balancedFundData.value[row.budget_head] || {}
-  if (fundData.available_fund != null) {
+  if (fundData.available_fund != null && fundData.available_fund !== '') {
     return Math.max(0, parseFloat(fundData.available_fund) || 0)
   }
-  const totalMsAmount = parseFloat(fundData.total_ms_amount || row.mother_sanction_amount || 0)
-  const alreadySanctioned = parseFloat(fundData.total_daily_sanctioned || 0)
+  // Fallback: Mother Sanctioned Amount (Total MS) - already sanctioned
+  const totalMsAmount = parseFloat(
+    fundData.total_ms_amount ?? row.mother_sanction_amount ?? 0
+  ) || 0
+  const alreadySanctioned = parseFloat(
+    fundData.total_daily_sanctioned ?? row.total_daily_sanctioned ?? 0
+  ) || 0
   return Math.max(0, totalMsAmount - alreadySanctioned)
 }
 

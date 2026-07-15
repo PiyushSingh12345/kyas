@@ -47,12 +47,19 @@ class DailySanctionController extends Controller
             return response()->json([], 400); // Bad request if no state_id
         }
 
+        // Only open-generation (active, not CLOSED) mother sanctions
         $data = MotherSanction::select('ky_ms_no')
-        ->whereNotNull('ky_ms_no')
-        ->where('status', '1')
-        ->where('state_id', $stateId)
-        ->distinct()
-        ->get();
+            ->whereNotNull('ky_ms_no')
+            ->where(function ($q) {
+                $q->where('status', 1)->orWhere('status', '1');
+            })
+            ->where(function ($q) {
+                $q->whereNull('action_type')
+                    ->orWhereRaw('UPPER(action_type) <> ?', ['CLOSED']);
+            })
+            ->where('state_id', $stateId)
+            ->distinct()
+            ->get();
 
         return response()->json($data);
     }
@@ -255,6 +262,11 @@ public function store(Request $request)
             ->where('mother_sanction.ky_ms_no', $ky_ms_no)
             ->where(function ($q) {
                 $q->where('mother_sanction.status', 1)->orWhere('mother_sanction.status', '1');
+            })
+            // Only open-generation rows (exclude CLOSED leftovers if any)
+            ->where(function ($q) {
+                $q->whereNull('mother_sanction.action_type')
+                    ->orWhereRaw('UPPER(mother_sanction.action_type) <> ?', ['CLOSED']);
             });
 
         if ($stateId) {
@@ -285,6 +297,7 @@ public function store(Request $request)
             'sls_code' => $first->sls_code,
             'pd_component' => $first->pd_component,
             'financial_year' => $first->financial_year,
+            'ky_ms_no' => $ky_ms_no,
         ];
 
         $stateIdInt = $first->state_id ? (int) $first->state_id : ($stateId ? (int) $stateId : null);
@@ -292,32 +305,43 @@ public function store(Request $request)
         $financialYear = $first->financial_year ?? null;
         $slsName = $first->sls_name ?? null;
 
-        $entries = $records->map(function ($item) use ($pdComponent, $financialYear, $stateIdInt, $slsName) {
-            $budgetHead = (string) ($item->budget_head ?? '');
-            $amounts = $this->msTotals->amountsByBudgetHeads(
-                [$budgetHead],
-                $pdComponent,
-                $financialYear,
-                $stateIdInt,
-                $slsName
-            );
+        $budgetHeads = $records
+            ->pluck('budget_head')
+            ->map(fn ($bh) => trim((string) $bh))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        // Same formulas as Mother Sanction List open-chain row:
+        // Mother Sanctioned Amount = Total MS (CF excluded, CLOSED generations excluded)
+        // Balanced Fund Available  = Total MS - Expenditure (open-chain DS only)
+        $amounts = $this->msTotals->amountsByBudgetHeads(
+            $budgetHeads,
+            $pdComponent,
+            $financialYear,
+            $stateIdInt,
+            $slsName
+        );
+
+        $entries = collect($budgetHeads)->map(function ($budgetHead) use ($amounts, $records) {
             $bhData = $amounts[$budgetHead] ?? [
                 'total_ms_amount' => 0.0,
                 'total_daily_sanctioned' => 0.0,
                 'available_fund' => 0.0,
             ];
+            $sample = $records->first(
+                fn ($item) => trim((string) ($item->budget_head ?? '')) === $budgetHead
+            );
 
             return [
                 'budget_head' => $budgetHead,
-                // Cross-tranche Total MS (CF excluded), same as Mother Sanction List MS Amount
-                'mother_sanction_amount' => $bhData['total_ms_amount'],
-                'effective_mother_sanction_amount' => floatval($item->mother_sanction_amount ?? 0),
-                'available_fund' => $bhData['available_fund'],
-                'total_daily_sanctioned' => $bhData['total_daily_sanctioned'],
+                'mother_sanction_amount' => floatval($bhData['total_ms_amount']),
+                'effective_mother_sanction_amount' => floatval($sample->mother_sanction_amount ?? 0),
+                'available_fund' => floatval($bhData['available_fund']),
+                'total_daily_sanctioned' => floatval($bhData['total_daily_sanctioned']),
             ];
-        })->filter(fn ($item) => !empty($item['budget_head']))
-            ->sortBy('budget_head', SORT_NATURAL)
-            ->values();
+        })->sortBy('budget_head', SORT_NATURAL)->values();
 
         return response()->json([
             'meta' => $meta,
@@ -327,7 +351,7 @@ public function store(Request $request)
 
     /**
      * Get total MS amount and sum of daily sanction amounts by budget head.
-     * Same multi-tranche rules as Mother Sanction List (PD + BH, CF excluded).
+     * Matches Mother Sanction List open-chain rules after close + new MS.
      * Balanced Fund Available = total_ms_amount - total_daily_sanctioned.
      */
     public function getDailySanctionAmountsByBudgetHead(Request $request)
@@ -357,23 +381,25 @@ public function store(Request $request)
 
             $trimmedBudgetHeads = array_values(array_filter(array_map('trim', $budgetHeads)));
 
-            // Resolve PD from SLS when not passed explicitly
-            if (!$pdComponent && $slsName && $stateId) {
-                $pdComponent = DB::table('mother_sanction')
+            // Resolve PD / FY from open (active, non-CLOSED) records only
+            if ((!$pdComponent || !$financialYear) && $slsName && $stateId) {
+                $openMs = DB::table('mother_sanction')
                     ->where('state_id', (int) $stateId)
                     ->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName])
-                    ->whereNotNull('pd_component')
+                    ->where(function ($q) {
+                        $q->where('status', 1)->orWhere('status', '1');
+                    })
+                    ->where(function ($q) {
+                        $q->whereNull('action_type')
+                            ->orWhereRaw('UPPER(action_type) <> ?', ['CLOSED']);
+                    })
                     ->orderByDesc('id')
-                    ->value('pd_component');
-            }
+                    ->first(['pd_component', 'financial_year']);
 
-            if (!$financialYear && $slsName && $stateId) {
-                $financialYear = DB::table('mother_sanction')
-                    ->where('state_id', (int) $stateId)
-                    ->whereRaw('TRIM(sls_name) = TRIM(?)', [$slsName])
-                    ->whereNotNull('financial_year')
-                    ->orderByDesc('id')
-                    ->value('financial_year');
+                if ($openMs) {
+                    $pdComponent = $pdComponent ?: $openMs->pd_component;
+                    $financialYear = $financialYear ?: $openMs->financial_year;
+                }
             }
 
             $data = $this->msTotals->amountsByBudgetHeads(
