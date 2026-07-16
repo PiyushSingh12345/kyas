@@ -568,11 +568,33 @@
 	return formatToFiveDecimals(getBudgetPhaseAmount(bhId))
   }
 
+  const getRowTotalNumeric = (bhId) => {
+	let total = 0
+	programDivisions.value.forEach(pd => {
+	  const value = parseFloat(allocationData.value[bhId]?.[pd.division_id]) || 0
+	  total = addWithPrecision(total, value)
+	})
+	return total
+  }
+
   const isRowOverBudget = (bhId) => {
-	const rowTotal = parseFloat(calculateRowTotal(bhId)) || 0
+	const rowTotal = getRowTotalNumeric(bhId)
 	const allowed = getBudgetPhaseAmount(bhId)
 	// Allow tiny floating-point tolerance
 	return rowTotal > allowed + 0.000001
+  }
+
+  const syncAllocationInputsBeforeSubmit = async () => {
+	if (document.activeElement?.blur) {
+	  document.activeElement.blur()
+	}
+	const allBudgetHeads = getAllBudgetHeads()
+	allBudgetHeads.forEach(bh => {
+	  programDivisions.value.forEach(pd => {
+		formatInputValue(bh.bh_id, pd.division_id)
+	  })
+	})
+	await nextTick()
   }
 
   const totalBudgetPhaseAmount = computed(() => {
@@ -1185,11 +1207,13 @@
 	submitting.value = true
 	
 	try {
+	  await syncAllocationInputsBeforeSubmit()
+
 	  // Block submit if any budget head's PD total exceeds Budget Phase amount
 	  const exceeded = getExceededBudgetHeads()
 	  if (exceeded.length > 0) {
 		const details = exceeded.slice(0, 5).map(bh => {
-		  const total = calculateRowTotal(bh.bh_id)
+		  const total = formatToFiveDecimals(getRowTotalNumeric(bh.bh_id))
 		  const allowed = formatBudgetPhaseAmount(bh.bh_id)
 		  return `• ${bh.budget_code} - ${bh.budget_name}: ${total} > ${allowed}`
 		}).join('\n')
@@ -1208,25 +1232,22 @@
 	  const allBudgetHeads = getAllBudgetHeads()
 	  allBudgetHeads.forEach(bh => {
 		programDivisions.value.forEach(pd => {
-		  const amount = allocationData.value[bh.bh_id][pd.division_id]
-		  // Allow zero values to be saved - check if amount is not null/undefined/empty string
-		  // but allow 0 as a valid value
+		  const amount = allocationData.value[bh.bh_id]?.[pd.division_id]
+		  let exactAmount = 0
 		  if (amount !== null && amount !== undefined && amount !== '') {
-			// Parse and format to 5 decimals before submission to ensure exact precision
-			const exactAmount = parseFloat(amount)
-			// Check if it's a valid number (including 0)
-			// This will save 0 when user explicitly enters 0
-			if (!isNaN(exactAmount) && exactAmount >= 0) {
-			  submissionData.push({
-				financial_year: selectedFinancialYear.value,
-				budget_phase: selectedPhase.value,
-				bh_id: bh.bh_id,
-				pd_id: pd.division_id,
-				amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)
-				status: 1
-			  })
+			exactAmount = parseFloat(amount)
+			if (isNaN(exactAmount) || exactAmount < 0) {
+			  return
 			}
 		  }
+		  submissionData.push({
+			financial_year: selectedFinancialYear.value,
+			budget_phase: selectedPhase.value,
+			bh_id: bh.bh_id,
+			pd_id: pd.division_id,
+			amount: exactAmount,
+			status: 1
+		  })
 		})
 	  })
   
@@ -1234,8 +1255,9 @@
 	  // console.log(submissionData);
 	  // return false;
   
-	  if (submissionData.length === 0) {
-		alert('Please enter at least one allocation amount (including 0)')
+	  const hasAnyPositiveAmount = submissionData.some(item => item.amount > 0)
+	  if (!hasAnyPositiveAmount) {
+		alert('Please enter at least one allocation amount greater than 0')
 		submitting.value = false
 		return
 	  }
@@ -1249,7 +1271,8 @@
 		},
 		body: JSON.stringify({
 		  allocations: submissionData,
-		  remarks: remarksData.value
+		  remarks: remarksData.value,
+		  program_division_ids: programDivisions.value.map(pd => pd.division_id)
 		})
 	  })
   

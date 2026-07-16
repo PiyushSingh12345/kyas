@@ -493,7 +493,11 @@ class AnnualActionPlanController extends Controller
 
             // Ensure sum of all PD amounts for each budget head does not exceed
             // the Budget Phase amount for the same financial year and budget phase.
-            $exceededHeads = $this->validatePdTotalsAgainstBudgetPhase($request->allocations);
+            $programDivisionIds = array_map('intval', $request->input('program_division_ids', []));
+            $exceededHeads = $this->validatePdTotalsAgainstBudgetPhase(
+                $request->allocations,
+                $programDivisionIds
+            );
             if (!empty($exceededHeads)) {
                 $messages = array_map(function ($item) {
                     return sprintf(
@@ -581,10 +585,13 @@ class AnnualActionPlanController extends Controller
      * the Budget Phase budget_amount for the same FY and phase.
      *
      * @param  array  $allocations
+     * @param  array  $programDivisionIds  Active PD ids from the grid (full-grid validation)
      * @return array List of exceeded heads (empty if all valid)
      */
-    private function validatePdTotalsAgainstBudgetPhase(array $allocations): array
+    private function validatePdTotalsAgainstBudgetPhase(array $allocations, array $programDivisionIds = []): array
     {
+        $programDivisionIds = array_values(array_unique(array_map('intval', $programDivisionIds)));
+
         // Group incoming amounts by (financial_year, budget_phase, bh_id) => [pd_id => amount]
         $incoming = [];
         foreach ($allocations as $allocation) {
@@ -627,27 +634,38 @@ class AnnualActionPlanController extends Controller
             $budgetPhase = $phaseQuery->first();
             $allowed = $budgetPhase ? (float) $budgetPhase->budget_amount : 0.0;
 
-            // Existing PD allocations for this head / FY / phase (to merge with incoming)
-            $existingQuery = PdwiseAapAllocation::where('bh_id', $bhId)
-                ->where('financial_year', $fy);
+            $incomingPdAmounts = $group['pd_amounts'];
 
-            if ($phase === null) {
-                $existingQuery->whereNull('budget_phase');
+            // Full grid submission: total only the active PD columns shown on the page.
+            // This matches the UI row total and treats cleared cells as 0 instead of
+            // keeping stale DB values for PDs omitted from the payload.
+            if (!empty($programDivisionIds)) {
+                $pdTotal = 0.0;
+                foreach ($programDivisionIds as $pdId) {
+                    $pdTotal += (float) ($incomingPdAmounts[$pdId] ?? 0.0);
+                }
             } else {
-                $existingQuery->where('budget_phase', $phase);
-            }
+                // Fallback for partial updates: merge incoming over existing DB values.
+                $existingQuery = PdwiseAapAllocation::where('bh_id', $bhId)
+                    ->where('financial_year', $fy);
 
-            $merged = [];
-            foreach ($existingQuery->get(['pd_id', 'amount']) as $row) {
-                $merged[(int) $row->pd_id] = (float) $row->amount;
-            }
+                if ($phase === null) {
+                    $existingQuery->whereNull('budget_phase');
+                } else {
+                    $existingQuery->where('budget_phase', $phase);
+                }
 
-            // Overlay incoming amounts
-            foreach ($group['pd_amounts'] as $pdId => $amount) {
-                $merged[$pdId] = (float) $amount;
-            }
+                $merged = [];
+                foreach ($existingQuery->get(['pd_id', 'amount']) as $row) {
+                    $merged[(int) $row->pd_id] = (float) $row->amount;
+                }
 
-            $pdTotal = array_sum($merged);
+                foreach ($incomingPdAmounts as $pdId => $amount) {
+                    $merged[$pdId] = (float) $amount;
+                }
+
+                $pdTotal = array_sum($merged);
+            }
 
             // Tiny tolerance for float precision
             if ($pdTotal > $allowed + 0.000001) {
