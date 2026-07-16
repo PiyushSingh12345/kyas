@@ -512,13 +512,11 @@
     return categories
   }
   
-  // Fetch budget heads from API
+  // Fetch budget heads from API (all active heads — same as release page;
+  // phase/year filters apply to allocation & budget-phase amounts, not the head list)
   const fetchBudgetHeads = async () => {
 	try {
-	  // Build API URL with optional phase parameter
-	  let apiUrl = `/api/aap-budget-heads?phase=${selectedPhase.value}&year=${selectedFinancialYear.value}`
-	  
-	  const response = await fetch(apiUrl)
+	  const response = await fetch('/api/aap-budget-heads')
 	  if (!response.ok) throw new Error('Failed to fetch budget heads')
 	  const data = await response.json()
 	  budgetHeads.value = data
