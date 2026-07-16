@@ -1013,13 +1013,14 @@
   }
   
   // Fetch existing allocation data
-  // Fetch BE allocations
+  // Fetch BE allocations (FY + phase only; date range applies to Release/Expenditure)
   const fetchExistingAllocations = async () => {
 	try {
-	  const response = await fetch(appendToUrl('/api/pdwise-aap-allocation', {
+	  const params = new URLSearchParams({
 		financial_year: selectedFinancialYear.value,
 		budget_phase: 'BE',
-	  }))
+	  })
+	  const response = await fetch(`/api/pdwise-aap-allocation?${params.toString()}`)
 	  if (!response.ok) throw new Error('Failed to fetch existing allocations')
 	  const result = await response.json()
 	  
@@ -1069,10 +1070,11 @@
   // Fetch RE allocations
   const fetchReAllocations = async () => {
 	try {
-	  const response = await fetch(appendToUrl('/api/pdwise-aap-allocation', {
+	  const params = new URLSearchParams({
 		financial_year: selectedFinancialYear.value,
 		budget_phase: 'RE',
-	  }))
+	  })
+	  const response = await fetch(`/api/pdwise-aap-allocation?${params.toString()}`)
 	  if (!response.ok) throw new Error('Failed to fetch RE allocations')
 	  const result = await response.json()
 	  
@@ -1099,10 +1101,11 @@
   // Fetch FE allocations
   const fetchFeAllocations = async () => {
 	try {
-	  const response = await fetch(appendToUrl('/api/pdwise-aap-allocation', {
+	  const params = new URLSearchParams({
 		financial_year: selectedFinancialYear.value,
 		budget_phase: 'FE',
-	  }))
+	  })
+	  const response = await fetch(`/api/pdwise-aap-allocation?${params.toString()}`)
 	  if (!response.ok) throw new Error('Failed to fetch FE allocations')
 	  const result = await response.json()
 	  

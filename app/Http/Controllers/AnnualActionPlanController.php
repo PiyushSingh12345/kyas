@@ -678,15 +678,17 @@ class AnnualActionPlanController extends Controller
         try {
             $financialYear = $request->get('financial_year', '2025-26');
             $budgetPhase = $request->get('budget_phase');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
 
-            $query = PdwiseAapAllocation::where('financial_year', $financialYear);
+            // BE / RE / FE are FY + phase snapshots from pdwise_aap_allocation.
+            // Do not apply date/time range here — that filter scopes Release/Expenditure only.
+            $query = PdwiseAapAllocation::whereIn('financial_year', $yearVariants)
+                ->where('status', 1);
             
             // Filter by budget phase if provided
             if ($budgetPhase && $budgetPhase !== '0') {
                 $query->where('budget_phase', $budgetPhase);
             }
-
-            $this->applyDateTimeRangeToQuery($query, $request, 'updated_at');
 
             $allocations = $query->get()
                 ->groupBy('bh_id')
@@ -714,11 +716,11 @@ class AnnualActionPlanController extends Controller
                 });
 
             // Get remarks for each budget head
-            $remarksQuery = PdwiseAapAllocation::where('financial_year', $financialYear);
+            $remarksQuery = PdwiseAapAllocation::whereIn('financial_year', $yearVariants)
+                ->where('status', 1);
             if ($budgetPhase && $budgetPhase !== '0') {
                 $remarksQuery->where('budget_phase', $budgetPhase);
             }
-            $this->applyDateTimeRangeToQuery($remarksQuery, $request, 'updated_at');
             $remarks = $remarksQuery->whereNotNull('remark')
                 ->pluck('remark', 'bh_id')
                 ->toArray();
@@ -863,6 +865,31 @@ class AnnualActionPlanController extends Controller
         $startDate = $startYear . '-04-01';
         $endDate = ($startYear + 1) . '-03-31';
         return [$startDate, $endDate];
+    }
+
+    /**
+     * Return both short (2026-27) and long (2026-2027) financial year formats.
+     *
+     * @return array<int, string>
+     */
+    private function normalizeFinancialYearVariants(?string $year): array
+    {
+        if (empty($year)) {
+            return [];
+        }
+
+        $year = trim($year);
+        $variants = [$year];
+
+        if (preg_match('/^\d{4}-\d{4}$/', $year)) {
+            [$start, $end] = explode('-', $year);
+            $variants[] = $start . '-' . substr($end, -2);
+        } elseif (preg_match('/^\d{4}-\d{2}$/', $year)) {
+            [$start, $end] = explode('-', $year);
+            $variants[] = $start . '-20' . $end;
+        }
+
+        return array_values(array_unique($variants));
     }
 
     /**
@@ -1025,6 +1052,7 @@ class AnnualActionPlanController extends Controller
         $agencyBaseQuery = function (string $table) use ($startDate, $endDate) {
             return DB::table($table)
                 ->where('status', 1)
+                ->whereNull('deleted_at')
                 ->whereBetween('date', [$startDate, $endDate])
                 ->whereNotNull('program_division_id')
                 ->whereNotNull('budget_head');
@@ -1108,12 +1136,15 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
-     * Get mother sanction release data grouped by budget head and program division
+     * Get mother sanction release data grouped by budget head and program division.
+     * Release = mother_sanction totals
+     *         + TSA amount + LOA amount + Administrative Expenditure amount.
      */
     public function getMotherSanctionReleaseData(Request $request): JsonResponse
     {
         try {
             $financialYear = $request->get('financial_year', '2025-26');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
             
             // First, get all mother sanctions with their budget heads and pd_components
             // Use inner joins to ensure we only get records where both budget_head and pd_component match
@@ -1125,6 +1156,7 @@ class AnnualActionPlanController extends Controller
                     $join->on(DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'), '=', DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci'));
                 })
                 ->where('ms.status', 1)
+                ->whereIn('ms.financial_year', $yearVariants)
                 ->whereNotNull('ms.budget_head')
                 ->whereNotNull('ms.pd_component')
                 ->whereNotNull('ms.mother_sanction_amount')
@@ -1202,53 +1234,59 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
-     * Get daily sanction expenditure data grouped by budget head and program division
-     * Sum of center_share_amount from daily_sanction where budget_head matches 
-     * AND state (mapped to pd_component from mother_sanction) matches
-     * 
-     * Strategy: Get pd_component from mother_sanction for the same state and budget_head
+     * Get daily sanction expenditure data grouped by budget head and program division.
+     * Expenditure = daily_sanction center_share totals (PD from linked mother_sanction)
+     *             + TSA expenditure + LOA amount + Administrative Expenditure amount.
+     *
+     * PD attribution: daily_sanction.mother_sanction + budget_head → mother_sanction.pd_component
      */
     public function getDailySanctionExpenditureData(Request $request): JsonResponse
     {
         try {
             $financialYear = $request->get('financial_year', '2025-26');
-            
-            // First, get distinct pd_component values from mother_sanction grouped by state_id and budget_head
-            // This gives us the mapping: state + budget_head -> pd_component
-            $stateBudgetPdMapping = DB::table('mother_sanction')
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+
+            // Map mother sanction no + budget head → pd_component for the selected FY
+            $msPdMapping = [];
+            $msRows = DB::table('mother_sanction')
                 ->where('status', 1)
+                ->whereIn('financial_year', $yearVariants)
+                ->whereNotNull('ky_ms_no')
                 ->whereNotNull('budget_head')
                 ->whereNotNull('pd_component')
-                ->whereNotNull('state_id')
                 ->select(
-                    'state_id',
+                    DB::raw('TRIM(ky_ms_no) as ky_ms_no'),
                     DB::raw('TRIM(budget_head) as budget_head'),
-                    'pd_component'
+                    DB::raw('TRIM(pd_component) as pd_component')
                 )
                 ->distinct()
-                ->get()
-                ->groupBy(function($item) {
-                    return $item->state_id . '|' . trim($item->budget_head);
-                });
-            
+                ->get();
+
+            foreach ($msRows as $row) {
+                $key = $row->ky_ms_no . '|' . $row->budget_head;
+                if (!isset($msPdMapping[$key])) {
+                    $msPdMapping[$key] = $row->pd_component;
+                }
+            }
+
             // Get all program divisions for efficient lookup
             $programDivisions = DB::table('md_program_divisions')
                 ->select('division_id', 'division_name')
                 ->get()
-                ->keyBy(function($item) {
+                ->keyBy(function ($item) {
                     return trim($item->division_name);
                 });
             
-            // Now aggregate daily sanction expenditure data
-            // Match by budget_head AND state (mapped to pd_component from mother_sanction)
+            // Aggregate daily sanction expenditure for the selected FY
             $expenditureData = DB::table('daily_sanction as ds')
-                ->join('budget_heads as bh', function($join) {
+                ->join('budget_heads as bh', function ($join) {
                     $join->on(DB::raw('TRIM(ds.budget_head)'), '=', DB::raw('TRIM(bh.budget)'));
                 })
                 ->where('ds.status', 1)
+                ->whereIn('ds.financial_year', $yearVariants)
                 ->whereNotNull('ds.budget_head')
+                ->whereNotNull('ds.mother_sanction')
                 ->whereNotNull('ds.center_share_amount')
-                ->whereNotNull('ds.state_id')
                 ->where('ds.center_share_amount', '>', 0);
 
             $this->applyDateRangeToQuery($expenditureData, $request, 'ds.ds_date');
@@ -1256,45 +1294,38 @@ class AnnualActionPlanController extends Controller
             $expenditureData = $expenditureData->select(
                     'bh.id as bh_id',
                     'ds.budget_head',
-                    'ds.state_id',
+                    'ds.mother_sanction',
                     'ds.center_share_amount'
                 )
                 ->get();
             
-            // Process the data and map to pd_component using the mapping we created
+            // Attribute each daily sanction to the PD of its linked mother sanction (same MS no + BH)
             $groupedData = [];
             foreach ($expenditureData as $record) {
-                $key = $record->state_id . '|' . trim($record->budget_head);
-                
-                if ($stateBudgetPdMapping->has($key)) {
-                    // Get all pd_components for this state+budget_head combination
-                    foreach ($stateBudgetPdMapping[$key] as $mapping) {
-                        $pdComponent = trim($mapping->pd_component);
-                        
-                        // Find the program division for this pd_component
-                        if ($programDivisions->has($pdComponent)) {
-                            $pd = $programDivisions[$pdComponent];
-                            $bhId = (string)$record->bh_id;
-                            $pdId = (string)$pd->division_id;
-                            
-                            if (!isset($groupedData[$bhId])) {
-                                $groupedData[$bhId] = [];
-                            }
-                            
-                            if (!isset($groupedData[$bhId][$pdId])) {
-                                $groupedData[$bhId][$pdId] = 0;
-                            }
-                            
-                            $groupedData[$bhId][$pdId] += floatval($record->center_share_amount ?? 0);
-                        }
-                    }
+                $key = trim((string) $record->mother_sanction) . '|' . trim((string) $record->budget_head);
+                $pdComponent = $msPdMapping[$key] ?? null;
+
+                if ($pdComponent === null || !$programDivisions->has($pdComponent)) {
+                    continue;
                 }
+
+                $pd = $programDivisions[$pdComponent];
+                $bhId = (string) $record->bh_id;
+                $pdId = (string) $pd->division_id;
+
+                if (!isset($groupedData[$bhId])) {
+                    $groupedData[$bhId] = [];
+                }
+                if (!isset($groupedData[$bhId][$pdId])) {
+                    $groupedData[$bhId][$pdId] = 0;
+                }
+
+                $groupedData[$bhId][$pdId] += floatval($record->center_share_amount ?? 0);
             }
             
-            // Convert to the expected format (already formatted above)
             $formattedData = $groupedData;
 
-            // Add agency expenditure amounts (TSA expenditure + LOA amount + Admin Exp amount) to existing expenditure data
+            // Add agency expenditure amounts (TSA expenditure + LOA amount + Admin Exp amount)
             $agencyData = $this->getAgencyReleaseDataForPdWiseReport($financialYear, $request);
             $formattedData = $this->mergeAgencyAmountsIntoFormattedData(
                 $formattedData,
@@ -1303,7 +1334,7 @@ class AnnualActionPlanController extends Controller
 
             Log::info('Daily Sanction Expenditure Data Query Result', [
                 'raw_count' => $expenditureData->count(),
-                'mapping_count' => count($stateBudgetPdMapping),
+                'mapping_count' => count($msPdMapping),
                 'formatted_count' => count($formattedData),
                 'sample' => array_slice($formattedData, 0, 3, true)
             ]);

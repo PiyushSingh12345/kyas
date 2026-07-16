@@ -88,14 +88,14 @@
                                   <thead>
                                     <tr class="table-light">
                                       <th class="text-center">Budget Head</th>
-                                      <th class="text-center">Old DS Amount</th>
-                                      <th class="text-center">New DS Amount</th>
+                                      <!-- <th class="text-center">Old DS Amount</th> -->
+                                      <th class="text-center">DS Amount</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     <tr v-for="(budget, budgetIndex) in item.budget_heads" :key="budgetIndex">
                                       <td class="text-center">{{ budget.budget_head }}</td>
-                                      <td class="text-center currency-cell">{{ formatCurrency(budget.old_center_share_amount) }}</td>
+                                      <!-- <td class="text-center currency-cell">{{ formatCurrency(budget.old_center_share_amount) }}</td> -->
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.new_center_share_amount) }}</td>
                                     </tr>
                                     <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
