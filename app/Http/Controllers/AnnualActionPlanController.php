@@ -13,12 +13,17 @@ use App\Models\BudgetHead;
 use App\Models\StatewiseAapAllocation;
 use App\Models\PdwiseAapAllocation;
 use App\Models\BudgetPhase;
+use App\Services\MotherSanctionTotalCalculator;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB as DBFacade;
 use Carbon\Carbon;
 
 class AnnualActionPlanController extends Controller
 {
+    public function __construct(private MotherSanctionTotalCalculator $msTotals)
+    {
+    }
+
     /**
      * Store statewise AAP allocation data
      */
@@ -1155,7 +1160,7 @@ class AnnualActionPlanController extends Controller
 
     /**
      * Get mother sanction release data grouped by budget head and program division.
-     * Release = mother_sanction totals
+     * Release = Total MS (TMS: create/revise tranche nets, CF excluded; same as MS List)
      *         + TSA amount + LOA amount + Administrative Expenditure amount.
      */
     public function getMotherSanctionReleaseData(Request $request): JsonResponse
@@ -1163,64 +1168,81 @@ class AnnualActionPlanController extends Controller
         try {
             $financialYear = $request->get('financial_year', '2025-26');
             $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
-            
-            // First, get all mother sanctions with their budget heads and pd_components
-            // Use inner joins to ensure we only get records where both budget_head and pd_component match
-            $releaseData = DB::table('mother_sanction as ms')
-                ->join('budget_heads as bh', function($join) {
+
+            // Distinct BH + PD pairs that have mother sanction rows for this FY
+            $pairsQuery = DB::table('mother_sanction as ms')
+                ->join('budget_heads as bh', function ($join) {
                     $join->on(DB::raw('TRIM(ms.budget_head)'), '=', DB::raw('TRIM(bh.budget)'));
                 })
-                ->join('md_program_divisions as pd', function($join) {
-                    $join->on(DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'), '=', DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci'));
+                ->join('md_program_divisions as pd', function ($join) {
+                    $join->on(
+                        DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'),
+                        '=',
+                        DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci')
+                    );
                 })
-                ->where('ms.status', 1)
                 ->whereIn('ms.financial_year', $yearVariants)
                 ->whereNotNull('ms.budget_head')
                 ->whereNotNull('ms.pd_component')
-                ->whereNotNull('ms.mother_sanction_amount')
-                ->where('ms.mother_sanction_amount', '>', 0);
+                ->whereNotNull('ms.mother_sanction_amount');
 
-            $this->applyDateRangeToQuery($releaseData, $request, 'ms.sanction_date');
+            $this->applyDateRangeToQuery($pairsQuery, $request, 'ms.sanction_date');
 
-            $releaseData = $releaseData->select(
+            $pairs = $pairsQuery->select(
                     'bh.id as bh_id',
                     'pd.division_id as pd_id',
-                    'ms.budget_head',
-                    'ms.pd_component',
-                    DB::raw('SUM(COALESCE(ms.mother_sanction_amount, 0)) as total_release')
+                    DB::raw('TRIM(ms.budget_head) as budget_head'),
+                    DB::raw('TRIM(ms.pd_component) as pd_component')
                 )
-                ->groupBy('bh.id', 'pd.division_id', 'ms.budget_head', 'ms.pd_component')
+                ->distinct()
                 ->get();
 
-            Log::info('Mother Sanction Release Data Query Result', [
-                'count' => $releaseData->count(),
-                'sample' => $releaseData->take(5)->toArray()
-            ]);
-
-            // Format data as {bh_id: {pd_id: amount}}
-            // Use string keys to match JavaScript object key behavior
-            $formattedData = [];
-            foreach ($releaseData as $record) {
-                // Only include records where both bh_id and pd_id are not null
-                if ($record->bh_id && $record->pd_id) {
-                    $bhId = (string)$record->bh_id;
-                    $pdId = (string)$record->pd_id;
-                    
-                    if (!isset($formattedData[$bhId])) {
-                        $formattedData[$bhId] = [];
-                    }
-                    $amount = floatval($record->total_release ?? 0);
-                    if (isset($formattedData[$bhId][$pdId])) {
-                        $formattedData[$bhId][$pdId] += $amount;
-                    } else {
-                        $formattedData[$bhId][$pdId] = $amount;
-                    }
+            // One TMS calculation per bh_id + pd_id (avoids double-count from string variants)
+            $uniqueByBhPd = [];
+            foreach ($pairs as $pair) {
+                if (!$pair->bh_id || !$pair->pd_id) {
+                    continue;
+                }
+                $key = (string) $pair->bh_id . '|' . (string) $pair->pd_id;
+                if (!isset($uniqueByBhPd[$key])) {
+                    $uniqueByBhPd[$key] = $pair;
                 }
             }
 
-            Log::info('Formatted Mother Sanction Release Data', [
+            $formattedData = [];
+            $tmsCache = [];
+
+            foreach ($uniqueByBhPd as $pair) {
+                $budgetHead = trim((string) $pair->budget_head);
+                $pdComponent = trim((string) $pair->pd_component);
+                $cacheKey = $budgetHead . '|' . $pdComponent;
+
+                if (!isset($tmsCache[$cacheKey])) {
+                    $tmsCache[$cacheKey] = $this->msTotals->totalMs(
+                        $budgetHead,
+                        $pdComponent,
+                        $financialYear
+                    );
+                }
+
+                $amount = floatval($tmsCache[$cacheKey]);
+                if ($amount <= 0) {
+                    continue;
+                }
+
+                $bhId = (string) $pair->bh_id;
+                $pdId = (string) $pair->pd_id;
+
+                if (!isset($formattedData[$bhId])) {
+                    $formattedData[$bhId] = [];
+                }
+                $formattedData[$bhId][$pdId] = $amount;
+            }
+
+            Log::info('Formatted Mother Sanction Release Data (TMS)', [
+                'pair_count' => count($uniqueByBhPd),
                 'total_budget_heads' => count($formattedData),
-                'sample' => array_slice($formattedData, 0, 3, true)
+                'sample' => array_slice($formattedData, 0, 3, true),
             ]);
 
             // Add agency release amounts (TSA amount + LOA amount + Admin Exp amount) to existing release data
@@ -1234,19 +1256,18 @@ class AnnualActionPlanController extends Controller
                 'success' => true,
                 'data' => $formattedData,
                 'debug' => [
-                    'raw_count' => $releaseData->count(),
-                    'formatted_count' => count($formattedData)
-                ]
+                    'raw_count' => count($uniqueByBhPd),
+                    'formatted_count' => count($formattedData),
+                ],
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error fetching mother sanction release data: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch mother sanction release data',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
