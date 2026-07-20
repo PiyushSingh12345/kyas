@@ -321,6 +321,7 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     // Release and Expenditure data API routes
     Route::get('/api/mother-sanction-release-data', [AnnualActionPlanController::class, 'getMotherSanctionReleaseData']);
     Route::get('/api/daily-sanction-expenditure-data', [AnnualActionPlanController::class, 'getDailySanctionExpenditureData']);
+    Route::get('/api/pdwise-ner-reappropriation', [AnnualActionPlanController::class, 'getNerReappropriationAllocationData']);
     
     // State Release Data API routes
     Route::get('/api/aap-sls-components', [AnnualActionPlanController::class, 'getSLSComponentsByState']);

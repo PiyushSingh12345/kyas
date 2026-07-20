@@ -790,6 +790,13 @@
   const feAllocationData = ref({}) // FE Allocation data
   const releaseData = ref({}) // Mother sanction release data
   const expenditureData = ref({}) // Daily sanction expenditure data
+  // NER-only amounts: 3601 MS/DS for NER states + 2435 TSA where is_ner=1
+  const nerReleaseData = ref({})
+  const nerExpenditureData = ref({})
+  // NER re-appropriation amounts (2552→3601 NER states / 2552→2435 Agency) by phase for BE/RE/FE
+  const nerAllocationBeData = ref({})
+  const nerAllocationReData = ref({})
+  const nerAllocationFeData = ref({})
   const remarksData = ref({})
   const loading = ref(true)
   const error = ref(null)
@@ -826,11 +833,12 @@
   const showFixedScrollBar = ref(false)
   let scrollSyncLock = false
   
-  // Major head options: Include 2552 under 3601 / 2435 (for North-East States: 7 sisters + Sikkim)
+  // Include 2552 under 3601 / 2435: when unchecked (default), NER amounts move to 2552 display;
+  // when checked, NER amounts also remain under 3601 / 2435.
   const include2552In3601 = ref(false)
   const include2552In2435 = ref(false)
   
-  // Mapping: 2552 budget heads → 3601 detail heads (Re-appropriated from 2552 to 3601 for NE states)
+  // Mapping: 2552 budget heads → 3601 detail heads (Re-appropriated from 2552 to 3601 for NER states)
   const MAPPING_2552_TO_3601 = {
     '2552.00.342.03.00.31': '3601.06.101.45.00.31',   // GIA(General)
     '2552.00.789.51.00.31': '3601.06.789.37.00.31',   // GIA(SC)
@@ -840,24 +848,26 @@
     '2552.00.796.59.00.35': '3601.06.796.41.00.35',   // GIA(Capital-ST)
     '2552.00.796.59.03.31': '3601.06.796.41.01.31'    // Dharti Jan Abha
   }
-  // Mapping: 2552 budget heads → 2435 detail heads (Re-appropriated from 2552 to 2435 for NE states)
+  // Mapping: 2552 budget heads → 2435 detail heads (Re-appropriated from 2552 to 2435 for NER agencies)
   const MAPPING_2552_TO_2435 = {
     '2552.00.342.03.00.31': '2435.60.103.04.00.31',   // GIA General- Gen
     '2552.00.789.51.00.31': '2435.60.789.02.00.31',   // GIA General- SCSP
     '2552.00.796.59.00.31': '2435.60.796.02.00.31',   // GIA General- DAPST
   }
-  const buildReverse2552Mapping = (forwardMapping) => {
-    const reverse = {}
-    Object.keys(forwardMapping).forEach(code2552 => {
-      const codeTarget = forwardMapping[code2552]
-      reverse[codeTarget] = code2552
-      const digitsTarget = codeTarget.replace(/[^0-9]/g, '')
-      if (digitsTarget) reverse[digitsTarget] = code2552
-    })
-    return reverse
+  const normalizeBudgetCodeKey = (code) => String(code || '').trim()
+  const budgetCodeDigits = (code) => normalizeBudgetCodeKey(code).replace(/[^0-9]/g, '')
+  const lookupMappedTargetCode = (code2552, forwardMapping) => {
+    const code = normalizeBudgetCodeKey(code2552)
+    if (!code) return null
+    if (forwardMapping[code]) return forwardMapping[code]
+    const digits = budgetCodeDigits(code)
+    const matchKey = Object.keys(forwardMapping).find(k => budgetCodeDigits(k) === digits)
+    return matchKey ? forwardMapping[matchKey] : null
   }
-  const MAPPING_3601_FROM_2552 = buildReverse2552Mapping(MAPPING_2552_TO_3601)
-  const MAPPING_2435_FROM_2552 = buildReverse2552Mapping(MAPPING_2552_TO_2435)
+  const getMajorHeadPrefix = (bh) => {
+    const digits = budgetCodeDigits(bh?.budget_code)
+    return digits.substring(0, 4) || ''
+  }
 
   // Watch column visibility to ensure at least one column is always visible
   watch([showAllocation, showReAllocation, showFeAllocation, showRelease, showExpenditure], 
@@ -1129,6 +1139,32 @@
 	}
   }
 
+  // Fetch NER re-appropriation amounts for BE/RE/FE (2552 → NER 3601 / 2552 → NER 2435)
+  const fetchNerReappropriationAllocationData = async () => {
+	try {
+	  const response = await fetch(`/api/pdwise-ner-reappropriation?financial_year=${encodeURIComponent(selectedFinancialYear.value)}`)
+	  if (!response.ok) {
+		throw new Error(`Failed to fetch NER reappropriation data: ${response.status}`)
+	  }
+	  const result = await response.json()
+	  if (result.success && result.data) {
+		nerAllocationBeData.value = result.data.BE || {}
+		nerAllocationReData.value = result.data.RE || {}
+		nerAllocationFeData.value = result.data.FE || {}
+		console.log('NER reappropriation allocation data:', result.data)
+	  } else {
+		nerAllocationBeData.value = {}
+		nerAllocationReData.value = {}
+		nerAllocationFeData.value = {}
+	  }
+	} catch (err) {
+	  console.error('Error fetching NER reappropriation allocation data:', err)
+	  nerAllocationBeData.value = {}
+	  nerAllocationReData.value = {}
+	  nerAllocationFeData.value = {}
+	}
+  }
+
   // Fetch mother sanction release data
   const fetchReleaseData = async () => {
 	try {
@@ -1146,7 +1182,9 @@
 	  
 	  if (result.success && result.data) {
 		releaseData.value = result.data
+		nerReleaseData.value = result.ner_data || {}
 		console.log('Release data fetched and stored:', releaseData.value)
+		console.log('NER release data fetched and stored:', nerReleaseData.value)
 		console.log('Release data debug info:', result.debug)
 		
 		// Log sample data
@@ -1156,9 +1194,11 @@
 		})
 	  } else {
 		console.warn('Release data API returned success=false or no data:', result)
+		nerReleaseData.value = {}
 	  }
 	} catch (err) {
 	  console.error('Error fetching release data:', err)
+	  nerReleaseData.value = {}
 	}
   }
 
@@ -1179,7 +1219,9 @@
 	  
 	  if (result.success && result.data) {
 		expenditureData.value = result.data
+		nerExpenditureData.value = result.ner_data || {}
 		console.log('Expenditure data fetched and stored:', expenditureData.value)
+		console.log('NER expenditure data fetched and stored:', nerExpenditureData.value)
 		console.log('Expenditure data debug info:', result.debug)
 		
 		// Log sample data
@@ -1189,43 +1231,37 @@
 		})
 	  } else {
 		console.warn('Expenditure data API returned success=false or no data:', result)
+		nerExpenditureData.value = {}
 	  }
 	} catch (err) {
 	  console.error('Error fetching expenditure data:', err)
+	  nerExpenditureData.value = {}
 	}
+  }
+
+  // Get raw amount from a bh_id => pd_id map
+  const getAmountFromMap = (dataMap, bhId, pdId) => {
+	if (!dataMap || bhId == null || pdId == null) return 0
+	const bhIdStr = String(bhId)
+	const pdIdStr = String(pdId)
+	return parseFloat(dataMap[bhIdStr]?.[pdIdStr]) || 0
   }
 
   // Get release amount for a budget head and PD
   const getReleaseAmount = (bhId, pdId) => {
-	if (!releaseData.value) {
-	  return '0.00000'
-	}
-	// Convert to string to match API response keys
-	const bhIdStr = String(bhId)
-	const pdIdStr = String(pdId)
-	
-	if (!releaseData.value[bhIdStr] || !releaseData.value[bhIdStr][pdIdStr]) {
-	  return '0.00000'
-	}
-	const amount = releaseData.value[bhIdStr][pdIdStr] || 0
-	return formatToFiveDecimals(amount)
+	return formatToFiveDecimals(getAmountFromMap(releaseData.value, bhId, pdId))
   }
 
   // Get expenditure amount for a budget head and PD
   const getExpenditureAmount = (bhId, pdId) => {
-	if (!expenditureData.value) {
-	  return '0.00000'
-	}
-	// Convert to string to match API response keys
-	const bhIdStr = String(bhId)
-	const pdIdStr = String(pdId)
-	
-	if (!expenditureData.value[bhIdStr] || !expenditureData.value[bhIdStr][pdIdStr]) {
-	  return '0.00000'
-	}
-	const amount = expenditureData.value[bhIdStr][pdIdStr] || 0
-	return formatToFiveDecimals(amount)
+	return formatToFiveDecimals(getAmountFromMap(expenditureData.value, bhId, pdId))
   }
+
+  const getNerReleaseAmount = (bhId, pdId) => getAmountFromMap(nerReleaseData.value, bhId, pdId)
+  const getNerExpenditureAmount = (bhId, pdId) => getAmountFromMap(nerExpenditureData.value, bhId, pdId)
+  const getNerAllocationBeAmount = (bhId, pdId) => getAmountFromMap(nerAllocationBeData.value, bhId, pdId)
+  const getNerAllocationReAmount = (bhId, pdId) => getAmountFromMap(nerAllocationReData.value, bhId, pdId)
+  const getNerAllocationFeAmount = (bhId, pdId) => getAmountFromMap(nerAllocationFeData.value, bhId, pdId)
 
   // Find budget head by budget code (with or without dots)
   const getBhByBudgetCode = (code) => {
@@ -1242,49 +1278,95 @@
 	return null
   }
 
-  // When "Include 2552 Head" is on: for 3601/2435 rows, add amounts from mapped 2552 head. Returns raw number.
-  const addMapped2552Amount = (baseValue, bh, pdId, majorHead, includeFlag, reverseMapping, getAmount) => {
-	let v = baseValue
-	if (!includeFlag || !bh?.budget_code) return v
-	const code = String(bh.budget_code).trim()
-	const codeDig = code.replace(/[^0-9]/g, '')
-	const majorPrefix = codeDig.substring(0, 4) || code.substring(0, 4)
-	if (majorPrefix !== majorHead) return v
-	const code2552 = reverseMapping[code] || reverseMapping[codeDig]
-	if (!code2552) return v
-	const bh2552 = getBhByBudgetCode(code2552)
-	if (!bh2552) return v
-	return v + (parseFloat(getAmount(bh2552, pdId)) || 0)
+  // For a 2552 head: NER amount from the mapped 3601 or 2435 head
+  const getMappedNerAmountFor2552 = (bh2552, pdId, forwardMapping, getNerAmount) => {
+	const targetCode = lookupMappedTargetCode(bh2552?.budget_code, forwardMapping)
+	if (!targetCode) return 0
+	const targetBh = getBhByBudgetCode(targetCode)
+	if (!targetBh) return 0
+	return parseFloat(getNerAmount(targetBh.bh_id, pdId)) || 0
   }
-  const getDisplayAllocation = (bh, pdId) => {
-	let v = parseFloat(allocationData.value[bh?.bh_id]?.[pdId]) || 0
-	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => allocationData.value[b?.bh_id]?.[p])
-	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => allocationData.value[b?.bh_id]?.[p])
+
+  /**
+   * Apply NER 2552/3601/2435 display rules:
+   * - 2552: always base + mapped NER(3601) + mapped NER(2435)
+   * - 3601: exclude NER when "Include 2552 under 3601" is unchecked; include when checked
+   * - 2435: exclude NER when "Include 2552 under 2435" is unchecked; include when checked
+   * NER source: re-appropriation for BE/RE/FE; MS/DS + is_ner TSA for Release/Expenditure.
+   */
+  const applyNerHeadDisplayRules = (baseValue, bh, pdId, include3601Flag, include2435Flag, getNerAmount) => {
+	let v = parseFloat(baseValue) || 0
+	const major = getMajorHeadPrefix(bh)
+
+	if (major === '2552') {
+	  v += getMappedNerAmountFor2552(bh, pdId, MAPPING_2552_TO_3601, getNerAmount)
+	  v += getMappedNerAmountFor2552(bh, pdId, MAPPING_2552_TO_2435, getNerAmount)
+	  return v
+	}
+
+	if (major === '3601' && !include3601Flag) {
+	  v -= parseFloat(getNerAmount(bh?.bh_id, pdId)) || 0
+	  return v
+	}
+
+	if (major === '2435' && !include2435Flag) {
+	  v -= parseFloat(getNerAmount(bh?.bh_id, pdId)) || 0
+	  return v
+	}
+
 	return v
+  }
+
+  // BE / RE / FE: NER amounts come from re-appropriations (2552 → NER 3601 / 2552 → NER 2435)
+  const getDisplayAllocation = (bh, pdId) => {
+	return applyNerHeadDisplayRules(
+	  getAmountFromMap(allocationData.value, bh?.bh_id, pdId),
+	  bh,
+	  pdId,
+	  include2552In3601.value,
+	  include2552In2435.value,
+	  getNerAllocationBeAmount
+	)
   }
   const getDisplayReAllocation = (bh, pdId) => {
-	let v = parseFloat(reAllocationData.value[bh?.bh_id]?.[pdId]) || 0
-	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => reAllocationData.value[b?.bh_id]?.[p])
-	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => reAllocationData.value[b?.bh_id]?.[p])
-	return v
+	return applyNerHeadDisplayRules(
+	  getAmountFromMap(reAllocationData.value, bh?.bh_id, pdId),
+	  bh,
+	  pdId,
+	  include2552In3601.value,
+	  include2552In2435.value,
+	  getNerAllocationReAmount
+	)
   }
   const getDisplayFeAllocation = (bh, pdId) => {
-	let v = parseFloat(feAllocationData.value[bh?.bh_id]?.[pdId]) || 0
-	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => feAllocationData.value[b?.bh_id]?.[p])
-	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => feAllocationData.value[b?.bh_id]?.[p])
-	return v
+	return applyNerHeadDisplayRules(
+	  getAmountFromMap(feAllocationData.value, bh?.bh_id, pdId),
+	  bh,
+	  pdId,
+	  include2552In3601.value,
+	  include2552In2435.value,
+	  getNerAllocationFeAmount
+	)
   }
   const getDisplayReleaseRaw = (bh, pdId) => {
-	let v = parseFloat(getReleaseAmount(bh?.bh_id, pdId)) || 0
-	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => getReleaseAmount(b?.bh_id, p))
-	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => getReleaseAmount(b?.bh_id, p))
-	return v
+	return applyNerHeadDisplayRules(
+	  getAmountFromMap(releaseData.value, bh?.bh_id, pdId),
+	  bh,
+	  pdId,
+	  include2552In3601.value,
+	  include2552In2435.value,
+	  getNerReleaseAmount
+	)
   }
   const getDisplayExpenditureRaw = (bh, pdId) => {
-	let v = parseFloat(getExpenditureAmount(bh?.bh_id, pdId)) || 0
-	v = addMapped2552Amount(v, bh, pdId, '3601', include2552In3601.value, MAPPING_3601_FROM_2552, (b, p) => getExpenditureAmount(b?.bh_id, p))
-	v = addMapped2552Amount(v, bh, pdId, '2435', include2552In2435.value, MAPPING_2435_FROM_2552, (b, p) => getExpenditureAmount(b?.bh_id, p))
-	return v
+	return applyNerHeadDisplayRules(
+	  getAmountFromMap(expenditureData.value, bh?.bh_id, pdId),
+	  bh,
+	  pdId,
+	  include2552In3601.value,
+	  include2552In2435.value,
+	  getNerExpenditureAmount
+	)
   }
   const getDisplayRelease = (bh, pdId) => formatToFiveDecimals(getDisplayReleaseRaw(bh, pdId))
   const getDisplayExpenditure = (bh, pdId) => formatToFiveDecimals(getDisplayExpenditureRaw(bh, pdId))
@@ -1298,6 +1380,91 @@
 	  }
 	})
 	return allBudgetHeads
+  }
+
+  // Budget heads currently visible in the report (respects PD / major head / BH filters)
+  const getFilteredBudgetHeads = () => {
+	const heads = []
+	filteredCategorizedBudgetHeads.value.forEach(category => {
+	  if (category.type === 'subcategory' && category.budgetHeads?.length) {
+		heads.push(...category.budgetHeads)
+	  }
+	})
+	return heads
+  }
+
+  const findSubcategoryForTotals = (subcategoryLabel, majorHeadLabel = null) => {
+	const majorCode = majorHeadLabel
+	  ? String(majorHeadLabel).replace('Major Head-', '')
+	  : null
+	const fromFiltered = filteredCategorizedBudgetHeads.value.find(category =>
+	  category.type === 'subcategory' &&
+	  category.label === subcategoryLabel &&
+	  (majorCode == null || category.parentMajorHead === majorCode)
+	)
+	if (fromFiltered) return fromFiltered
+	return categorizedBudgetHeads.value.find(category =>
+	  category.type === 'subcategory' &&
+	  category.label === subcategoryLabel &&
+	  (majorCode == null || category.parentMajorHead === majorCode)
+	)
+  }
+
+  const getFilteredSubcategoriesForMajorHead = (majorHeadCode) => {
+	return filteredCategorizedBudgetHeads.value.filter(category =>
+	  category.type === 'subcategory' && category.parentMajorHead === majorHeadCode
+	)
+  }
+
+  const getExportVisibleColumnsLabel = () => {
+	const parts = []
+	if (showAllocation.value) parts.push('BE Allocation')
+	if (showReAllocation.value) parts.push('RE Allocation')
+	if (showFeAllocation.value) parts.push('FE Allocation')
+	if (showRelease.value) parts.push('Release')
+	if (showExpenditure.value) parts.push('Expenditure')
+	return parts.length ? parts.join(', ') : 'None'
+  }
+
+  const getExportMajorHeadOptionsLabel = () => {
+	return [
+	  `Include 2552 under 3601: ${include2552In3601.value ? 'Yes' : 'No'}`,
+	  `Include 2552 under 2435: ${include2552In2435.value ? 'Yes' : 'No'}`,
+	].join('; ')
+  }
+
+  const buildExportMetadataRows = () => {
+	const rows = [
+	  ['PD wise Budget Allocation Release Report'],
+	  ['Financial Year', selectedFinancialYear.value],
+	  ['Amount Unit', `₹ In ${amountInText.value}`],
+	  ['Generated on', new Date().toLocaleString()],
+	]
+	if (hasDateTimeFilter()) {
+	  rows.push(['Date/Time Range', filterSummary()])
+	}
+	rows.push([
+	  'Program Divisions',
+	  selectedProgramDivisions.value.length > 0
+		? selectedProgramDivisions.value.map(id => getProgramDivisionName(id)).join(', ')
+		: 'All Program Divisions',
+	])
+	rows.push([
+	  'Major Heads',
+	  selectedMajorHeads.value.length > 0
+		? selectedMajorHeads.value.map(code => getMajorHeadLabel(code)).join(', ')
+		: 'All Major Heads',
+	])
+	rows.push([
+	  'Budget Heads',
+	  selectedBudgetHeads.value.length > 0
+		? `${selectedBudgetHeads.value.length} selected`
+		: 'All Budget Heads',
+	])
+	rows.push(['Visible Columns', getExportVisibleColumnsLabel()])
+	rows.push(['Major Head Options (NER)', getExportMajorHeadOptionsLabel()])
+	rows.push([])
+	return rows
   }
 
   // Computed property for available major heads
@@ -1597,12 +1764,18 @@
 	feAllocationData.value = {}
 	releaseData.value = {}
 	expenditureData.value = {}
+	nerReleaseData.value = {}
+	nerExpenditureData.value = {}
+	nerAllocationBeData.value = {}
+	nerAllocationReData.value = {}
+	nerAllocationFeData.value = {}
 	remarksData.value = {}
 	initializeAllocationData()
 	await Promise.all([
 	  fetchExistingAllocations(),
 	  fetchReAllocations(),
 	  fetchFeAllocations(),
+	  fetchNerReappropriationAllocationData(),
 	  fetchReleaseData(),
 	  fetchExpenditureData(),
 	])
@@ -1990,19 +2163,18 @@
   // Calculate column total
   const calculateColumnTotal = (pdId, columnType = 'allocation') => {
 	let total = 0
-	const allBudgetHeads = getAllBudgetHeads()
-	allBudgetHeads.forEach(bh => {
+	getFilteredBudgetHeads().forEach(bh => {
 	  let value = 0
 	  if (columnType === 'allocation') {
-		value = parseFloat(allocationData.value[bh.bh_id]?.[pdId]) || 0
+		value = parseFloat(getDisplayAllocation(bh, pdId)) || 0
 	  } else if (columnType === 'reAllocation') {
-		value = parseFloat(reAllocationData.value[bh.bh_id]?.[pdId]) || 0
+		value = parseFloat(getDisplayReAllocation(bh, pdId)) || 0
 	  } else if (columnType === 'feAllocation') {
-		value = parseFloat(feAllocationData.value[bh.bh_id]?.[pdId]) || 0
+		value = parseFloat(getDisplayFeAllocation(bh, pdId)) || 0
 	  } else if (columnType === 'release') {
-		value = parseFloat(releaseData.value[bh.bh_id]?.[pdId]) || 0
+		value = parseFloat(getDisplayReleaseRaw(bh, pdId)) || 0
 	  } else if (columnType === 'expenditure') {
-		value = parseFloat(expenditureData.value[bh.bh_id]?.[pdId]) || 0
+		value = parseFloat(getDisplayExpenditureRaw(bh, pdId)) || 0
 	  }
 	  total = addWithPrecision(total, value)
 	})
@@ -2055,13 +2227,12 @@
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate grand total (sum of all allocations)
+  // Calculate grand total (uses display amounts so NER checkbox rules are reflected)
   const calculateGrandTotal = () => {
 	let total = 0
-	const allBudgetHeads = getAllBudgetHeads()
-	allBudgetHeads.forEach(bh => {
+	getFilteredBudgetHeads().forEach(bh => {
 	  filteredProgramDivisions.value.forEach(pd => {
-		const value = parseFloat(allocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+		const value = parseFloat(getDisplayAllocation(bh, pd.division_id)) || 0
 		total = addWithPrecision(total, value)
 	  })
 	})
@@ -2071,10 +2242,9 @@
   // Calculate grand total RE allocation
   const calculateGrandTotalRe = () => {
 	let total = 0
-	const allBudgetHeads = getAllBudgetHeads()
-	allBudgetHeads.forEach(bh => {
+	getFilteredBudgetHeads().forEach(bh => {
 	  filteredProgramDivisions.value.forEach(pd => {
-		const value = parseFloat(reAllocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+		const value = parseFloat(getDisplayReAllocation(bh, pd.division_id)) || 0
 		total = addWithPrecision(total, value)
 	  })
 	})
@@ -2084,36 +2254,33 @@
   // Calculate grand total FE allocation
   const calculateGrandTotalFe = () => {
 	let total = 0
-	const allBudgetHeads = getAllBudgetHeads()
-	allBudgetHeads.forEach(bh => {
+	getFilteredBudgetHeads().forEach(bh => {
 	  filteredProgramDivisions.value.forEach(pd => {
-		const value = parseFloat(feAllocationData.value[bh.bh_id]?.[pd.division_id]) || 0
+		const value = parseFloat(getDisplayFeAllocation(bh, pd.division_id)) || 0
 		total = addWithPrecision(total, value)
 	  })
 	})
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate grand total release (sum of all releases)
+  // Calculate grand total release (uses display amounts so NER checkbox rules are reflected)
   const calculateGrandTotalRelease = () => {
 	let total = 0
-	const allBudgetHeads = getAllBudgetHeads()
-	allBudgetHeads.forEach(bh => {
+	getFilteredBudgetHeads().forEach(bh => {
 	  filteredProgramDivisions.value.forEach(pd => {
-		const value = parseFloat(getReleaseAmount(bh.bh_id, pd.division_id)) || 0
+		const value = parseFloat(getDisplayReleaseRaw(bh, pd.division_id)) || 0
 		total = addWithPrecision(total, value)
 	  })
 	})
 	return formatToFiveDecimals(total)
   }
 
-  // Calculate grand total expenditure (sum of all expenditures)
+  // Calculate grand total expenditure (uses display amounts so NER checkbox rules are reflected)
   const calculateGrandTotalExpenditure = () => {
 	let total = 0
-	const allBudgetHeads = getAllBudgetHeads()
-	allBudgetHeads.forEach(bh => {
+	getFilteredBudgetHeads().forEach(bh => {
 	  filteredProgramDivisions.value.forEach(pd => {
-		const value = parseFloat(getExpenditureAmount(bh.bh_id, pd.division_id)) || 0
+		const value = parseFloat(getDisplayExpenditureRaw(bh, pd.division_id)) || 0
 		total = addWithPrecision(total, value)
 	  })
 	})
@@ -2124,19 +2291,9 @@
   const calculateMajorHeadTotal = (majorHeadLabel) => {
 	let total = 0
 	const majorHeadCode = majorHeadLabel.replace('Major Head-', '')
-	
-	categorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head' && category.label === majorHeadLabel) {
-		// Find all subcategories under this major head
-		categorizedBudgetHeads.value.forEach(subCategory => {
-		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
-			// Calculate total for this subcategory across all program divisions
-			const subcategoryTotal = calculateSubcategoryTotal(subCategory.label, majorHeadCode)
-			const value = parseFloat(subcategoryTotal) || 0
-			total = addWithPrecision(total, value)
-		  }
-		})
-	  }
+	getFilteredSubcategoriesForMajorHead(majorHeadCode).forEach(subCategory => {
+	  const subcategoryTotal = calculateSubcategoryTotal(subCategory.label, majorHeadCode)
+	  total = addWithPrecision(total, parseFloat(subcategoryTotal) || 0)
 	})
 	return formatToFiveDecimals(total)
   }
@@ -2145,17 +2302,9 @@
   const calculateMajorHeadTotalRe = (majorHeadLabel) => {
 	let total = 0
 	const majorHeadCode = majorHeadLabel.replace('Major Head-', '')
-	
-	categorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head' && category.label === majorHeadLabel) {
-		categorizedBudgetHeads.value.forEach(subCategory => {
-		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
-			const subcategoryTotal = calculateSubcategoryTotalRe(subCategory.label, majorHeadCode)
-			const value = parseFloat(subcategoryTotal) || 0
-			total = addWithPrecision(total, value)
-		  }
-		})
-	  }
+	getFilteredSubcategoriesForMajorHead(majorHeadCode).forEach(subCategory => {
+	  const subcategoryTotal = calculateSubcategoryTotalRe(subCategory.label, majorHeadCode)
+	  total = addWithPrecision(total, parseFloat(subcategoryTotal) || 0)
 	})
 	return formatToFiveDecimals(total)
   }
@@ -2164,17 +2313,9 @@
   const calculateMajorHeadTotalFe = (majorHeadLabel) => {
 	let total = 0
 	const majorHeadCode = majorHeadLabel.replace('Major Head-', '')
-	
-	categorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head' && category.label === majorHeadLabel) {
-		categorizedBudgetHeads.value.forEach(subCategory => {
-		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
-			const subcategoryTotal = calculateSubcategoryTotalFe(subCategory.label, majorHeadCode)
-			const value = parseFloat(subcategoryTotal) || 0
-			total = addWithPrecision(total, value)
-		  }
-		})
-	  }
+	getFilteredSubcategoriesForMajorHead(majorHeadCode).forEach(subCategory => {
+	  const subcategoryTotal = calculateSubcategoryTotalFe(subCategory.label, majorHeadCode)
+	  total = addWithPrecision(total, parseFloat(subcategoryTotal) || 0)
 	})
 	return formatToFiveDecimals(total)
   }
@@ -2183,17 +2324,9 @@
   const calculateMajorHeadTotalRelease = (majorHeadLabel) => {
 	let total = 0
 	const majorHeadCode = majorHeadLabel.replace('Major Head-', '')
-	
-	categorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head' && category.label === majorHeadLabel) {
-		categorizedBudgetHeads.value.forEach(subCategory => {
-		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
-			const subcategoryTotal = calculateSubcategoryTotalRelease(subCategory.label, majorHeadCode)
-			const value = parseFloat(subcategoryTotal) || 0
-			total = addWithPrecision(total, value)
-		  }
-		})
-	  }
+	getFilteredSubcategoriesForMajorHead(majorHeadCode).forEach(subCategory => {
+	  const subcategoryTotal = calculateSubcategoryTotalRelease(subCategory.label, majorHeadCode)
+	  total = addWithPrecision(total, parseFloat(subcategoryTotal) || 0)
 	})
 	return formatToFiveDecimals(total)
   }
@@ -2202,17 +2335,9 @@
   const calculateMajorHeadTotalExpenditure = (majorHeadLabel) => {
 	let total = 0
 	const majorHeadCode = majorHeadLabel.replace('Major Head-', '')
-	
-	categorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head' && category.label === majorHeadLabel) {
-		categorizedBudgetHeads.value.forEach(subCategory => {
-		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
-			const subcategoryTotal = calculateSubcategoryTotalExpenditure(subCategory.label, majorHeadCode)
-			const value = parseFloat(subcategoryTotal) || 0
-			total = addWithPrecision(total, value)
-		  }
-		})
-	  }
+	getFilteredSubcategoriesForMajorHead(majorHeadCode).forEach(subCategory => {
+	  const subcategoryTotal = calculateSubcategoryTotalExpenditure(subCategory.label, majorHeadCode)
+	  total = addWithPrecision(total, parseFloat(subcategoryTotal) || 0)
 	})
 	return formatToFiveDecimals(total)
   }
@@ -2223,10 +2348,8 @@
 	let budgetHeadsInSubcategory = []
 	let parentMajorHead = ''
 	
-	// First, find the subcategory and get its parent major head
-	const subcategory = categorizedBudgetHeads.value.find(category => 
-	  category.type === 'subcategory' && category.label === subcategoryLabel
-	)
+	// First, find the subcategory (filtered list when filters are active)
+	const subcategory = findSubcategoryForTotals(subcategoryLabel, majorHeadLabel)
 	
 	if (subcategory) {
 	  budgetHeadsInSubcategory = subcategory.budgetHeads
@@ -2284,10 +2407,8 @@
 	let budgetHeadsInSubcategory = []
 	let parentMajorHead = ''
 	
-	// First, find the subcategory and get its parent major head
-	const subcategory = categorizedBudgetHeads.value.find(category => 
-	  category.type === 'subcategory' && category.label === subcategoryLabel
-	)
+	// First, find the subcategory (filtered list when filters are active)
+	const subcategory = findSubcategoryForTotals(subcategoryLabel, majorHeadLabel)
 	
 	if (subcategory) {
 	  budgetHeadsInSubcategory = subcategory.budgetHeads
@@ -2327,9 +2448,7 @@
 	let budgetHeadsInSubcategory = []
 	let parentMajorHead = ''
 	
-	const subcategory = categorizedBudgetHeads.value.find(category => 
-	  category.type === 'subcategory' && category.label === subcategoryLabel
-	)
+	const subcategory = findSubcategoryForTotals(subcategoryLabel, majorHeadLabel)
 	
 	if (subcategory) {
 	  budgetHeadsInSubcategory = subcategory.budgetHeads
@@ -2364,9 +2483,7 @@
 	let budgetHeadsInSubcategory = []
 	let parentMajorHead = ''
 	
-	const subcategory = categorizedBudgetHeads.value.find(category => 
-	  category.type === 'subcategory' && category.label === subcategoryLabel
-	)
+	const subcategory = findSubcategoryForTotals(subcategoryLabel, majorHeadLabel)
 	
 	if (subcategory) {
 	  budgetHeadsInSubcategory = subcategory.budgetHeads
@@ -2401,9 +2518,7 @@
 	let budgetHeadsInSubcategory = []
 	let parentMajorHead = ''
 	
-	const subcategory = categorizedBudgetHeads.value.find(category => 
-	  category.type === 'subcategory' && category.label === subcategoryLabel
-	)
+	const subcategory = findSubcategoryForTotals(subcategoryLabel, majorHeadLabel)
 	
 	if (subcategory) {
 	  budgetHeadsInSubcategory = subcategory.budgetHeads
@@ -2439,9 +2554,7 @@
 	let budgetHeadsInSubcategory = []
 	let parentMajorHead = ''
 	
-	const subcategory = categorizedBudgetHeads.value.find(category => 
-	  category.type === 'subcategory' && category.label === subcategoryLabel
-	)
+	const subcategory = findSubcategoryForTotals(subcategoryLabel, majorHeadLabel)
 	
 	if (subcategory) {
 	  budgetHeadsInSubcategory = subcategory.budgetHeads
@@ -2475,19 +2588,9 @@
   const calculateMajorHeadTotalForPD = (majorHeadLabel, pdId, columnType = 'allocation') => {
 	let total = 0
 	const majorHeadCode = majorHeadLabel.replace('Major Head-', '')
-	
-	categorizedBudgetHeads.value.forEach(category => {
-	  if (category.type === 'major_head' && category.label === majorHeadLabel) {
-		// Find all subcategories under this major head
-		categorizedBudgetHeads.value.forEach(subCategory => {
-		  if (subCategory.type === 'subcategory' && subCategory.parentMajorHead === majorHeadCode) {
-			// Calculate total for this subcategory in this program division
-			const subcategoryTotal = calculateSubcategoryTotalForPD(subCategory.label, pdId, majorHeadCode, columnType)
-			const value = parseFloat(subcategoryTotal) || 0
-			total = addWithPrecision(total, value)
-		  }
-		})
-	  }
+	getFilteredSubcategoriesForMajorHead(majorHeadCode).forEach(subCategory => {
+	  const subcategoryTotal = calculateSubcategoryTotalForPD(subCategory.label, pdId, majorHeadCode, columnType)
+	  total = addWithPrecision(total, parseFloat(subcategoryTotal) || 0)
 	})
 	return formatToFiveDecimals(total)
   }
@@ -2701,7 +2804,7 @@
 
   // Function to prepare table data for export (matches frontend table structure)
   const prepareTableData = () => {
-	const data = []
+	const data = [...buildExportMetadataRows()]
 	// First header row - PD names per column (as on frontend)
 	const headerRow1 = ['Unified HoA-KY']
 	filteredProgramDivisions.value.forEach(pd => {
@@ -2937,6 +3040,7 @@
 	const h2Tag = '<h2>PD wise Budget Allocation (AAP) with release - Budget Heads</h2>'
 	const metaInfoStart = '<div class="meta-info">'
 	const financialYearP = '<p><strong>Financial Year:</strong> ' + selectedFinancialYear.value + '</p>'
+	const amountUnitP = '<p><strong>Amount Unit:</strong> ₹ In ' + amountInText.value + '</p>'
 	const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'
 	const dateTimeP = hasDateTimeFilter()
 	  ? '<p><strong>Date/Time Range:</strong> ' + filterSummary() + '</p>'
@@ -2950,11 +3054,8 @@
 	const budgetHeadP = selectedBudgetHeads.value.length > 0 
 	  ? '<p><strong>Budget Heads:</strong> ' + selectedBudgetHeads.value.length + ' selected</p>' 
 	  : '<p><strong>Budget Heads:</strong> All Budget Heads</p>'
-	const columnsP = '<p><strong>Visible Columns:</strong> ' + 
-	  (showAllocation.value ? 'Allocation ' : '') +
-	  (showRelease.value ? 'Release ' : '') +
-	  (showExpenditure.value ? 'Expenditure ' : '') +
-	  'Final Allocation, Total Release, Total Expenditure</p>'
+	const columnsP = '<p><strong>Visible Columns:</strong> ' + getExportVisibleColumnsLabel() + '</p>'
+	const nerOptionsP = '<p><strong>Major Head Options (NER):</strong> ' + getExportMajorHeadOptionsLabel() + '</p>'
 	const metaInfoEnd = '</div>'
 	const pdfWrapperEnd = '</div>'
 	const printOuterEnd = '</div>'
@@ -3016,7 +3117,7 @@
 	const htmlContent = '<!DOCTYPE html><html>' +
 	  headStart + titleTag + styleStart + styles + styleEnd + headEnd +
 	  bodyStart + printOuterStart + pdfWrapperStart +
-	  h2Tag + metaInfoStart + financialYearP + generatedP + dateTimeP + programDivisionsP + majorHeadP + budgetHeadP + columnsP + metaInfoEnd +
+	  h2Tag + metaInfoStart + financialYearP + amountUnitP + generatedP + dateTimeP + programDivisionsP + majorHeadP + budgetHeadP + columnsP + nerOptionsP + metaInfoEnd +
 	  tableHTML + pdfWrapperEnd + printOuterEnd + scriptTag + bodyEnd + htmlEnd
 	
 	printWindow.document.write(htmlContent)
@@ -3046,6 +3147,7 @@
 		fetchExistingAllocations(),
 		fetchReAllocations(),
 		fetchFeAllocations(),
+		fetchNerReappropriationAllocationData(),
 		fetchReleaseData(),
 		fetchExpenditureData()
 	  ])

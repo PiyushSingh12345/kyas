@@ -764,6 +764,32 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
+     * NER re-appropriation amounts for PD-wise BE/RE/FE display.
+     * Amounts are keyed by destination (to) budget head — 3601 (NER states) / 2435 (NER agencies from 2552).
+     */
+    public function getNerReappropriationAllocationData(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2025-26');
+            $data = $this->buildNerReappropriationAllocationByPhase($financialYear);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching NER reappropriation allocation data: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch NER reappropriation allocation data',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get budget heads for dropdown
      */
     public function getBudgetHeads(Request $request): JsonResponse
@@ -1060,11 +1086,158 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
+     * NER state IDs (states.description = NER): Arunachal, Assam, Manipur, Meghalaya, Mizoram, Nagaland, Sikkim, Tripura.
+     *
+     * @return array<int, int>
+     */
+    private function getNerStateIds(): array
+    {
+        return DB::table('states')
+            ->whereRaw("TRIM(description) = 'NER'")
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Decode selected_entity_ids from reappropriations (array or JSON string).
+     *
+     * @param mixed $value
+     * @return array<int, int>
+     */
+    private function decodeSelectedEntityIds($value): array
+    {
+        if (is_array($value)) {
+            return array_values(array_filter(array_map('intval', $value)));
+        }
+
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return array_values(array_filter(array_map('intval', $decoded)));
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Build NER re-appropriation totals by budget phase → to_bh_id → pd_id.
+     * - 2552 → 3601 for State/UT when any selected state is NER
+     * - 2552 → 2435 for Agency (NER agency path from 2552)
+     *
+     * @return array<string, array<string, array<string, float>>>
+     */
+    private function buildNerReappropriationAllocationByPhase(string $financialYear): array
+    {
+        $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+        $nerStateIds = $this->getNerStateIds();
+        $nerStateIdSet = array_fill_keys($nerStateIds, true);
+
+        $result = [
+            'BE' => [],
+            'RE' => [],
+            'FE' => [],
+        ];
+
+        if (empty($yearVariants)) {
+            return $result;
+        }
+
+        $rows = DB::table('reappropriations as r')
+            ->join('budget_heads as fh', 'fh.id', '=', 'r.from_budget_head_id')
+            ->join('budget_heads as th', 'th.id', '=', 'r.to_budget_head_id')
+            ->whereIn('r.financial_year', $yearVariants)
+            ->whereNotNull('r.program_division_id')
+            ->whereNotNull('r.to_budget_head_id')
+            ->where('r.reappropriation_amount', '>', 0)
+            ->select(
+                'r.budget_phase',
+                'r.program_division_id as pd_id',
+                'r.to_budget_head_id as to_bh_id',
+                'r.reappropriation_amount',
+                'r.entity_type',
+                'r.selected_entity_ids',
+                DB::raw('TRIM(fh.budget) as from_budget'),
+                DB::raw('TRIM(th.budget) as to_budget')
+            )
+            ->get();
+
+        foreach ($rows as $row) {
+            $fromDigits = preg_replace('/[^0-9]/', '', (string) $row->from_budget) ?: (string) $row->from_budget;
+            $toDigits = preg_replace('/[^0-9]/', '', (string) $row->to_budget) ?: (string) $row->to_budget;
+
+            if (!str_starts_with($fromDigits, '2552')) {
+                continue;
+            }
+
+            $phase = strtoupper(trim((string) ($row->budget_phase ?? '')));
+            if (!isset($result[$phase])) {
+                continue;
+            }
+
+            $isNer3601 = str_starts_with($toDigits, '3601')
+                && strcasecmp(trim((string) ($row->entity_type ?? '')), 'State/UT') === 0
+                && $this->selectedEntitiesIncludeNer($row->selected_entity_ids, $nerStateIdSet);
+
+            // Agency releases for NER use 2552 → 2435 re-appropriation (same path as is_ner TSA)
+            $isNer2435 = str_starts_with($toDigits, '2435')
+                && strcasecmp(trim((string) ($row->entity_type ?? '')), 'Agency') === 0;
+
+            if (!$isNer3601 && !$isNer2435) {
+                continue;
+            }
+
+            $bhId = (string) $row->to_bh_id;
+            $pdId = (string) $row->pd_id;
+            $amount = floatval($row->reappropriation_amount ?? 0);
+            if ($amount <= 0) {
+                continue;
+            }
+
+            if (!isset($result[$phase][$bhId])) {
+                $result[$phase][$bhId] = [];
+            }
+            if (!isset($result[$phase][$bhId][$pdId])) {
+                $result[$phase][$bhId][$pdId] = 0;
+            }
+            $result[$phase][$bhId][$pdId] += $amount;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param mixed $selectedEntityIds
+     * @param array<int, bool> $nerStateIdSet
+     */
+    private function selectedEntitiesIncludeNer($selectedEntityIds, array $nerStateIdSet): bool
+    {
+        if (empty($nerStateIdSet)) {
+            return false;
+        }
+
+        foreach ($this->decodeSelectedEntityIds($selectedEntityIds) as $entityId) {
+            if (isset($nerStateIdSet[$entityId])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Get agency release/expenditure totals for the PD-wise budget allocation release report.
      * TSA amount contributes to release; TSA expenditure contributes to expenditure.
      * LOA and Administrative Expenditure amounts contribute to both release and expenditure.
+     * NER TSA (is_ner=1) is also returned separately for 2552/2435 MIS checkbox logic.
      *
-     * @return array{release_by_bh: array<string, array<string, float>>, expenditure_by_bh: array<string, array<string, float>>}
+     * @return array{
+     *   release_by_bh: array<string, array<string, float>>,
+     *   expenditure_by_bh: array<string, array<string, float>>,
+     *   ner_release_by_bh: array<string, array<string, float>>,
+     *   ner_expenditure_by_bh: array<string, array<string, float>>
+     * }
      */
     private function getAgencyReleaseDataForPdWiseReport(string $financialYear, ?Request $request = null): array
     {
@@ -1099,6 +1272,27 @@ class AnnualActionPlanController extends Controller
             ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
             ->get();
 
+        // NER agency releases: TSA rows flagged is_ner=1 (re-appropriated 2552 → 2435 for NER agencies)
+        $tsaNerRelease = $agencyBaseQuery('agency_release_tsa')
+            ->where('is_ner', 1)
+            ->select(
+                DB::raw('TRIM(budget_head) as budget_head'),
+                'program_division_id as pd_id',
+                DB::raw('SUM(COALESCE(amount, 0)) as total')
+            )
+            ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
+            ->get();
+
+        $tsaNerExpenditure = $agencyBaseQuery('agency_release_tsa')
+            ->where('is_ner', 1)
+            ->select(
+                DB::raw('TRIM(budget_head) as budget_head'),
+                'program_division_id as pd_id',
+                DB::raw('SUM(COALESCE(expenditure, 0)) as total')
+            )
+            ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
+            ->get();
+
         $loaAmounts = $agencyBaseQuery('agency_release_loa')
             ->select(
                 DB::raw('TRIM(budget_head) as budget_head'),
@@ -1120,6 +1314,8 @@ class AnnualActionPlanController extends Controller
         $budgetCodeToBhId = $this->buildBudgetCodeToBhIdMap();
         $releaseByBh = [];
         $expenditureByBh = [];
+        $nerReleaseByBh = [];
+        $nerExpenditureByBh = [];
 
         $addTo = function (array &$target, $collection) use ($budgetCodeToBhId) {
             foreach ($collection as $row) {
@@ -1152,9 +1348,14 @@ class AnnualActionPlanController extends Controller
         $addTo($expenditureByBh, $loaAmounts);
         $addTo($expenditureByBh, $adminExpAmounts);
 
+        $addTo($nerReleaseByBh, $tsaNerRelease);
+        $addTo($nerExpenditureByBh, $tsaNerExpenditure);
+
         return [
             'release_by_bh' => $releaseByBh,
             'expenditure_by_bh' => $expenditureByBh,
+            'ner_release_by_bh' => $nerReleaseByBh,
+            'ner_expenditure_by_bh' => $nerExpenditureByBh,
         ];
     }
 
@@ -1210,7 +1411,10 @@ class AnnualActionPlanController extends Controller
             }
 
             $formattedData = [];
+            $nerFormattedData = [];
             $tmsCache = [];
+            $nerTmsCache = [];
+            $nerStateIds = $this->getNerStateIds();
 
             foreach ($uniqueByBhPd as $pair) {
                 $budgetHead = trim((string) $pair->budget_head);
@@ -1226,22 +1430,45 @@ class AnnualActionPlanController extends Controller
                 }
 
                 $amount = floatval($tmsCache[$cacheKey]);
-                if ($amount <= 0) {
-                    continue;
-                }
-
                 $bhId = (string) $pair->bh_id;
                 $pdId = (string) $pair->pd_id;
 
-                if (!isset($formattedData[$bhId])) {
-                    $formattedData[$bhId] = [];
+                if ($amount > 0) {
+                    if (!isset($formattedData[$bhId])) {
+                        $formattedData[$bhId] = [];
+                    }
+                    $formattedData[$bhId][$pdId] = $amount;
                 }
-                $formattedData[$bhId][$pdId] = $amount;
+
+                // NER release under 3601: TMS for NER states only (re-appropriated from 2552)
+                if (!empty($nerStateIds) && str_starts_with(preg_replace('/[^0-9]/', '', $budgetHead) ?: $budgetHead, '3601')) {
+                    if (!isset($nerTmsCache[$cacheKey])) {
+                        $nerTotal = 0.0;
+                        foreach ($nerStateIds as $nerStateId) {
+                            $nerTotal += $this->msTotals->totalMs(
+                                $budgetHead,
+                                $pdComponent,
+                                $financialYear,
+                                (int) $nerStateId
+                            );
+                        }
+                        $nerTmsCache[$cacheKey] = $nerTotal;
+                    }
+
+                    $nerAmount = floatval($nerTmsCache[$cacheKey]);
+                    if ($nerAmount > 0) {
+                        if (!isset($nerFormattedData[$bhId])) {
+                            $nerFormattedData[$bhId] = [];
+                        }
+                        $nerFormattedData[$bhId][$pdId] = $nerAmount;
+                    }
+                }
             }
 
             Log::info('Formatted Mother Sanction Release Data (TMS)', [
                 'pair_count' => count($uniqueByBhPd),
                 'total_budget_heads' => count($formattedData),
+                'ner_budget_heads' => count($nerFormattedData),
                 'sample' => array_slice($formattedData, 0, 3, true),
             ]);
 
@@ -1251,13 +1478,20 @@ class AnnualActionPlanController extends Controller
                 $formattedData,
                 $agencyData['release_by_bh']
             );
+            // NER agency TSA (is_ner=1) — typically under 2435 after 2552→2435 re-appropriation
+            $nerFormattedData = $this->mergeAgencyAmountsIntoFormattedData(
+                $nerFormattedData,
+                $agencyData['ner_release_by_bh']
+            );
 
             return response()->json([
                 'success' => true,
                 'data' => $formattedData,
+                'ner_data' => $nerFormattedData,
                 'debug' => [
                     'raw_count' => count($uniqueByBhPd),
                     'formatted_count' => count($formattedData),
+                    'ner_formatted_count' => count($nerFormattedData),
                 ],
             ]);
         } catch (\Exception $e) {
@@ -1334,12 +1568,17 @@ class AnnualActionPlanController extends Controller
                     'bh.id as bh_id',
                     'ds.budget_head',
                     'ds.mother_sanction',
+                    'ds.state_id',
                     'ds.center_share_amount'
                 )
                 ->get();
             
+            $nerStateIds = $this->getNerStateIds();
+            $nerStateIdSet = array_fill_keys($nerStateIds, true);
+
             // Attribute each daily sanction to the PD of its linked mother sanction (same MS no + BH)
             $groupedData = [];
+            $nerGroupedData = [];
             foreach ($expenditureData as $record) {
                 $key = trim((string) $record->mother_sanction) . '|' . trim((string) $record->budget_head);
                 $pdComponent = $msPdMapping[$key] ?? null;
@@ -1351,6 +1590,7 @@ class AnnualActionPlanController extends Controller
                 $pd = $programDivisions[$pdComponent];
                 $bhId = (string) $record->bh_id;
                 $pdId = (string) $pd->division_id;
+                $amount = floatval($record->center_share_amount ?? 0);
 
                 if (!isset($groupedData[$bhId])) {
                     $groupedData[$bhId] = [];
@@ -1359,31 +1599,53 @@ class AnnualActionPlanController extends Controller
                     $groupedData[$bhId][$pdId] = 0;
                 }
 
-                $groupedData[$bhId][$pdId] += floatval($record->center_share_amount ?? 0);
+                $groupedData[$bhId][$pdId] += $amount;
+
+                // NER expenditure under 3601: DS for NER states (re-appropriated from 2552)
+                $budgetDigits = preg_replace('/[^0-9]/', '', trim((string) $record->budget_head)) ?: trim((string) $record->budget_head);
+                $isNerState = isset($nerStateIdSet[(int) ($record->state_id ?? 0)]);
+                if ($isNerState && str_starts_with($budgetDigits, '3601')) {
+                    if (!isset($nerGroupedData[$bhId])) {
+                        $nerGroupedData[$bhId] = [];
+                    }
+                    if (!isset($nerGroupedData[$bhId][$pdId])) {
+                        $nerGroupedData[$bhId][$pdId] = 0;
+                    }
+                    $nerGroupedData[$bhId][$pdId] += $amount;
+                }
             }
             
             $formattedData = $groupedData;
+            $nerFormattedData = $nerGroupedData;
 
-            // Add agency expenditure amounts (TSA expenditure + LOA amount + Admin Exp amount)
+            // Add agency expenditure amounts (TSA expenditure + LOA amount + Administrative Expenditure amount)
             $agencyData = $this->getAgencyReleaseDataForPdWiseReport($financialYear, $request);
             $formattedData = $this->mergeAgencyAmountsIntoFormattedData(
                 $formattedData,
                 $agencyData['expenditure_by_bh']
+            );
+            // NER agency TSA expenditure (is_ner=1) — typically under 2435
+            $nerFormattedData = $this->mergeAgencyAmountsIntoFormattedData(
+                $nerFormattedData,
+                $agencyData['ner_expenditure_by_bh']
             );
 
             Log::info('Daily Sanction Expenditure Data Query Result', [
                 'raw_count' => $expenditureData->count(),
                 'mapping_count' => count($msPdMapping),
                 'formatted_count' => count($formattedData),
+                'ner_formatted_count' => count($nerFormattedData),
                 'sample' => array_slice($formattedData, 0, 3, true)
             ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $formattedData,
+                'ner_data' => $nerFormattedData,
                 'debug' => [
                     'raw_count' => $expenditureData->count(),
-                    'formatted_count' => count($formattedData)
+                    'formatted_count' => count($formattedData),
+                    'ner_formatted_count' => count($nerFormattedData),
                 ]
             ]);
 
