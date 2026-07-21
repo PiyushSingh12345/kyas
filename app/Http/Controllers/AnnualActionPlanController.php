@@ -1662,168 +1662,391 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
-     * Get statewise AAP allocation report data
-     * Returns allocation, release, and expenditure data grouped by state and PD
+     * Get statewise AAP allocation report data.
+     * Tentative/Final from statewise_aap_allocation; Release/Expenditure via state→PD from pd_and_sls_comp.
      */
     public function getStatewiseAapAllocationReport(Request $request): JsonResponse
     {
         try {
             $financialYear = $request->get('financial_year', '2025-26');
-            
-            // 1. Get allocation data from statewise_aap_allocation table
-            $allocations = StatewiseAapAllocation::where('financial_year', $financialYear)
-                ->get()
-                ->groupBy('state_id')
-                ->map(function ($stateAllocations) {
-                    return $stateAllocations->keyBy('pd_id')->map(function ($allocation) {
-                        return [
-                            'tentative_amount' => floatval($allocation->tentative_amount ?? 0),
-                            'amount' => floatval($allocation->amount ?? 0),
-                            'release' => 0, // Will be populated below
-                            'expenditure' => 0 // Will be populated below
-                        ];
-                    });
-                })
-                ->toArray();
-            
-            // 2. Get release data - sum of mother_sanction_amount grouped by state_id and pd_component
-            $releaseData = DB::table('mother_sanction as ms')
-                ->join('md_program_divisions as pd', function($join) {
-                    $join->on(DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'), '=', DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci'));
-                })
-                ->where('ms.status', 1)
-                ->whereNotNull('ms.state_id')
-                ->whereNotNull('ms.pd_component')
-                ->whereNotNull('ms.mother_sanction_amount')
-                ->where('ms.mother_sanction_amount', '>', 0)
-                ->select(
-                    'ms.state_id',
-                    'pd.division_id as pd_id',
-                    DB::raw('SUM(COALESCE(ms.mother_sanction_amount, 0)) as total_release')
-                )
-                ->groupBy('ms.state_id', 'pd.division_id')
-                ->get();
-            
-            // 3. Get expenditure data - sum of center_share_amount from daily_sanction
-            // Map through mother_sanction to get pd_component for each state+budget_head combination
-            $stateBudgetPdMapping = DB::table('mother_sanction')
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+
+            // 1. Tentative + Final Allocation from statewise_aap_allocation (state_id + pd_id)
+            $allocations = [];
+            $allocationRows = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
                 ->where('status', 1)
-                ->whereNotNull('budget_head')
-                ->whereNotNull('pd_component')
                 ->whereNotNull('state_id')
-                ->select(
-                    'state_id',
-                    DB::raw('TRIM(budget_head) as budget_head'),
-                    'pd_component'
-                )
-                ->distinct()
-                ->get()
-                ->groupBy(function($item) {
-                    return $item->state_id . '|' . trim($item->budget_head);
-                });
-            
-            $programDivisions = DB::table('md_program_divisions')
-                ->select('division_id', 'division_name')
-                ->get()
-                ->keyBy(function($item) {
-                    return trim($item->division_name);
-                });
-            
-            $expenditureData = DB::table('daily_sanction as ds')
-                ->where('ds.status', 1)
-                ->whereNotNull('ds.budget_head')
-                ->whereNotNull('ds.center_share_amount')
-                ->whereNotNull('ds.state_id')
-                ->where('ds.center_share_amount', '>', 0)
-                ->select(
-                    'ds.budget_head',
-                    'ds.state_id',
-                    'ds.center_share_amount'
-                )
-                ->get();
-            
-            // Process expenditure data and group by state and PD
-            $expenditureGrouped = [];
-            foreach ($expenditureData as $record) {
-                $key = $record->state_id . '|' . trim($record->budget_head);
-                
-                if ($stateBudgetPdMapping->has($key)) {
-                    foreach ($stateBudgetPdMapping[$key] as $mapping) {
-                        $pdComponent = trim($mapping->pd_component);
-                        
-                        if ($programDivisions->has($pdComponent)) {
-                            $pd = $programDivisions[$pdComponent];
-                            $stateId = (string)$record->state_id;
-                            $pdId = (string)$pd->division_id;
-                            
-                            if (!isset($expenditureGrouped[$stateId])) {
-                                $expenditureGrouped[$stateId] = [];
-                            }
-                            
-                            if (!isset($expenditureGrouped[$stateId][$pdId])) {
-                                $expenditureGrouped[$stateId][$pdId] = 0;
-                            }
-                            
-                            $expenditureGrouped[$stateId][$pdId] += floatval($record->center_share_amount ?? 0);
-                        }
-                    }
-                }
-            }
-            
-            // Merge release and expenditure data into allocations
-            foreach ($releaseData as $record) {
-                $stateId = (string)$record->state_id;
-                $pdId = (string)$record->pd_id;
-                
+                ->whereNotNull('pd_id')
+                ->get(['state_id', 'pd_id', 'tentative_amount', 'amount']);
+
+            foreach ($allocationRows as $row) {
+                $stateId = (string) $row->state_id;
+                $pdId = (string) $row->pd_id;
+
                 if (!isset($allocations[$stateId])) {
                     $allocations[$stateId] = [];
                 }
-                
+
+                $allocations[$stateId][$pdId] = [
+                    'tentative_amount' => floatval($row->tentative_amount ?? 0),
+                    'amount' => floatval($row->amount ?? 0),
+                    'release' => 0.0,
+                    'expenditure' => 0.0,
+                ];
+            }
+
+            // 2. State → PD from pd_and_sls_comp; Release = Total MS per state+BH+PD; Expenditure via DS
+            $statePdPairs = $this->getStatePdPairsFromSlsComp();
+            $allowedStatePd = [];
+
+            foreach ($statePdPairs as $pair) {
+                $stateId = (string) $pair->state_id;
+                $pdId = (string) $pair->pd_id;
+                $allowedStatePd[$stateId . '|' . $pdId] = true;
+
+                if (!isset($allocations[$stateId])) {
+                    $allocations[$stateId] = [];
+                }
+
                 if (!isset($allocations[$stateId][$pdId])) {
                     $allocations[$stateId][$pdId] = [
                         'tentative_amount' => 0,
                         'amount' => 0,
-                        'release' => 0,
-                        'expenditure' => 0
+                        'release' => 0.0,
+                        'expenditure' => 0.0,
                     ];
-                }
-                
-                $allocations[$stateId][$pdId]['release'] = floatval($record->total_release ?? 0);
-            }
-            
-            foreach ($expenditureGrouped as $stateId => $pdData) {
-                foreach ($pdData as $pdId => $amount) {
-                    if (!isset($allocations[$stateId])) {
-                        $allocations[$stateId] = [];
-                    }
-                    
-                    if (!isset($allocations[$stateId][$pdId])) {
-                        $allocations[$stateId][$pdId] = [
-                            'tentative_amount' => 0,
-                            'amount' => 0,
-                            'release' => 0,
-                            'expenditure' => 0
-                        ];
-                    }
-                    
-                    $allocations[$stateId][$pdId]['expenditure'] = $amount;
+                } else {
+                    $allocations[$stateId][$pdId]['release'] = 0.0;
+                    $allocations[$stateId][$pdId]['expenditure'] = 0.0;
                 }
             }
-            
+
+            $this->applyStateWiseReleaseAmounts(
+                $allocations,
+                $allowedStatePd,
+                $financialYear,
+                $yearVariants,
+                $request
+            );
+
+            $this->applyStateWiseExpenditureAmounts(
+                $allocations,
+                $allowedStatePd,
+                $yearVariants,
+                $request
+            );
+
             return response()->json([
                 'success' => true,
-                'data' => $allocations
+                'data' => $allocations,
             ]);
-            
         } catch (\Exception $e) {
             Log::error('Error fetching statewise AAP allocation report: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch report data',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * StateWise Release MIS report.
+     * Returns Allocation, Release, and Expenditure keyed by state_id => pd_id.
+     *
+     * Flow:
+     * 1. State → PD from pd_and_sls_comp (state_id, slsPD)
+     * 2. Allocation = SUM of BH amounts for that PD from pdwise_aap_allocation
+     * 3. Release / Expenditure for the same state + PD (via BH + MS / DS)
+     */
+    public function getStateWiseReleaseReport(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2026-27');
+            $budgetPhase = $request->get('budget_phase', 'BE');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+
+            // State → PD pairs from pd_and_sls_comp (slsPD → program division)
+            $statePdPairs = $this->getStatePdPairsFromSlsComp();
+
+            // Allocation: sum of all BH amounts per PD (pdwise_aap_allocation)
+            $pdAllocationSums = $this->getPdwiseBhAllocationSumByPd($yearVariants, $budgetPhase);
+
+            $reportData = [];
+            $allowedStatePd = [];
+
+            foreach ($statePdPairs as $pair) {
+                $stateId = (string) $pair->state_id;
+                $pdId = (string) $pair->pd_id;
+                $allowedStatePd[$stateId . '|' . $pdId] = true;
+
+                if (!isset($reportData[$stateId])) {
+                    $reportData[$stateId] = [];
+                }
+                $reportData[$stateId][$pdId] = [
+                    'allocation' => floatval($pdAllocationSums[(int) $pair->pd_id] ?? $pdAllocationSums[$pdId] ?? 0),
+                    'release' => 0.0,
+                    'expenditure' => 0.0,
+                ];
+            }
+
+            // Release — Total MS for (state, BH, PD), only for mapped state→PD pairs
+            $this->applyStateWiseReleaseAmounts(
+                $reportData,
+                $allowedStatePd,
+                $financialYear,
+                $yearVariants,
+                $request
+            );
+
+            // Expenditure — DS center share mapped via MS (MS no + BH → PD), same state→PD pairs
+            $this->applyStateWiseExpenditureAmounts(
+                $reportData,
+                $allowedStatePd,
+                $yearVariants,
+                $request
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $reportData,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching StateWise Release report: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch StateWise Release report data',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Distinct state_id + PD (division_id) from pd_and_sls_comp.slsPD.
+     *
+     * @return \Illuminate\Support\Collection<int, object{state_id:int,pd_id:int,pd_name:string}>
+     */
+    private function getStatePdPairsFromSlsComp()
+    {
+        return DB::table('pd_and_sls_comp as psc')
+            ->join('md_program_divisions as pd', function ($join) {
+                $join->on(
+                    DB::raw('TRIM(psc.slsPD) COLLATE utf8mb4_unicode_ci'),
+                    '=',
+                    DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci')
+                );
+            })
+            ->where('psc.status', 1)
+            ->whereNotNull('psc.state_id')
+            ->whereNotNull('psc.slsPD')
+            ->whereRaw("TRIM(psc.slsPD) <> ''")
+            ->select(
+                'psc.state_id',
+                'pd.division_id as pd_id',
+                DB::raw('TRIM(pd.division_name) as pd_name')
+            )
+            ->distinct()
+            ->get();
+    }
+
+    /**
+     * Sum of BH amounts per PD from pdwise_aap_allocation for the FY (+ optional phase).
+     *
+     * @param  array<int, string>  $yearVariants
+     * @return \Illuminate\Support\Collection<int|string, float|string>
+     */
+    private function getPdwiseBhAllocationSumByPd(array $yearVariants, ?string $budgetPhase = 'BE')
+    {
+        $query = DB::table('pdwise_aap_allocation')
+            ->whereIn('financial_year', $yearVariants)
+            ->where('status', 1)
+            ->whereNotNull('pd_id')
+            ->whereNotNull('bh_id');
+
+        if ($budgetPhase && $budgetPhase !== '0') {
+            $query->where('budget_phase', $budgetPhase);
+        }
+
+        return $query
+            ->select('pd_id', DB::raw('SUM(COALESCE(amount, 0)) as total_allocation'))
+            ->groupBy('pd_id')
+            ->pluck('total_allocation', 'pd_id');
+    }
+
+    /**
+     * Fill release amounts on $reportData for allowed state|pd keys.
+     *
+     * @param  array<string, array<string, array{allocation:float,release:float,expenditure:float}>>  $reportData
+     * @param  array<string, bool>  $allowedStatePd
+     * @param  array<int, string>  $yearVariants
+     */
+    private function applyStateWiseReleaseAmounts(
+        array &$reportData,
+        array $allowedStatePd,
+        string $financialYear,
+        array $yearVariants,
+        Request $request
+    ): void {
+        $releasePairsQuery = DB::table('mother_sanction as ms')
+            ->join('budget_heads as bh', function ($join) {
+                $join->on(DB::raw('TRIM(ms.budget_head)'), '=', DB::raw('TRIM(bh.budget)'));
+            })
+            ->join('md_program_divisions as pd', function ($join) {
+                $join->on(
+                    DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'),
+                    '=',
+                    DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci')
+                );
+            })
+            ->whereIn('ms.financial_year', $yearVariants)
+            ->whereNotNull('ms.state_id')
+            ->whereNotNull('ms.budget_head')
+            ->whereNotNull('ms.pd_component')
+            ->whereNotNull('ms.mother_sanction_amount');
+
+        $this->applyDateRangeToQuery($releasePairsQuery, $request, 'ms.sanction_date');
+
+        $releasePairs = $releasePairsQuery->select(
+                'ms.state_id',
+                'bh.id as bh_id',
+                'pd.division_id as pd_id',
+                DB::raw('TRIM(ms.budget_head) as budget_head'),
+                DB::raw('TRIM(ms.pd_component) as pd_component')
+            )
+            ->distinct()
+            ->get();
+
+        $uniqueStateBhPd = [];
+        foreach ($releasePairs as $pair) {
+            if (!$pair->state_id || !$pair->bh_id || !$pair->pd_id) {
+                continue;
+            }
+            $statePdKey = (string) $pair->state_id . '|' . (string) $pair->pd_id;
+            if (!isset($allowedStatePd[$statePdKey])) {
+                continue;
+            }
+            $key = (string) $pair->state_id . '|' . (string) $pair->bh_id . '|' . (string) $pair->pd_id;
+            if (!isset($uniqueStateBhPd[$key])) {
+                $uniqueStateBhPd[$key] = $pair;
+            }
+        }
+
+        $tmsCache = [];
+        foreach ($uniqueStateBhPd as $pair) {
+            $budgetHead = trim((string) $pair->budget_head);
+            $pdComponent = trim((string) $pair->pd_component);
+            $stateIdInt = (int) $pair->state_id;
+            $cacheKey = $stateIdInt . '|' . $budgetHead . '|' . $pdComponent;
+
+            if (!isset($tmsCache[$cacheKey])) {
+                $tmsCache[$cacheKey] = $this->msTotals->totalMs(
+                    $budgetHead,
+                    $pdComponent,
+                    $financialYear,
+                    $stateIdInt
+                );
+            }
+
+            $amount = floatval($tmsCache[$cacheKey]);
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $stateId = (string) $pair->state_id;
+            $pdId = (string) $pair->pd_id;
+            if (!isset($reportData[$stateId][$pdId])) {
+                continue;
+            }
+            $reportData[$stateId][$pdId]['release'] += $amount;
+        }
+    }
+
+    /**
+     * Fill expenditure amounts on $reportData for allowed state|pd keys.
+     *
+     * @param  array<string, array<string, array{allocation:float,release:float,expenditure:float}>>  $reportData
+     * @param  array<string, bool>  $allowedStatePd
+     * @param  array<int, string>  $yearVariants
+     */
+    private function applyStateWiseExpenditureAmounts(
+        array &$reportData,
+        array $allowedStatePd,
+        array $yearVariants,
+        Request $request
+    ): void {
+        $msPdMapping = [];
+        $msRows = DB::table('mother_sanction')
+            ->where('status', 1)
+            ->whereIn('financial_year', $yearVariants)
+            ->whereNotNull('ky_ms_no')
+            ->whereNotNull('budget_head')
+            ->whereNotNull('pd_component')
+            ->whereNotNull('state_id')
+            ->select(
+                'state_id',
+                DB::raw('TRIM(ky_ms_no) as ky_ms_no'),
+                DB::raw('TRIM(budget_head) as budget_head'),
+                DB::raw('TRIM(pd_component) as pd_component')
+            )
+            ->distinct()
+            ->get();
+
+        foreach ($msRows as $row) {
+            $key = (string) $row->state_id . '|' . $row->ky_ms_no . '|' . $row->budget_head;
+            if (!isset($msPdMapping[$key])) {
+                $msPdMapping[$key] = $row->pd_component;
+            }
+        }
+
+        $programDivisions = DB::table('md_program_divisions')
+            ->select('division_id', 'division_name')
+            ->get()
+            ->keyBy(function ($item) {
+                return trim($item->division_name);
+            });
+
+        $expenditureQuery = DB::table('daily_sanction as ds')
+            ->join('budget_heads as bh', function ($join) {
+                $join->on(DB::raw('TRIM(ds.budget_head)'), '=', DB::raw('TRIM(bh.budget)'));
+            })
+            ->where('ds.status', 1)
+            ->whereIn('ds.financial_year', $yearVariants)
+            ->whereNotNull('ds.state_id')
+            ->whereNotNull('ds.budget_head')
+            ->whereNotNull('ds.mother_sanction')
+            ->whereNotNull('ds.center_share_amount')
+            ->where('ds.center_share_amount', '>', 0);
+
+        $this->applyDateRangeToQuery($expenditureQuery, $request, 'ds.ds_date');
+
+        $expenditureRows = $expenditureQuery->select(
+                'ds.state_id',
+                'ds.budget_head',
+                'ds.mother_sanction',
+                'ds.center_share_amount'
+            )
+            ->get();
+
+        foreach ($expenditureRows as $record) {
+            $stateId = (string) $record->state_id;
+            $mapKey = $stateId . '|' . trim((string) $record->mother_sanction) . '|' . trim((string) $record->budget_head);
+            $pdComponent = $msPdMapping[$mapKey] ?? null;
+
+            if ($pdComponent === null || !$programDivisions->has($pdComponent)) {
+                continue;
+            }
+
+            $pdId = (string) $programDivisions[$pdComponent]->division_id;
+            $statePdKey = $stateId . '|' . $pdId;
+            if (!isset($allowedStatePd[$statePdKey]) || !isset($reportData[$stateId][$pdId])) {
+                continue;
+            }
+
+            $reportData[$stateId][$pdId]['expenditure'] += floatval($record->center_share_amount ?? 0);
         }
     }
 }

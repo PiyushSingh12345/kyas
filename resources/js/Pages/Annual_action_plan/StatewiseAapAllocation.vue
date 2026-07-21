@@ -27,7 +27,7 @@
                 <div class="card">
 					<div class="card-header">
 						<div class="card-title d-flex justify-content-between align-items-center">
-							<span>Statewise AAP Allocation for FY 2025-26 (₹ In Lakhs)</span>
+							<span>Statewise AAP Allocation for FY {{ selectedFinancialYear }} (₹ In Lakhs)</span>
 							<button 
 								class="btn btn-outline-info btn-sm d-flex align-items-center" 
 								@click="viewHistory"
@@ -50,6 +50,26 @@
 						</div>
 
 						<div v-else>
+							<div class="row mb-3">
+								<div class="col-md-3 col-lg-2">
+									<label for="financialYearSelect" class="form-label fw-bold">Financial Year</label>
+									<select
+										id="financialYearSelect"
+										class="form-select"
+										v-model="selectedFinancialYear"
+										@change="onFinancialYearChange"
+									>
+										<option
+											v-for="year in financialYearOptions"
+											:key="year.value"
+											:value="year.value"
+										>
+											{{ year.label }}
+										</option>
+									</select>
+								</div>
+							</div>
+
 							<div ref="reportTableScrollWrapper" class="report-table-scroll-wrapper" @scroll="onTableWrapperScroll">
 							<div class="table-responsive">
 								<table class="table table-bordered table-hover align-middle text-center">
@@ -187,6 +207,30 @@ const loading = ref(true)
 const error = ref(null)
 const submitting = ref(false)
 
+const getCurrentFinancialYear = () => {
+  const now = new Date()
+  const calendarYear = now.getFullYear()
+  const startYear = now.getMonth() >= 3 ? calendarYear : calendarYear - 1
+  return `${startYear}-${String(startYear + 1).slice(-2)}`
+}
+
+const buildFinancialYearOptions = (yearsBack = 4) => {
+  const currentStartYear = parseInt(getCurrentFinancialYear().split('-')[0], 10)
+  const options = []
+  for (let i = 0; i <= yearsBack; i++) {
+    const startYear = currentStartYear - i
+    const endYearShort = String(startYear + 1).slice(-2)
+    options.push({
+      value: `${startYear}-${endYearShort}`,
+      label: `${startYear}-${startYear + 1}`,
+    })
+  }
+  return options
+}
+
+const financialYearOptions = buildFinancialYearOptions()
+const selectedFinancialYear = ref(getCurrentFinancialYear())
+
 // Fixed horizontal scrollbar at bottom of viewport
 const reportTableScrollWrapper = ref(null)
 const fixedScrollBar = ref(null)
@@ -277,7 +321,9 @@ const fetchProgramDivisions = async () => {
 // Fetch existing allocation data
 const fetchExistingAllocations = async () => {
   try {
-    const response = await fetch('/api/statewise-aap-allocation?financial_year=2025-26')
+    const response = await fetch(
+      `/api/statewise-aap-allocation?financial_year=${encodeURIComponent(selectedFinancialYear.value)}`
+    )
     if (!response.ok) throw new Error('Failed to fetch existing allocations')
     const result = await response.json()
     
@@ -514,7 +560,7 @@ const submitAllocation = async () => {
               : 0
             
             submissionData.push({
-              financial_year: '2025-26',
+              financial_year: selectedFinancialYear.value,
               state_id: state.state_id,
               pd_id: pd.division_id,
               amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)
@@ -589,6 +635,20 @@ const submitAllocation = async () => {
 // Navigate to history page in new tab
 const viewHistory = () => {
   window.open('/statewise-aap-allocation-history', '_blank')
+}
+
+const onFinancialYearChange = async () => {
+  try {
+    loading.value = true
+    initializeAllocationData()
+    await fetchExistingAllocations()
+  } catch (err) {
+    console.error('Error loading data for financial year:', err)
+    error.value = 'Failed to load allocation data for selected financial year'
+  } finally {
+    loading.value = false
+    nextTick(updateFixedScrollBarWidth)
+  }
 }
 
 // Load data on component mount

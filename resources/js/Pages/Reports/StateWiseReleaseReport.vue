@@ -6,7 +6,7 @@
         <div class="container">
           <div class="page-inner allinsideform">
             <div class="page-header">
-              <h3 class="fw-bold mb-3">Reports</h3>
+              <h3 class="fw-bold mb-3">MIS Reports & Dashboards</h3>
               <ul class="breadcrumbs mb-3">
                 <li class="nav-home">
                   <a href="login.html">
@@ -17,7 +17,7 @@
                   <i class="icon-arrow-right"></i>
                 </li>
                 <li class="nav-item">
-                  <a href="#">Statewise AAP Allocation Report</a>
+                  <a href="#">StateWise Release</a>
                 </li>
               </ul>
             </div>
@@ -27,7 +27,7 @@
                 <div class="card">
 					<div class="card-header">
 						<div class="card-title d-flex justify-content-between align-items-center">
-							<span>Statewise AAP Allocation Report for FY {{ selectedFinancialYear }} (₹ In {{ amountInText }})</span>
+							<span>StateWise Release Report for FY {{ selectedFinancialYear }} (₹ In {{ amountInText }})</span>
 						</div>
 					</div>
 
@@ -242,18 +242,16 @@
 									<thead class="table-dark">
 										<tr>
 											<th rowspan="2" class="align-middle fw-sticky">State</th>
-											<th v-for="pd in filteredProgramDivisions" :key="pd.division_id" colspan="4">
+											<th v-for="pd in filteredProgramDivisions" :key="pd.division_id" colspan="3">
 												{{ pd.division_name }}
 											</th>
-											<th rowspan="2" class="align-middle bg-info">Tentative Allocation</th>
-											<th rowspan="2" class="align-middle bg-info">Final Allocation</th>
+											<th rowspan="2" class="align-middle bg-info">Total Allocation</th>
 											<th rowspan="2" class="align-middle bg-success">Total Release</th>
 											<th rowspan="2" class="align-middle bg-success">Total Expenditure</th>
 										</tr>
 										<tr>
 											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
-												<th>Tentative Allocation</th>
-												<th>Final Allocation</th>
+												<th>Allocation</th>
 												<th>Release</th>
 												<th>Expenditure</th>
 											</template>
@@ -264,10 +262,7 @@
 											<td class="fw-bold fw-sticky">{{ state.state_name }}</td>
 											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<td class="text-center">
-													{{ formatCell(getTentativeAllocation(state.state_id, pd.division_id)) }}
-												</td>
-												<td class="text-center">
-													{{ formatCell(getFinalAllocation(state.state_id, pd.division_id)) }}
+													{{ formatCell(getAllocation(state.state_id, pd.division_id)) }}
 												</td>
 												<td class="text-center">
 													{{ formatCell(getRelease(state.state_id, pd.division_id)) }}
@@ -277,10 +272,7 @@
 												</td>
 											</template>
 											<td class="text-center fw-bold bg-info-subtle">
-												{{ formatCell(calculateStateTentativeTotal(state.state_id)) }}
-											</td>
-											<td class="text-center fw-bold bg-info-subtle">
-												{{ formatCell(calculateStateFinalTotal(state.state_id)) }}
+												{{ formatCell(calculateStateAllocationTotal(state.state_id)) }}
 											</td>
 											<td class="text-center fw-bold bg-success-subtle">
 												{{ formatCell(calculateStateReleaseTotal(state.state_id)) }}
@@ -295,10 +287,7 @@
 											<td class="fw-sticky">Total</td>
 											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<td class="text-center">
-													{{ formatCell(calculateTentativeColumnTotal(pd.division_id)) }}
-												</td>
-												<td class="text-center">
-													{{ formatCell(calculateFinalColumnTotal(pd.division_id)) }}
+													{{ formatCell(calculateAllocationColumnTotal(pd.division_id)) }}
 												</td>
 												<td class="text-center">
 													{{ formatCell(calculateReleaseColumnTotal(pd.division_id)) }}
@@ -308,10 +297,7 @@
 												</td>
 											</template>
 											<td class="text-center bg-info-subtle">
-												{{ formatCell(calculateGrandTentativeTotal()) }}
-											</td>
-											<td class="text-center bg-info-subtle">
-												{{ formatCell(calculateGrandFinalTotal()) }}
+												{{ formatCell(calculateGrandAllocationTotal()) }}
 											</td>
 											<td class="text-center bg-success-subtle">
 												{{ formatCell(calculateGrandReleaseTotal()) }}
@@ -358,7 +344,7 @@ import { useAmountIn } from '../../Composables/useAmountIn'
 // Reactive data
 const states = ref([])
 const programDivisions = ref([])
-const reportData = ref({}) // Structure: { stateId: { pdId: { tentative_amount, amount, release, expenditure } } }
+const reportData = ref({}) // Structure: { stateId: { pdId: { allocation, release, expenditure } } }
 const loading = ref(true)
 const error = ref(null)
 
@@ -470,7 +456,7 @@ const fetchProgramDivisions = async () => {
 // Fetch report data
 const fetchReportData = async () => {
   try {
-    const response = await fetch(`/api/statewise-aap-allocation-report?financial_year=${selectedFinancialYear.value}`)
+    const response = await fetch(`/api/statewise-release-report?financial_year=${selectedFinancialYear.value}`)
     if (!response.ok) throw new Error('Failed to fetch report data')
     const result = await response.json()
     
@@ -638,39 +624,42 @@ const formatToFiveDecimals = (value) => {
   }
 }
 
-// Lookup cell by state + PD (string keys from API)
+// Get cell values for a state and PD (normalize keys for JSON string/number ids)
 const getReportCell = (stateId, pdId) => {
-  const stateKey = String(stateId)
-  const pdKey = String(pdId)
-  return reportData.value?.[stateKey]?.[pdKey] ?? null
+  const data = reportData.value || {}
+  const stateKeys = [stateId, String(stateId), Number(stateId)]
+  const pdKeys = [pdId, String(pdId), Number(pdId)]
+  for (const sk of stateKeys) {
+    if (data[sk] == null) continue
+    for (const pk of pdKeys) {
+      if (data[sk][pk] != null) return data[sk][pk]
+    }
+  }
+  return null
 }
 
-// Tentative Allocation from statewise_aap_allocation.tentative_amount
-const getTentativeAllocation = (stateId, pdId) => {
+// Get allocation for a state and PD
+const getAllocation = (stateId, pdId) => {
   const cell = getReportCell(stateId, pdId)
   if (!cell) return '0.00000'
-  return formatToFiveDecimals(cell.tentative_amount || 0)
-}
-
-// Final Allocation from statewise_aap_allocation.amount
-const getFinalAllocation = (stateId, pdId) => {
-  const cell = getReportCell(stateId, pdId)
-  if (!cell) return '0.00000'
-  return formatToFiveDecimals(cell.amount || 0)
+  const amount = cell.allocation || 0
+  return formatToFiveDecimals(amount)
 }
 
 // Get release for a state and PD
 const getRelease = (stateId, pdId) => {
   const cell = getReportCell(stateId, pdId)
   if (!cell) return '0.00000'
-  return formatToFiveDecimals(cell.release || 0)
+  const amount = cell.release || 0
+  return formatToFiveDecimals(amount)
 }
 
 // Get expenditure for a state and PD
 const getExpenditure = (stateId, pdId) => {
   const cell = getReportCell(stateId, pdId)
   if (!cell) return '0.00000'
-  return formatToFiveDecimals(cell.expenditure || 0)
+  const amount = cell.expenditure || 0
+  return formatToFiveDecimals(amount)
 }
 
 // Helper function to add two numbers with 5 decimal precision
@@ -680,21 +669,11 @@ const addWithPrecision = (a, b) => {
   return Math.round((numA * 100000) + (numB * 100000)) / 100000
 }
 
-// Calculate tentative column total
-const calculateTentativeColumnTotal = (pdId) => {
+// Calculate allocation column total
+const calculateAllocationColumnTotal = (pdId) => {
   let total = 0
   filteredStates.value.forEach(state => {
-    const value = parseFloat(getTentativeAllocation(state.state_id, pdId)) || 0
-    total = addWithPrecision(total, value)
-  })
-  return formatToFiveDecimals(total)
-}
-
-// Calculate final allocation column total
-const calculateFinalColumnTotal = (pdId) => {
-  let total = 0
-  filteredStates.value.forEach(state => {
-    const value = parseFloat(getFinalAllocation(state.state_id, pdId)) || 0
+    const value = parseFloat(getAllocation(state.state_id, pdId)) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
@@ -721,19 +700,10 @@ const calculateExpenditureColumnTotal = (pdId) => {
 }
 
 // Calculate state row totals
-const calculateStateTentativeTotal = (stateId) => {
+const calculateStateAllocationTotal = (stateId) => {
   let total = 0
   filteredProgramDivisions.value.forEach(pd => {
-    const value = parseFloat(getTentativeAllocation(stateId, pd.division_id)) || 0
-    total = addWithPrecision(total, value)
-  })
-  return formatToFiveDecimals(total)
-}
-
-const calculateStateFinalTotal = (stateId) => {
-  let total = 0
-  filteredProgramDivisions.value.forEach(pd => {
-    const value = parseFloat(getFinalAllocation(stateId, pd.division_id)) || 0
+    const value = parseFloat(getAllocation(stateId, pd.division_id)) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
@@ -758,19 +728,10 @@ const calculateStateExpenditureTotal = (stateId) => {
 }
 
 // Calculate grand totals for summary columns
-const calculateGrandTentativeTotal = () => {
+const calculateGrandAllocationTotal = () => {
   let total = 0
   filteredStates.value.forEach(state => {
-    const value = parseFloat(calculateStateTentativeTotal(state.state_id)) || 0
-    total = addWithPrecision(total, value)
-  })
-  return formatToFiveDecimals(total)
-}
-
-const calculateGrandFinalTotal = () => {
-  let total = 0
-  filteredStates.value.forEach(state => {
-    const value = parseFloat(calculateStateFinalTotal(state.state_id)) || 0
+    const value = parseFloat(calculateStateAllocationTotal(state.state_id)) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
@@ -801,17 +762,17 @@ const prepareTableData = () => {
   // First header row - Program Division names
   const headerRow1 = ['State']
   filteredProgramDivisions.value.forEach(pd => {
-    headerRow1.push(pd.division_name, '', '', '') // 4 columns per PD
+    headerRow1.push(pd.division_name, '', '') // 3 columns per PD
   })
-  headerRow1.push('Tentative Allocation', 'Final Allocation', 'Total Release', 'Total Expenditure')
+  headerRow1.push('Total Allocation', 'Total Release', 'Total Expenditure')
   data.push(headerRow1)
   
   // Second header row - Column types
   const headerRow2 = ['']
   filteredProgramDivisions.value.forEach(() => {
-    headerRow2.push('Tentative Allocation', 'Final Allocation', 'Release', 'Expenditure')
+    headerRow2.push('Allocation', 'Release', 'Expenditure')
   })
-  headerRow2.push('', '', '', '')
+  headerRow2.push('', '', '')
   data.push(headerRow2)
   
   // Data rows for each state
@@ -821,8 +782,7 @@ const prepareTableData = () => {
     // Add PD columns
     filteredProgramDivisions.value.forEach(pd => {
       row.push(
-        formatCell(getTentativeAllocation(state.state_id, pd.division_id)),
-        formatCell(getFinalAllocation(state.state_id, pd.division_id)),
+        formatCell(getAllocation(state.state_id, pd.division_id)),
         formatCell(getRelease(state.state_id, pd.division_id)),
         formatCell(getExpenditure(state.state_id, pd.division_id))
       )
@@ -830,8 +790,7 @@ const prepareTableData = () => {
     
     // Add summary columns
     row.push(
-      formatCell(calculateStateTentativeTotal(state.state_id)),
-      formatCell(calculateStateFinalTotal(state.state_id)),
+      formatCell(calculateStateAllocationTotal(state.state_id)),
       formatCell(calculateStateReleaseTotal(state.state_id)),
       formatCell(calculateStateExpenditureTotal(state.state_id))
     )
@@ -843,15 +802,13 @@ const prepareTableData = () => {
   const totalRow = ['Total']
   filteredProgramDivisions.value.forEach(pd => {
     totalRow.push(
-      formatCell(calculateTentativeColumnTotal(pd.division_id)),
-      formatCell(calculateFinalColumnTotal(pd.division_id)),
+      formatCell(calculateAllocationColumnTotal(pd.division_id)),
       formatCell(calculateReleaseColumnTotal(pd.division_id)),
       formatCell(calculateExpenditureColumnTotal(pd.division_id))
     )
   })
   totalRow.push(
-    formatCell(calculateGrandTentativeTotal()),
-    formatCell(calculateGrandFinalTotal()),
+    formatCell(calculateGrandAllocationTotal()),
     formatCell(calculateGrandReleaseTotal()),
     formatCell(calculateGrandExpenditureTotal())
   )
@@ -865,8 +822,8 @@ const exportToExcel = () => {
   const data = prepareTableData()
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(data)
-  XLSX.utils.book_append_sheet(wb, ws, 'Statewise AAP Allocation')
-  XLSX.writeFile(wb, `Statewise_AAP_Allocation_Report_${selectedFinancialYear.value}_${new Date().getTime()}.xlsx`)
+  XLSX.utils.book_append_sheet(wb, ws, 'StateWise Release')
+  XLSX.writeFile(wb, `StateWise_Release_Report_${selectedFinancialYear.value}_${new Date().getTime()}.xlsx`)
 }
 
 // Function to export to CSV
@@ -901,7 +858,7 @@ const exportToCSV = () => {
   const url = URL.createObjectURL(blob)
   
   link.setAttribute('href', url)
-  link.setAttribute('download', `Statewise_AAP_Allocation_Report_${selectedFinancialYear.value}_${new Date().getTime()}.csv`)
+  link.setAttribute('download', `StateWise_Release_Report_${selectedFinancialYear.value}_${new Date().getTime()}.csv`)
   link.style.visibility = 'hidden'
   document.body.appendChild(link)
   link.click()
@@ -924,7 +881,7 @@ const exportToPDF = () => {
   
   // Build HTML content using string concatenation to avoid Vue parsing issues
   const headStart = '<head>'
-  const titleTag = '<title>Statewise AAP Allocation Report - ' + selectedFinancialYear.value + '</title>'
+  const titleTag = '<title>StateWise Release Report - ' + selectedFinancialYear.value + '</title>'
   const styleStart = '<style>'
   const styles = 'body { font-family: Arial, sans-serif; margin: 20px; }' +
     'h2 { text-align: center; color: #333; }' +
@@ -942,7 +899,7 @@ const exportToPDF = () => {
   const headEnd = '</head>'
   
   const bodyStart = '<body>'
-  const h2Tag = '<h2>Statewise AAP Allocation Report</h2>'
+  const h2Tag = '<h2>StateWise Release Report</h2>'
   const metaInfoStart = '<div class="meta-info">'
   const financialYearP = '<p><strong>Financial Year:</strong> ' + selectedFinancialYear.value + '</p>'
   const generatedP = '<p><strong>Generated on:</strong> ' + new Date().toLocaleString() + '</p>'

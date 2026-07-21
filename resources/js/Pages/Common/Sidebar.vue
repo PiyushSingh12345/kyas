@@ -241,6 +241,7 @@
                     <li><Link :href="route('pd-wise-budget-allocation-report')" class="nav-link"><span class="sub-item">PD wise Budget Allocation Report</span></Link></li>
                     <li><Link :href="route('pd-wise-budget-allocation-release')" class="nav-link"><span class="sub-item">PD wise Budget Allocation Release Report</span></Link></li>
                     <li><Link :href="route('statewise-aap-allocation-report')" class="nav-link"><span class="sub-item">Statewise AAP Allocation Report</span></Link></li>
+                    <li><Link :href="route('statewise-release-report')" class="nav-link"><span class="sub-item">StateWise Release</span></Link></li>
                     <li><Link :href="route('daily-sanction-reports')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li>
                     <li><Link :href="route('mother-sanction-reports')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li>
                     <!-- <li><Link :href="route('daily-sanction-report')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li> -->
@@ -420,6 +421,7 @@ const menuMap = {
   '/daily-sanction-time-series-report': 'reports',
   '/mother-sanction-time-series-report': 'reports',
   '/statewise-aap-allocation-report': 'reports',
+  '/statewise-release-report': 'reports',
   '/re-appropriation-of-funds': 're-appropriation-of-funds',
   '/statewise-aap-allocation': 'annual-action-plan',
   '/state-release-data': 'annual-action-plan',

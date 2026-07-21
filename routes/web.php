@@ -183,6 +183,10 @@ Route::get('/statewise-aap-allocation-report', function () {
     return Inertia::render('Reports/StatewiseAapAllocationReport');
 })->middleware(['auth', 'verified', 'role:1,2,4'])->name('statewise-aap-allocation-report');
 
+Route::get('/statewise-release-report', function () {
+    return Inertia::render('Reports/StateWiseReleaseReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('statewise-release-report');
+
 Route::get('/agency-release-tsa', function () {
     return Inertia::render('agency/AgencyReleaseTSA');
 })->middleware(['auth', 'verified', 'role:2'])->name('agency-release-tsa');
@@ -310,6 +314,7 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::post('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'storeStatewiseAllocation']);
     Route::get('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'getStatewiseAllocation']);
     Route::get('/api/statewise-aap-allocation-report', [AnnualActionPlanController::class, 'getStatewiseAapAllocationReport']);
+    Route::get('/api/statewise-release-report', [AnnualActionPlanController::class, 'getStateWiseReleaseReport']);
     Route::get('/api/aap-states', [AnnualActionPlanController::class, 'getStates']);
     Route::get('/api/aap-program-divisions', [AnnualActionPlanController::class, 'getProgramDivisions']);
     
