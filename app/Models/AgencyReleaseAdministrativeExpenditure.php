@@ -20,6 +20,7 @@ class AgencyReleaseAdministrativeExpenditure extends Model
         'program_division_id',
         'amount',
         'agency_vendor',
+        'is_ner',
         'remark',
         'status'
     ];
@@ -27,6 +28,7 @@ class AgencyReleaseAdministrativeExpenditure extends Model
     protected $casts = [
         'date' => 'date',
         'amount' => 'decimal:2',
+        'is_ner' => 'boolean',
         'status' => 'boolean'
     ];
 

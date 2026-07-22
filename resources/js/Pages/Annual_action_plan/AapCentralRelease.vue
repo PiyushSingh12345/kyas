@@ -790,7 +790,7 @@
   const feAllocationData = ref({}) // FE Allocation data
   const releaseData = ref({}) // Mother sanction release data
   const expenditureData = ref({}) // Daily sanction expenditure data
-  // NER-only amounts: 3601 MS/DS for NER states + 2435 TSA where is_ner=1
+  // NER-only amounts: 3601 MS/DS for NER states + 2435 TSA/Admin Exp where is_ner=1
   const nerReleaseData = ref({})
   const nerExpenditureData = ref({})
   // NER re-appropriation amounts (2552→3601 NER states / 2552→2435 Agency) by phase for BE/RE/FE
@@ -1315,7 +1315,7 @@
    * - 2552: always base + mapped NER(3601) + mapped NER(2435)
    * - 3601: exclude NER when "Include 2552 under 3601" is unchecked; include when checked
    * - 2435: exclude NER when "Include 2552 under 2435" is unchecked; include when checked
-   * NER source: re-appropriation for BE/RE/FE; MS/DS + is_ner TSA for Release/Expenditure.
+   * NER source: re-appropriation for BE/RE/FE; MS/DS + is_ner TSA/Admin Exp for Release/Expenditure.
    */
   const applyNerHeadDisplayRules = (baseValue, bh, pdId, include3601Flag, include2435Flag, getNerAmount) => {
 	let v = parseFloat(baseValue) || 0

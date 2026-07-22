@@ -484,6 +484,7 @@ class AgencyReleaseController extends Controller
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
                 'agencyVendor' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'isNer' => 'sometimes|boolean',
                 'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
@@ -544,6 +545,7 @@ class AgencyReleaseController extends Controller
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
                 'agency_vendor' => $validated['agencyVendor'],
+                'is_ner' => $request->boolean('isNer'),
                 'remark' => $validated['remark'] ?? null,
                 'status' => 1
             ]);
@@ -593,6 +595,7 @@ class AgencyReleaseController extends Controller
                 'programDivision' => 'required|integer|exists:md_program_divisions,division_id',
                 'amount' => 'required|numeric|min:0',
                 'agencyVendor' => ['required', 'string', 'max:255', 'regex:' . self::SAFE_TEXT_PATTERN],
+                'isNer' => 'sometimes|boolean',
                 'remark' => 'sometimes|nullable|string|max:1000',
             ], [
                 'sanctionNumber.regex' => 'Sanction number contains invalid special characters.',
@@ -624,6 +627,7 @@ class AgencyReleaseController extends Controller
                 'program_division_id' => $validated['programDivision'],
                 'amount' => $validated['amount'],
                 'agency_vendor' => $validated['agencyVendor'],
+                'is_ner' => $request->boolean('isNer'),
                 'remark' => $validated['remark'] ?? null,
             ]);
 
@@ -758,6 +762,7 @@ class AgencyReleaseController extends Controller
                         'program_division_id' => $record->program_division_id,
                         'amount' => $record->amount,
                         'agency_vendor' => $record->agency_vendor,
+                        'is_ner' => $record->is_ner,
                         'remark' => $record->remark,
                         'status' => $record->status,
                         'created_at' => $record->created_at,
@@ -843,6 +848,7 @@ class AgencyReleaseController extends Controller
                     $recordData['remark'] = $record->remark;
                 } else {
                     $recordData['agency_vendor'] = $record->agency_vendor;
+                    $recordData['is_ner'] = $record->is_ner;
                     $recordData['remark'] = $record->remark;
                 }
 

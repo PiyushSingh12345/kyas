@@ -1230,7 +1230,7 @@ class AnnualActionPlanController extends Controller
      * Get agency release/expenditure totals for the PD-wise budget allocation release report.
      * TSA amount contributes to release; TSA expenditure contributes to expenditure.
      * LOA and Administrative Expenditure amounts contribute to both release and expenditure.
-     * NER TSA (is_ner=1) is also returned separately for 2552/2435 MIS checkbox logic.
+     * NER TSA / Administrative Expenditure (is_ner=1) is also returned separately for 2552/2435 MIS checkbox logic.
      *
      * @return array{
      *   release_by_bh: array<string, array<string, float>>,
@@ -1311,6 +1311,17 @@ class AnnualActionPlanController extends Controller
             ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
             ->get();
 
+        // NER agency admin expenditure: rows flagged is_ner=1 (re-appropriated 2552 → 2435 for NER agencies)
+        $adminExpNerAmounts = $agencyBaseQuery('agency_release_administrative_expenditure')
+            ->where('is_ner', 1)
+            ->select(
+                DB::raw('TRIM(budget_head) as budget_head'),
+                'program_division_id as pd_id',
+                DB::raw('SUM(COALESCE(amount, 0)) as total')
+            )
+            ->groupBy(DB::raw('TRIM(budget_head)'), 'program_division_id')
+            ->get();
+
         $budgetCodeToBhId = $this->buildBudgetCodeToBhIdMap();
         $releaseByBh = [];
         $expenditureByBh = [];
@@ -1349,7 +1360,9 @@ class AnnualActionPlanController extends Controller
         $addTo($expenditureByBh, $adminExpAmounts);
 
         $addTo($nerReleaseByBh, $tsaNerRelease);
+        $addTo($nerReleaseByBh, $adminExpNerAmounts);
         $addTo($nerExpenditureByBh, $tsaNerExpenditure);
+        $addTo($nerExpenditureByBh, $adminExpNerAmounts);
 
         return [
             'release_by_bh' => $releaseByBh,

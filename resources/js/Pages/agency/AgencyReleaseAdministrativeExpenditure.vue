@@ -191,6 +191,24 @@
                         </div>
                       </div>
 
+                      <!-- NER -->
+                      <div class="col-md-6 col-lg-4">
+                        <div class="form-group">
+                          <label class="d-block mb-2">NER</label>
+                          <div class="form-check">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              id="isNer"
+                              v-model="formData.isNer"
+                            >
+                            <label class="form-check-label" for="isNer">
+                              North Eastern Region (NER)
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
                       <!-- Remark -->
                       <div class="col-md-12">
                         <div class="form-group">
@@ -244,6 +262,7 @@ const formData = ref({
   programDivision: '',
   amount: '',
   agencyVendor: '',
+  isNer: false,
   remark: ''
 })
 
@@ -385,6 +404,7 @@ const resetForm = (hideMessage = true) => {
     programDivision: '',
     amount: '',
     agencyVendor: '',
+    isNer: false,
     remark: ''
   }
   
@@ -430,6 +450,7 @@ const submitForm = async () => {
       programDivision: parseInt(formData.value.programDivision),
       amount: parseFloat(formData.value.amount),
       agencyVendor: formData.value.agencyVendor,
+      isNer: Boolean(formData.value.isNer),
       remark: formData.value.remark
     }
 
@@ -491,6 +512,9 @@ const prefillFormFromURL = async () => {
     }
     if (urlParams.get('agencyVendor')) {
       formData.value.agencyVendor = urlParams.get('agencyVendor');
+    }
+    if (urlParams.get('isNer')) {
+      formData.value.isNer = urlParams.get('isNer') === 'true' || urlParams.get('isNer') === '1';
     }
     if (urlParams.get('remark')) {
       formData.value.remark = urlParams.get('remark');

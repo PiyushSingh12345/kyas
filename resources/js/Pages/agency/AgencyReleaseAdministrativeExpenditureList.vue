@@ -246,6 +246,22 @@
                     <input type="text" class="form-control" id="editAgencyVendor" v-model="editForm.agencyVendor" required>
                   </div>
                 </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label class="d-block mb-2">NER</label>
+                    <div class="form-check">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="editIsNer"
+                        v-model="editForm.isNer"
+                      >
+                      <label class="form-check-label" for="editIsNer">
+                        North Eastern Region (NER)
+                      </label>
+                    </div>
+                  </div>
+                </div>
                 <div class="col-md-12">
                   <div class="form-group mb-3">
                     <label for="editRemark">Remark</label>
@@ -347,6 +363,7 @@ const editForm = ref({
   programDivision: '',
   amount: '',
   agencyVendor: '',
+  isNer: false,
   remark: ''
 })
 
@@ -541,6 +558,7 @@ const confirmRevise = async () => {
         programDivision: result.data.program_division_id || '',
         amount: result.data.amount || '',
         agencyVendor: result.data.agency_vendor || '',
+        isNer: result.data.is_ner ? 'true' : 'false',
         remark: result.data.remark || ''
       });
       
@@ -617,6 +635,7 @@ const handleEdit = async (item) => {
     programDivision: item.program_division_id || '',
     amount: item.amount ?? '',
     agencyVendor: item.agency_vendor || '',
+    isNer: Boolean(item.is_ner),
     remark: item.remark || ''
   }
   showEditDialog.value = true
@@ -653,6 +672,7 @@ const submitEdit = async () => {
         programDivision: parseInt(editForm.value.programDivision, 10),
         amount: parseFloat(editForm.value.amount),
         agencyVendor: editForm.value.agencyVendor,
+        isNer: Boolean(editForm.value.isNer),
         remark: editForm.value.remark
       })
     })
