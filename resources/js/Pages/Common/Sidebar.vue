@@ -243,6 +243,8 @@
                     <li><Link :href="route('statewise-aap-allocation-report')" class="nav-link"><span class="sub-item">Statewise Release Report</span></Link></li>
                     <li><Link :href="route('pdwise-statewise-allocation-report')" class="nav-link"><span class="sub-item">PD-wise, State/UT-wise Allocation Report</span></Link></li>
                     <li><Link :href="route('som-status-ky-report')" class="nav-link"><span class="sub-item">SOM Status-KY Report</span></Link></li>
+                    <li><Link :href="route('statewise-fund-allocation-release-expenditure-report')" class="nav-link"><span class="sub-item">State wise Fund Allocation, Release and Expenditure Report</span></Link></li>
+                    <li><Link :href="route('pdwise-fund-allocation-release-expenditure-report')" class="nav-link"><span class="sub-item">PD-wise Fund Allocation, Release and Expenditure Report for the state</span></Link></li>
                     <!-- <li><Link :href="route('statewise-release-report')" class="nav-link"><span class="sub-item">StateWise Release</span></Link></li> -->
                     <li><Link :href="route('daily-sanction-reports')" class="nav-link"><span class="sub-item">Daily Sanction Report</span></Link></li>
                     <li><Link :href="route('mother-sanction-reports')" class="nav-link"><span class="sub-item">Mother Sanction Report</span></Link></li>

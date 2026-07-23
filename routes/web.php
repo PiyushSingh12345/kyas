@@ -191,6 +191,14 @@ Route::get('/som-status-ky-report', function () {
     return Inertia::render('Reports/SomStatusKyReport');
 })->middleware(['auth', 'verified', 'role:1,2,4'])->name('som-status-ky-report');
 
+Route::get('/statewise-fund-allocation-release-expenditure-report', function () {
+    return Inertia::render('Reports/StatewiseFundAllocationReleaseExpenditureReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('statewise-fund-allocation-release-expenditure-report');
+
+Route::get('/pdwise-fund-allocation-release-expenditure-report', function () {
+    return Inertia::render('Reports/PdwiseFundAllocationReleaseExpenditureReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('pdwise-fund-allocation-release-expenditure-report');
+
 Route::get('/statewise-release-report', function () {
     return Inertia::render('Reports/StateWiseReleaseReport');
 })->middleware(['auth', 'verified', 'role:1,2,4'])->name('statewise-release-report');
@@ -324,6 +332,8 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::get('/api/statewise-aap-allocation-report', [AnnualActionPlanController::class, 'getStatewiseAapAllocationReport']);
     Route::get('/api/pdwise-statewise-allocation-report', [AnnualActionPlanController::class, 'getPdwiseStatewiseAllocationReport']);
     Route::get('/api/som-status-ky-report', [AnnualActionPlanController::class, 'getSomStatusKyReport']);
+    Route::get('/api/statewise-fund-allocation-release-expenditure-report', [AnnualActionPlanController::class, 'getStatewiseFundAllocationReleaseExpenditureReport']);
+    Route::get('/api/pdwise-fund-allocation-release-expenditure-report', [AnnualActionPlanController::class, 'getPdwiseFundAllocationReleaseExpenditureReport']);
     Route::get('/api/statewise-release-report', [AnnualActionPlanController::class, 'getStateWiseReleaseReport']);
     Route::get('/api/aap-states', [AnnualActionPlanController::class, 'getStates']);
     Route::get('/api/aap-program-divisions', [AnnualActionPlanController::class, 'getProgramDivisions']);

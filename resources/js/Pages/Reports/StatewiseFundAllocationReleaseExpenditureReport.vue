@@ -15,7 +15,7 @@
                 <i class="icon-arrow-right"></i>
               </li>
               <li class="nav-item">
-                <a href="#">SOM Status-KY Report</a>
+                <a href="#">State wise Fund Allocation, Release and Expenditure Report</a>
               </li>
             </ul>
           </div>
@@ -26,14 +26,24 @@
                 <div class="card-header">
                   <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span>
-                      SOM Status - Krishonnati Yojana (₹ In {{ amountInText }})
-                      <span v-if="asOn"> as on {{ asOn }}</span>
+                      KY State and SLS wise Fund Allocation, Release and Expenditure Data
+                      for FY {{ displayFinancialYear }} (₹ In {{ amountInText }})
                     </span>
                     <div class="d-flex gap-2">
-                      <button type="button" class="btn btn-success btn-sm" @click="exportToExcel" :disabled="loading || !!error">
+                      <button
+                        type="button"
+                        class="btn btn-success btn-sm"
+                        @click="exportToExcel"
+                        :disabled="loading || !!error || rows.length === 0"
+                      >
                         <i class="fas fa-file-excel me-1"></i>Excel
                       </button>
-                      <button type="button" class="btn btn-secondary btn-sm" @click="exportToCSV" :disabled="loading || !!error">
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        @click="exportToCSV"
+                        :disabled="loading || !!error || rows.length === 0"
+                      >
                         <i class="fas fa-file-csv me-1"></i>CSV
                       </button>
                     </div>
@@ -96,57 +106,47 @@
                       class="report-table-scroll-wrapper"
                       @scroll="onTableWrapperScroll"
                     >
-                      <div class="table-responsive som-table-wrap">
-                        <table class="table table-bordered som-status-table mb-0">
+                      <div class="table-responsive" id="reportTable">
+                        <table class="table table-bordered fund-alloc-table mb-0">
                           <thead>
                             <tr>
-                              <th class="text-center" style="width: 70px">Sl. No</th>
-                              <th>State Name</th>
-                              <th class="text-end">PAC Approved Allocation</th>
-                              <th class="text-end">1st Mother Sanction</th>
-                              <th class="text-end">Expenditure</th>
-                              <th class="text-center" style="width: 90px">%</th>
+                              <th class="text-center col-sl">#</th>
+                              <th class="col-state">State</th>
+                              <th class="text-center">BE Allocated</th>
+                              <th class="text-center">AAP Allocation</th>
+                              <th class="text-center">Mother Sanction Amount (Fund released)</th>
+                              <th class="text-center">Total Daily Sanction Amount (Expenditure)</th>
+                              <th class="text-center">Release %</th>
+                              <th class="text-center">Expenditure % vs release</th>
+                              <th class="text-center">Expenditure % vs BE</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <template v-for="section in sections" :key="section.major_head">
-                              <tr class="section-header-row">
-                                <td colspan="2" class="fw-bold">{{ section.label }}</td>
-                                <td colspan="4"></td>
-                              </tr>
-
-                              <tr
-                                v-for="row in section.rows"
-                                :key="`${section.major_head}-${row.state_id ?? 'agency'}-${row.sl_no}`"
-                              >
-                                <td class="text-center">{{ row.sl_no }}</td>
-                                <td>{{ row.state_name }}</td>
-                                <td
-                                  class="text-end"
-                                  :class="{ 'agency-pac-cell': row.is_agency }"
-                                >
-                                  {{ formatCell(row.pac_approved) }}
-                                </td>
-                                <td class="text-end">{{ formatCell(row.mother_sanction) }}</td>
-                                <td class="text-end">{{ formatCell(row.expenditure) }}</td>
-                                <td class="text-center fw-bold">{{ formatPct(row.pct) }}</td>
-                              </tr>
-
-                              <tr class="section-total-row">
-                                <td colspan="2" class="fw-bold text-end">Total</td>
-                                <td class="text-end fw-bold">{{ formatCell(section.totals.pac_approved) }}</td>
-                                <td class="text-end fw-bold">{{ formatCell(section.totals.mother_sanction) }}</td>
-                                <td class="text-end fw-bold">{{ formatCell(section.totals.expenditure) }}</td>
-                                <td class="text-center fw-bold">{{ formatPct(section.totals.pct) }}</td>
-                              </tr>
-                            </template>
-
-                            <tr class="grand-total-row">
-                              <td colspan="2" class="fw-bold text-end">Grand Total</td>
-                              <td class="text-end fw-bold">{{ formatCell(grandTotal.pac_approved) }}</td>
-                              <td class="text-end fw-bold">{{ formatCell(grandTotal.mother_sanction) }}</td>
-                              <td class="text-end fw-bold">{{ formatCell(grandTotal.expenditure) }}</td>
-                              <td class="text-center fw-bold">{{ formatPct(grandTotal.pct) }}</td>
+                            <tr v-if="rows.length === 0">
+                              <td colspan="9" class="text-center text-muted py-4">
+                                No data available for the selected financial year.
+                              </td>
+                            </tr>
+                            <tr v-for="row in rows" :key="row.state_id">
+                              <td class="text-center">{{ row.sl_no }}</td>
+                              <td class="col-state">{{ row.state_name }}</td>
+                              <td class="text-center">{{ formatCell(row.be_allocated) }}</td>
+                              <td class="text-center">{{ formatCell(row.aap_allocation) }}</td>
+                              <td class="text-center">{{ formatCell(row.mother_sanction) }}</td>
+                              <td class="text-center">{{ formatCell(row.expenditure) }}</td>
+                              <td class="text-center">{{ formatReleasePct(row.release_pct) }}</td>
+                              <td class="text-center">{{ formatReleasePct(row.exp_vs_release_pct) }}</td>
+                              <td class="text-center">{{ formatBePct(row.exp_vs_be_pct) }}</td>
+                            </tr>
+                            <tr v-if="rows.length > 0" class="total-row">
+                              <td colspan="2" class="text-end fw-bold">Total</td>
+                              <td class="text-center fw-bold">{{ formatCell(totals.be_allocated) }}</td>
+                              <td class="text-center fw-bold">{{ formatCell(totals.aap_allocation) }}</td>
+                              <td class="text-center fw-bold">{{ formatCell(totals.mother_sanction) }}</td>
+                              <td class="text-center fw-bold">{{ formatCell(totals.expenditure) }}</td>
+                              <td class="text-center fw-bold">{{ formatReleasePct(totals.release_pct) }}</td>
+                              <td class="text-center fw-bold">{{ formatReleasePct(totals.exp_vs_release_pct) }}</td>
+                              <td class="text-center fw-bold">{{ formatBePct(totals.exp_vs_be_pct) }}</td>
                             </tr>
                           </tbody>
                         </table>
@@ -158,6 +158,7 @@
             </div>
           </div>
         </div>
+        <!-- Fixed horizontal scrollbar at bottom of viewport -->
         <div
           v-show="showFixedScrollBar"
           ref="fixedScrollBar"
@@ -173,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, onUpdated, computed, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onUpdated, nextTick } from 'vue'
 import * as XLSX from 'xlsx'
 import Header from '../Common/Header.vue'
 import Sidebar from '../Common/Sidebar.vue'
@@ -184,14 +185,16 @@ import { useAmountIn } from '../../Composables/useAmountIn'
 const loading = ref(true)
 const error = ref(null)
 const selectedFinancialYear = ref('2026-27')
-const sections = ref([])
-const grandTotal = ref({
-  pac_approved: 0,
+const rows = ref([])
+const totals = ref({
+  be_allocated: 0,
+  aap_allocation: 0,
   mother_sanction: 0,
   expenditure: 0,
-  pct: null,
+  release_pct: null,
+  exp_vs_release_pct: null,
+  exp_vs_be_pct: null,
 })
-const asOn = ref('')
 
 const reportTableScrollWrapper = ref(null)
 const fixedScrollBar = ref(null)
@@ -199,32 +202,13 @@ const fixedScrollBarInner = ref(null)
 const showFixedScrollBar = ref(false)
 let scrollSyncLock = false
 
-const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
-const amountFractionDigits = computed(() => (amountIn.value === 'Rupees' ? 2 : 2))
-
-const formatCell = (value) =>
-  formatAmount(value ?? 0, { fractionDigits: amountFractionDigits.value })
-
-const formatPct = (value) => {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
-    return ''
-  }
-  return `${Math.round(Number(value))}%`
-}
-
-const clearFilters = () => {
-  selectedFinancialYear.value = '2026-27'
-  amountIn.value = 'Lakh'
-  fetchReportData()
-}
-
 function updateFixedScrollBarWidth() {
   nextTick(() => {
     const wrapper = reportTableScrollWrapper.value
     const inner = fixedScrollBarInner.value
     const bar = fixedScrollBar.value
     if (!wrapper || !inner || !bar) return
-    const tableEl = wrapper.querySelector('table')
+    const tableEl = wrapper.querySelector('#reportTable table') || wrapper.querySelector('table')
     let contentWidth = tableEl && tableEl.scrollWidth > 0 ? tableEl.scrollWidth : wrapper.scrollWidth
     if (contentWidth <= 0) contentWidth = wrapper.scrollWidth
     const cw = wrapper.clientWidth
@@ -270,29 +254,64 @@ function onFixedScrollBarScroll() {
   scrollSyncLock = false
 }
 
+const { amountIn, amountInText, formatAmount } = useAmountIn('Lakh')
+const amountFractionDigits = computed(() => 2)
+
+const displayFinancialYear = computed(() => {
+  const [start, end] = String(selectedFinancialYear.value).split('-')
+  if (!start || !end) return selectedFinancialYear.value
+  const endFull = end.length === 2 ? `${String(start).slice(0, 2)}${end}` : end
+  return `${start}-${endFull}`
+})
+
+const formatCell = (value) =>
+  formatAmount(value ?? 0, { fractionDigits: amountFractionDigits.value })
+
+const formatReleasePct = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return ''
+  }
+  return `${Math.round(Number(value))}%`
+}
+
+const formatBePct = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return ''
+  }
+  return `${Number(value).toFixed(2)}%`
+}
+
+const clearFilters = () => {
+  selectedFinancialYear.value = '2026-27'
+  amountIn.value = 'Lakh'
+  fetchReportData()
+}
+
 const fetchReportData = async () => {
   loading.value = true
   error.value = null
   try {
     const response = await fetch(
-      `/api/som-status-ky-report?financial_year=${encodeURIComponent(selectedFinancialYear.value)}`
+      `/api/statewise-fund-allocation-release-expenditure-report?financial_year=${encodeURIComponent(selectedFinancialYear.value)}`
     )
     if (!response.ok) throw new Error('Failed to fetch report data')
     const result = await response.json()
     if (!result.success) throw new Error(result.message || 'Failed to load report')
 
-    sections.value = result.sections || []
-    grandTotal.value = result.grand_total || {
-      pac_approved: 0,
+    rows.value = result.rows || []
+    totals.value = result.totals || {
+      be_allocated: 0,
+      aap_allocation: 0,
       mother_sanction: 0,
       expenditure: 0,
-      pct: null,
+      release_pct: null,
+      exp_vs_release_pct: null,
+      exp_vs_be_pct: null,
     }
-    asOn.value = result.as_on || ''
   } catch (err) {
     console.error(err)
-    error.value = 'Failed to load SOM Status-KY report'
-    sections.value = []
+    error.value = 'Failed to load State wise Fund Allocation, Release and Expenditure report'
+    rows.value = []
   } finally {
     loading.value = false
     nextTick(updateFixedScrollBarWidth)
@@ -302,64 +321,69 @@ const fetchReportData = async () => {
 
 const buildExportRows = () => {
   const headers = [
-    'Sl. No',
-    'State Name',
-    'PAC Approved Allocation',
-    '1st Mother Sanction',
-    'Expenditure',
-    '%',
+    '#',
+    'State',
+    'BE Allocated',
+    'AAP Allocation',
+    'Mother Sanction Amount (Fund released)',
+    'Total Daily Sanction Amount (Expenditure)',
+    'Release %',
+    'Expenditure % vs release',
+    'Expenditure % vs BE',
   ]
-  const rows = [
-    [`SOM Status - Krishonnati Yojana (₹ In ${amountInText.value}) as on ${asOn.value || ''}`],
+  const exportRows = [
+    [
+      `KY State and SLS wise Fund Allocation, Release and Expenditure Data for FY ${displayFinancialYear.value} (Rs. in ${amountInText.value})`,
+    ],
     [],
     headers,
   ]
 
-  sections.value.forEach((section) => {
-    rows.push([section.label, '', '', '', '', ''])
-    section.rows.forEach((row) => {
-      rows.push([
-        row.sl_no,
-        row.state_name,
-        formatCell(row.pac_approved),
-        formatCell(row.mother_sanction),
-        formatCell(row.expenditure),
-        formatPct(row.pct),
-      ])
-    })
-    rows.push([
-      '',
-      'Total',
-      formatCell(section.totals.pac_approved),
-      formatCell(section.totals.mother_sanction),
-      formatCell(section.totals.expenditure),
-      formatPct(section.totals.pct),
+  rows.value.forEach((row) => {
+    exportRows.push([
+      row.sl_no,
+      row.state_name,
+      formatCell(row.be_allocated),
+      formatCell(row.aap_allocation),
+      formatCell(row.mother_sanction),
+      formatCell(row.expenditure),
+      formatReleasePct(row.release_pct),
+      formatReleasePct(row.exp_vs_release_pct),
+      formatBePct(row.exp_vs_be_pct),
     ])
   })
 
-  rows.push([
-    '',
-    'Grand Total',
-    formatCell(grandTotal.value.pac_approved),
-    formatCell(grandTotal.value.mother_sanction),
-    formatCell(grandTotal.value.expenditure),
-    formatPct(grandTotal.value.pct),
-  ])
+  if (rows.value.length > 0) {
+    exportRows.push([
+      '',
+      'Total',
+      formatCell(totals.value.be_allocated),
+      formatCell(totals.value.aap_allocation),
+      formatCell(totals.value.mother_sanction),
+      formatCell(totals.value.expenditure),
+      formatReleasePct(totals.value.release_pct),
+      formatReleasePct(totals.value.exp_vs_release_pct),
+      formatBePct(totals.value.exp_vs_be_pct),
+    ])
+  }
 
-  return rows
+  return exportRows
 }
 
 const exportToExcel = () => {
-  const rows = buildExportRows()
-  const worksheet = XLSX.utils.aoa_to_sheet(rows)
+  const data = buildExportRows()
+  const worksheet = XLSX.utils.aoa_to_sheet(data)
   const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'SOM Status KY')
-  XLSX.writeFile(workbook, `SOM_Status_KY_Report_${selectedFinancialYear.value}.xlsx`)
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Fund Alloc Release Exp')
+  XLSX.writeFile(
+    workbook,
+    `Statewise_Fund_Allocation_Release_Expenditure_${selectedFinancialYear.value}.xlsx`
+  )
 }
 
 const exportToCSV = () => {
-  const rows = buildExportRows()
-  const csv = rows
+  const data = buildExportRows()
+  const csv = data
     .map((row) =>
       row
         .map((cell) => {
@@ -372,16 +396,14 @@ const exportToCSV = () => {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `SOM_Status_KY_Report_${selectedFinancialYear.value}.csv`
+  link.download = `Statewise_Fund_Allocation_Release_Expenditure_${selectedFinancialYear.value}.csv`
   link.click()
   URL.revokeObjectURL(link.href)
 }
 
-onMounted(async () => {
+onMounted(() => {
   window.addEventListener('resize', updateFixedScrollBarWidth)
-  await fetchReportData()
-  nextTick(updateFixedScrollBarWidth)
-  setTimeout(updateFixedScrollBarWidth, 300)
+  fetchReportData()
 })
 
 onUpdated(() => {
@@ -394,46 +416,64 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.som-status-table {
+.fund-alloc-table {
   font-size: 0.9rem;
-  border-color: #333;
+  border-color: #999;
+  margin-bottom: 0;
 }
 
-.som-status-table th,
-.som-status-table td {
-  border-color: #333 !important;
+.fund-alloc-table th,
+.fund-alloc-table td {
+  border-color: #999 !important;
   vertical-align: middle;
-  padding: 0.4rem 0.55rem;
+  padding: 0.45rem 0.55rem;
   white-space: nowrap;
 }
 
-.som-status-table thead th {
-  background: #fff;
+.fund-alloc-table thead th {
+  background: #f4b183;
   font-weight: 700;
-  text-align: center;
+  color: #000;
 }
 
-.section-header-row td,
-.section-total-row td,
-.grand-total-row td {
+.fund-alloc-table thead th.col-state {
+  background: #bdd7ee;
+}
+
+.fund-alloc-table tbody td.col-state {
+  background: #ddebf7;
+  text-align: left;
+  font-weight: 500;
+}
+
+.fund-alloc-table tbody td:not(.col-state) {
+  background: #d6dce4;
+}
+
+.fund-alloc-table .col-sl {
+  width: 60px;
+  min-width: 60px;
+}
+
+.fund-alloc-table .col-state {
+  min-width: 160px;
+}
+
+.fund-alloc-table thead th:not(.col-sl):not(.col-state) {
+  min-width: 140px;
+}
+
+.fund-alloc-table .total-row td {
   background: #f4b183 !important;
-  font-weight: 700;
-}
-
-.agency-pac-cell {
-  background: #ed7d31 !important;
-  color: #fff;
-  font-weight: 600;
 }
 
 .report-table-scroll-wrapper {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: visible;
-  max-width: 100%;
-  -webkit-overflow-scrolling: touch;
-  margin-bottom: 8px;
-  border-radius: 6px;
   border: 1px solid #dee2e6;
+  border-radius: 8px;
 }
 
 .report-table-scroll-wrapper::-webkit-scrollbar {
@@ -474,23 +514,18 @@ onBeforeUnmount(() => {
 
 .fixed-horizontal-scrollbar {
   position: fixed;
-  bottom: 0;
   left: 0;
   right: 0;
+  bottom: 0;
   height: 14px;
   overflow-x: auto;
   overflow-y: hidden;
   background: #f1f3f5;
   z-index: 1030;
-  border-top: 1px solid #dee2e6;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
-  scrollbar-width: thin;
-  scrollbar-color: #868e96 #e9ecef;
 }
 
 .fixed-horizontal-scrollbar-inner {
   height: 1px;
-  pointer-events: none;
 }
 
 .fixed-horizontal-scrollbar::-webkit-scrollbar {
@@ -498,8 +533,7 @@ onBeforeUnmount(() => {
 }
 
 .fixed-horizontal-scrollbar::-webkit-scrollbar-track {
-  background: #e9ecef;
-  border-radius: 0;
+  background: #f1f3f5;
 }
 
 .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb {
@@ -509,5 +543,10 @@ onBeforeUnmount(() => {
 
 .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #495057;
+}
+
+.fixed-horizontal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #868e96 #f1f3f5;
 }
 </style>
