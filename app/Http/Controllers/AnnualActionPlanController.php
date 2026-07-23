@@ -2062,4 +2062,497 @@ class AnnualActionPlanController extends Controller
             $reportData[$stateId][$pdId]['expenditure'] += floatval($record->center_share_amount ?? 0);
         }
     }
+
+    /**
+     * PD-wise, State/UT-wise Allocation, Release & Expenditure Summary.
+     *
+     * Per state + PD:
+     * - AAP Approved  = statewise_aap_allocation.amount
+     * - BE Allocated  = 80% of AAP Approved
+     * - MS 1 / MS 2   = net mother sanction amounts for ms_sequence_no 1 / 2
+     * - Total Release = MS1 + MS2
+     * - Expenditure   = daily sanction center share linked to MS for that state + PD
+     * - % vs Release / % vs BE
+     */
+    public function getPdwiseStatewiseAllocationReport(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2026-27');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+
+            $reportData = [];
+            $allowedStatePd = [];
+
+            // 1. AAP Approved from statewise_aap_allocation
+            $allocationRows = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
+                ->where('status', 1)
+                ->whereNotNull('state_id')
+                ->whereNotNull('pd_id')
+                ->get(['state_id', 'pd_id', 'amount']);
+
+            foreach ($allocationRows as $row) {
+                $stateId = (string) $row->state_id;
+                $pdId = (string) $row->pd_id;
+                $aapApproved = floatval($row->amount ?? 0);
+
+                $allowedStatePd[$stateId . '|' . $pdId] = true;
+                $reportData[$stateId][$pdId] = $this->emptyPdwiseStatewiseCell($aapApproved);
+            }
+
+            // Ensure state→PD pairs from SLS mapping exist even without allocation rows
+            foreach ($this->getStatePdPairsFromSlsComp() as $pair) {
+                $stateId = (string) $pair->state_id;
+                $pdId = (string) $pair->pd_id;
+                $allowedStatePd[$stateId . '|' . $pdId] = true;
+
+                if (!isset($reportData[$stateId][$pdId])) {
+                    $reportData[$stateId][$pdId] = $this->emptyPdwiseStatewiseCell(0.0);
+                }
+            }
+
+            // 2. MS 1 / MS 2 by ms_sequence_no (net of carry-forward, same as Total MS logic)
+            $this->applyPdwiseStatewiseMsInstallments(
+                $reportData,
+                $allowedStatePd,
+                $yearVariants,
+                $request
+            );
+
+            // 3. Expenditure from daily sanctions
+            $this->applyStateWiseExpenditureAmounts(
+                $reportData,
+                $allowedStatePd,
+                $yearVariants,
+                $request
+            );
+
+            // 4. Derived fields
+            foreach ($reportData as $stateId => $pdRows) {
+                foreach ($pdRows as $pdId => $cell) {
+                    $aap = floatval($cell['aap_approved'] ?? 0);
+                    $be = round($aap * 0.80, 5);
+                    $ms1 = floatval($cell['ms1'] ?? 0);
+                    $ms2 = floatval($cell['ms2'] ?? 0);
+                    $release = $ms1 + $ms2;
+                    $expenditure = floatval($cell['expenditure'] ?? 0);
+
+                    $reportData[$stateId][$pdId]['be_allocated'] = $be;
+                    $reportData[$stateId][$pdId]['total_release'] = $release;
+                    $reportData[$stateId][$pdId]['pct_exp_against_release'] = $release > 0
+                        ? ($expenditure / $release) * 100
+                        : null;
+                    $reportData[$stateId][$pdId]['pct_exp_against_be'] = $be > 0
+                        ? ($expenditure / $be) * 100
+                        : null;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $reportData,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching PD-wise State/UT-wise allocation report: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch PD-wise State/UT-wise allocation report',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * @return array{
+     *   aap_approved: float,
+     *   be_allocated: float,
+     *   ms1: float,
+     *   ms2: float,
+     *   total_release: float,
+     *   expenditure: float,
+     *   pct_exp_against_release: ?float,
+     *   pct_exp_against_be: ?float
+     * }
+     */
+    private function emptyPdwiseStatewiseCell(float $aapApproved): array
+    {
+        return [
+            'aap_approved' => $aapApproved,
+            'be_allocated' => round($aapApproved * 0.80, 5),
+            'ms1' => 0.0,
+            'ms2' => 0.0,
+            'total_release' => 0.0,
+            'expenditure' => 0.0,
+            'pct_exp_against_release' => null,
+            'pct_exp_against_be' => null,
+        ];
+    }
+
+    /**
+     * Sum net MS amounts into ms1 / ms2 by ms_sequence_no for allowed state|pd keys.
+     *
+     * @param  array<string, array<string, array<string, mixed>>>  $reportData
+     * @param  array<string, bool>  $allowedStatePd
+     * @param  array<int, string>  $yearVariants
+     */
+    private function applyPdwiseStatewiseMsInstallments(
+        array &$reportData,
+        array &$allowedStatePd,
+        array $yearVariants,
+        Request $request
+    ): void {
+        $msQuery = DB::table('mother_sanction as ms')
+            ->join('md_program_divisions as pd', function ($join) {
+                $join->on(
+                    DB::raw('TRIM(ms.pd_component) COLLATE utf8mb4_unicode_ci'),
+                    '=',
+                    DB::raw('TRIM(pd.division_name) COLLATE utf8mb4_unicode_ci')
+                );
+            })
+            ->whereIn('ms.financial_year', $yearVariants)
+            ->whereNotNull('ms.state_id')
+            ->whereNotNull('ms.pd_component')
+            ->whereNotNull('ms.mother_sanction_amount')
+            ->whereIn('ms.ms_sequence_no', ['1', '2', 1, 2])
+            ->whereRaw("UPPER(COALESCE(ms.action_type, '')) <> 'CLOSED'");
+
+        $this->applyDateRangeToQuery($msQuery, $request, 'ms.sanction_date');
+
+        $msRecords = $msQuery->select(
+                'ms.id',
+                'ms.state_id',
+                'ms.ms_sequence_no',
+                'ms.mother_sanction_amount',
+                'ms.carry_forward_amount',
+                'ms.action_type',
+                'pd.division_id as pd_id'
+            )
+            ->get();
+
+        if ($msRecords->isEmpty()) {
+            return;
+        }
+
+        $creationNetById = $this->msTotals->loadCreationNetAmountsByRecordIdPublic(
+            $msRecords->pluck('id')->unique()->filter()->values()->all()
+        );
+
+        foreach ($msRecords as $record) {
+            $stateId = (string) $record->state_id;
+            $pdId = (string) $record->pd_id;
+            $statePdKey = $stateId . '|' . $pdId;
+
+            if (!isset($allowedStatePd[$statePdKey])) {
+                // Include MS rows even when no SLS/allocation mapping exists yet
+                $allowedStatePd[$statePdKey] = true;
+            }
+
+            if (!isset($reportData[$stateId][$pdId])) {
+                $reportData[$stateId][$pdId] = $this->emptyPdwiseStatewiseCell(0.0);
+            }
+
+            $sequence = (string) intval($record->ms_sequence_no);
+            $net = $this->msTotals->netAmountForRecord($record, $creationNetById);
+
+            if ($sequence === '1') {
+                $reportData[$stateId][$pdId]['ms1'] += $net;
+            } elseif ($sequence === '2') {
+                $reportData[$stateId][$pdId]['ms2'] += $net;
+            }
+        }
+    }
+
+    /**
+     * SOM Status - Krishonnati Yojana report.
+     *
+     * Grouped by major head (from states.description):
+     * - State                  → Major Head 3601
+     * - NER                    → Major Head 2552 (+ Agency/Others)
+     * - UT with legislature    → Major Head 3602
+     * - UT without Legislature → Major Head 2435 (+ Agency/Others)
+     *
+     * Columns:
+     * - PAC Approved Allocation = SUM(statewise_aap_allocation.amount) per state
+     * - 1st Mother Sanction     = total net mother sanction per state
+     * - Expenditure             = SUM(daily_sanction.center_share_amount) per state
+     * - %                       = (Expenditure / 1st Mother Sanction) * 100
+     */
+    public function getSomStatusKyReport(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2026-27');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+
+            $pacByState = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
+                ->where('status', 1)
+                ->whereNotNull('state_id')
+                ->select('state_id', DB::raw('SUM(COALESCE(amount, 0)) as total'))
+                ->groupBy('state_id')
+                ->pluck('total', 'state_id');
+
+            $msByState = $this->getSomMotherSanctionTotalsByState($yearVariants, $request);
+            $expByState = $this->getSomExpenditureTotalsByState($yearVariants, $request);
+            $agencyByMajorHead = $this->getSomAgencyTotalsByMajorHead($financialYear, $request);
+
+            $states = DB::table('states')
+                ->select('id', 'name', 'description')
+                ->orderBy('name')
+                ->get();
+
+            $sectionDefs = [
+                '3601' => [
+                    'major_head' => '3601',
+                    'label' => 'Major Head 3601',
+                    'match' => fn (string $d) => strcasecmp($d, 'State') === 0,
+                    'include_agency' => false,
+                ],
+                '2552' => [
+                    'major_head' => '2552',
+                    'label' => 'Major Head 2552 (For NER states)',
+                    'match' => fn (string $d) => strcasecmp($d, 'NER') === 0,
+                    'include_agency' => true,
+                ],
+                '3602' => [
+                    'major_head' => '3602',
+                    'label' => 'Major Head 3602 (UT with legislature)',
+                    'match' => fn (string $d) => strcasecmp($d, 'UT with legislature') === 0,
+                    'include_agency' => false,
+                ],
+                '2435' => [
+                    'major_head' => '2435',
+                    'label' => 'Major Head 2435',
+                    'match' => fn (string $d) => strcasecmp($d, 'UT without Legislature') === 0,
+                    'include_agency' => true,
+                ],
+            ];
+
+            $sections = [];
+            $grand = $this->emptySomTotals();
+
+            foreach ($sectionDefs as $def) {
+                $rows = [];
+                $slNo = 1;
+
+                foreach ($states as $state) {
+                    $description = trim((string) ($state->description ?? ''));
+                    if (!$def['match']($description)) {
+                        continue;
+                    }
+
+                    $stateId = (int) $state->id;
+                    $pac = floatval($pacByState[$stateId] ?? 0);
+                    $ms = floatval($msByState[$stateId] ?? 0);
+                    $exp = floatval($expByState[$stateId] ?? 0);
+
+                    $rows[] = [
+                        'sl_no' => $slNo++,
+                        'state_id' => $stateId,
+                        'state_name' => $state->name,
+                        'is_agency' => false,
+                        'pac_approved' => $pac,
+                        'mother_sanction' => $ms,
+                        'expenditure' => $exp,
+                        'pct' => $ms > 0 ? ($exp / $ms) * 100 : null,
+                    ];
+                }
+
+                if ($def['include_agency']) {
+                    $agency = $agencyByMajorHead[$def['major_head']] ?? [
+                        'pac_approved' => 0.0,
+                        'mother_sanction' => 0.0,
+                        'expenditure' => 0.0,
+                    ];
+                    $agencyMs = floatval($agency['mother_sanction']);
+                    $agencyExp = floatval($agency['expenditure']);
+
+                    $rows[] = [
+                        'sl_no' => $slNo,
+                        'state_id' => null,
+                        'state_name' => 'Agency/ Others',
+                        'is_agency' => true,
+                        'pac_approved' => floatval($agency['pac_approved']),
+                        'mother_sanction' => $agencyMs,
+                        'expenditure' => $agencyExp,
+                        'pct' => $agencyMs > 0 ? ($agencyExp / $agencyMs) * 100 : null,
+                    ];
+                }
+
+                $totals = $this->emptySomTotals();
+                foreach ($rows as $row) {
+                    $totals['pac_approved'] += $row['pac_approved'];
+                    $totals['mother_sanction'] += $row['mother_sanction'];
+                    $totals['expenditure'] += $row['expenditure'];
+                }
+                $totals['pct'] = $totals['mother_sanction'] > 0
+                    ? ($totals['expenditure'] / $totals['mother_sanction']) * 100
+                    : null;
+
+                $grand['pac_approved'] += $totals['pac_approved'];
+                $grand['mother_sanction'] += $totals['mother_sanction'];
+                $grand['expenditure'] += $totals['expenditure'];
+
+                $sections[] = [
+                    'major_head' => $def['major_head'],
+                    'label' => $def['label'],
+                    'rows' => $rows,
+                    'totals' => $totals,
+                ];
+            }
+
+            $grand['pct'] = $grand['mother_sanction'] > 0
+                ? ($grand['expenditure'] / $grand['mother_sanction']) * 100
+                : null;
+
+            return response()->json([
+                'success' => true,
+                'as_on' => now()->format('d.m.Y'),
+                'financial_year' => $financialYear,
+                'sections' => $sections,
+                'grand_total' => $grand,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching SOM Status-KY report: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch SOM Status-KY report',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * @return array{pac_approved: float, mother_sanction: float, expenditure: float, pct: ?float}
+     */
+    private function emptySomTotals(): array
+    {
+        return [
+            'pac_approved' => 0.0,
+            'mother_sanction' => 0.0,
+            'expenditure' => 0.0,
+            'pct' => null,
+        ];
+    }
+
+    /**
+     * Total net mother sanction amounts keyed by state_id.
+     *
+     * @param  array<int, string>  $yearVariants
+     * @return array<int, float>
+     */
+    private function getSomMotherSanctionTotalsByState(array $yearVariants, Request $request): array
+    {
+        $msQuery = DB::table('mother_sanction as ms')
+            ->whereIn('ms.financial_year', $yearVariants)
+            ->whereNotNull('ms.state_id')
+            ->whereNotNull('ms.mother_sanction_amount')
+            ->whereRaw("UPPER(COALESCE(ms.action_type, '')) <> 'CLOSED'");
+
+        $this->applyDateRangeToQuery($msQuery, $request, 'ms.sanction_date');
+
+        $msRecords = $msQuery->select(
+                'ms.id',
+                'ms.state_id',
+                'ms.mother_sanction_amount',
+                'ms.carry_forward_amount',
+                'ms.action_type'
+            )
+            ->get();
+
+        if ($msRecords->isEmpty()) {
+            return [];
+        }
+
+        $creationNetById = $this->msTotals->loadCreationNetAmountsByRecordIdPublic(
+            $msRecords->pluck('id')->unique()->filter()->values()->all()
+        );
+
+        $totals = [];
+        foreach ($msRecords as $record) {
+            $stateId = (int) $record->state_id;
+            if (!isset($totals[$stateId])) {
+                $totals[$stateId] = 0.0;
+            }
+            $totals[$stateId] += $this->msTotals->netAmountForRecord($record, $creationNetById);
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Daily sanction expenditure (center share) keyed by state_id.
+     *
+     * @param  array<int, string>  $yearVariants
+     * @return array<int, float>
+     */
+    private function getSomExpenditureTotalsByState(array $yearVariants, Request $request): array
+    {
+        $query = DB::table('daily_sanction as ds')
+            ->where('ds.status', 1)
+            ->whereIn('ds.financial_year', $yearVariants)
+            ->whereNotNull('ds.state_id')
+            ->whereNotNull('ds.center_share_amount')
+            ->where('ds.center_share_amount', '>', 0);
+
+        $this->applyDateRangeToQuery($query, $request, 'ds.ds_date');
+
+        return $query
+            ->select('ds.state_id', DB::raw('SUM(COALESCE(ds.center_share_amount, 0)) as total'))
+            ->groupBy('ds.state_id')
+            ->pluck('total', 'state_id')
+            ->map(fn ($v) => floatval($v))
+            ->all();
+    }
+
+    /**
+     * Agency/Others totals by major head (2552 / 2435).
+     * Mother Sanction column = TSA amount + LOA amount + Administrative Expenditure amount.
+     * Expenditure column = TSA expenditure + LOA amount + Administrative Expenditure amount.
+     *
+     * @return array<string, array{pac_approved: float, mother_sanction: float, expenditure: float}>
+     */
+    private function getSomAgencyTotalsByMajorHead(string $financialYear, Request $request): array
+    {
+        [$startDate, $endDate] = $this->resolveDateOnlyRangeBounds($request, $financialYear);
+
+        $result = [
+            '2552' => ['pac_approved' => 0.0, 'mother_sanction' => 0.0, 'expenditure' => 0.0],
+            '2435' => ['pac_approved' => 0.0, 'mother_sanction' => 0.0, 'expenditure' => 0.0],
+        ];
+
+        $add = function (string $table, string $amountColumn, string $targetKey) use (&$result, $startDate, $endDate) {
+            $rows = DB::table($table)
+                ->where('status', 1)
+                ->whereNull('deleted_at')
+                ->whereBetween('date', [$startDate, $endDate])
+                ->whereNotNull('budget_head')
+                ->select(
+                    DB::raw('LEFT(TRIM(budget_head), 4) as major_head'),
+                    DB::raw("SUM(COALESCE({$amountColumn}, 0)) as total")
+                )
+                ->groupBy(DB::raw('LEFT(TRIM(budget_head), 4)'))
+                ->get();
+
+            foreach ($rows as $row) {
+                $mh = (string) $row->major_head;
+                if (!isset($result[$mh])) {
+                    continue;
+                }
+                $result[$mh][$targetKey] += floatval($row->total ?? 0);
+            }
+        };
+
+        $add('agency_release_tsa', 'amount', 'mother_sanction');
+        $add('agency_release_tsa', 'expenditure', 'expenditure');
+        $add('agency_release_loa', 'amount', 'mother_sanction');
+        $add('agency_release_loa', 'amount', 'expenditure');
+        $add('agency_release_administrative_expenditure', 'amount', 'mother_sanction');
+        $add('agency_release_administrative_expenditure', 'amount', 'expenditure');
+
+        return $result;
+    }
 }

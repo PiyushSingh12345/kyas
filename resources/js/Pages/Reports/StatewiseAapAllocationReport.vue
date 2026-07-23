@@ -27,7 +27,8 @@
                 <div class="card">
 					<div class="card-header">
 						<div class="card-title d-flex justify-content-between align-items-center">
-							<span>Statewise AAP Allocation Report for FY {{ selectedFinancialYear }} (₹ In {{ amountInText }})</span>
+							<!-- <span>Statewise AAP Allocation Report for FY {{ selectedFinancialYear }} (₹ In {{ amountInText }})</span> -->
+							<span>Statewise Release Report for FY {{ selectedFinancialYear }} (₹ In {{ amountInText }})</span>
 						</div>
 					</div>
 

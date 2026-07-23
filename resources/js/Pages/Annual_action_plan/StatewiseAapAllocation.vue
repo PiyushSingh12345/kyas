@@ -50,23 +50,180 @@
 						</div>
 
 						<div v-else>
-							<div class="row mb-3">
-								<div class="col-md-3 col-lg-2">
-									<label for="financialYearSelect" class="form-label fw-bold">Financial Year</label>
-									<select
-										id="financialYearSelect"
-										class="form-select"
-										v-model="selectedFinancialYear"
-										@change="onFinancialYearChange"
-									>
-										<option
-											v-for="year in financialYearOptions"
-											:key="year.value"
-											:value="year.value"
-										>
-											{{ year.label }}
-										</option>
-									</select>
+							<!-- Filters Section -->
+							<div class="row mb-4">
+								<div class="col-12">
+									<div class="card border-primary">
+										<div class="card-header bg-primary text-white">
+											<h6 class="mb-0">
+												<i class="fas fa-filter me-2"></i>Filters
+											</h6>
+										</div>
+										<div class="card-body">
+											<div class="row g-3">
+												<div class="col-md-2">
+													<label for="financialYearSelect" class="form-label fw-bold">Financial Year</label>
+													<select
+														id="financialYearSelect"
+														class="form-select"
+														v-model="selectedFinancialYear"
+														@change="onFinancialYearChange"
+													>
+														<option
+															v-for="year in financialYearOptions"
+															:key="year.value"
+															:value="year.value"
+														>
+															{{ year.label }}
+														</option>
+													</select>
+												</div>
+
+												<!-- State Filter (Multiselect) -->
+												<div class="col-md-2">
+													<label class="form-label fw-bold">State</label>
+													<div class="custom-multiselect-container" @click.stop>
+														<div
+															class="custom-multiselect-input form-control"
+															:class="{ 'is-open': showStateDropdown }"
+															@click="toggleStateDropdown"
+														>
+															<div class="selected-tags-wrapper">
+																<span
+																	v-for="stateId in selectedStates"
+																	:key="stateId"
+																	class="custom-tag"
+																>
+																	{{ getStateName(stateId) }}
+																	<span
+																		class="tag-remove"
+																		@click.stop="removeState(stateId)"
+																	>×</span>
+																</span>
+																<input
+																	type="text"
+																	class="tag-input"
+																	v-model="stateSearchTerm"
+																	:placeholder="selectedStates.length === 0 ? 'Select states...' : ''"
+																	@focus="showStateDropdown = true"
+																	@click.stop="showStateDropdown = true"
+																/>
+															</div>
+															<div class="dropdown-arrows">
+																<i class="fas fa-chevron-up" v-if="showStateDropdown"></i>
+																<i class="fas fa-chevron-down" v-else></i>
+															</div>
+														</div>
+														<div
+															class="custom-dropdown-menu"
+															v-show="showStateDropdown"
+															@click.stop
+														>
+															<div
+																v-for="state in filteredAvailableStates"
+																:key="state.state_id"
+																class="dropdown-item"
+																@click="selectState(state.state_id)"
+															>
+																{{ state.state_name }}
+															</div>
+															<div v-if="filteredAvailableStates.length === 0" class="dropdown-item text-muted">
+																No states available
+															</div>
+														</div>
+													</div>
+												</div>
+
+												<!-- Program Division Filter (Multiselect) -->
+												<div class="col-md-2">
+													<label class="form-label fw-bold">Program Division</label>
+													<div class="custom-multiselect-container" @click.stop>
+														<div
+															class="custom-multiselect-input form-control"
+															:class="{ 'is-open': showPdDropdown }"
+															@click="togglePdDropdown"
+														>
+															<div class="selected-tags-wrapper">
+																<span
+																	v-for="pdId in selectedProgramDivisions"
+																	:key="pdId"
+																	class="custom-tag"
+																>
+																	{{ getProgramDivisionName(pdId) }}
+																	<span
+																		class="tag-remove"
+																		@click.stop="removeProgramDivision(pdId)"
+																	>×</span>
+																</span>
+																<input
+																	type="text"
+																	class="tag-input"
+																	v-model="pdSearchTerm"
+																	:placeholder="selectedProgramDivisions.length === 0 ? 'Select PDs...' : ''"
+																	@focus="showPdDropdown = true"
+																	@click.stop="showPdDropdown = true"
+																/>
+															</div>
+															<div class="dropdown-arrows">
+																<i class="fas fa-chevron-up" v-if="showPdDropdown"></i>
+																<i class="fas fa-chevron-down" v-else></i>
+															</div>
+														</div>
+														<div
+															class="custom-dropdown-menu"
+															v-show="showPdDropdown"
+															@click.stop
+														>
+															<div
+																v-for="pd in filteredAvailableProgramDivisions"
+																:key="pd.division_id"
+																class="dropdown-item"
+																@click="selectProgramDivision(pd.division_id)"
+															>
+																{{ pd.division_name }}
+															</div>
+															<div v-if="filteredAvailableProgramDivisions.length === 0" class="dropdown-item text-muted">
+																No program divisions available
+															</div>
+														</div>
+													</div>
+												</div>
+
+												<div class="col-md-2">
+													<label for="tentativeAmountFilter" class="form-label fw-bold">Tentative Amount</label>
+													<input
+														id="tentativeAmountFilter"
+														type="text"
+														class="form-control"
+														v-model="tentativeAmountFilter"
+														placeholder="Search amount..."
+													/>
+												</div>
+
+												<div class="col-md-2">
+													<label for="finalAllocationFilter" class="form-label fw-bold">Final Allocation</label>
+													<input
+														id="finalAllocationFilter"
+														type="text"
+														class="form-control"
+														v-model="finalAllocationFilter"
+														placeholder="Search amount..."
+													/>
+												</div>
+
+												<div class="col-md-2">
+													<label class="form-label fw-bold">&nbsp;</label>
+													<button
+														class="btn btn-secondary btn-sm w-100"
+														@click="clearFilters"
+														title="Clear All Filters"
+													>
+														<i class="fas fa-times"></i> Clear
+													</button>
+												</div>
+											</div>
+										</div>
+									</div>
 								</div>
 							</div>
 
@@ -76,7 +233,7 @@
 									<thead class="table-dark">
 										<tr>
 											<th rowspan="2" class="align-middle fw-sticky">State</th>
-											<th v-for="pd in programDivisions" :key="pd.division_id" colspan="2">
+											<th v-for="pd in filteredProgramDivisions" :key="pd.division_id" colspan="2">
 												{{ pd.division_name }}
 											</th>
 											<th rowspan="2" class="align-middle">Tentative Allocation <br/><small class="text-capitalize">(₹ In Lakhs)</small></th>
@@ -84,17 +241,16 @@
 											<th rowspan="2" class="align-middle">Remarks</th>
 										</tr>
 										<tr>
-                      <!-- add class="fw-sticky" to the first th of the second row -->
-											<template v-for="pd in programDivisions" :key="pd.division_id">
+											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<th>Tentative Amount</th>
 												<th>Final Allocation</th>
 											</template>
 										</tr>
 									</thead>
 									<tbody>
-										<tr v-for="state in states" :key="state.state_id">
+										<tr v-for="state in filteredStates" :key="state.state_id">
 											<td class="fw-bold fw-sticky">{{ state.state_name }}</td>
-											<template v-for="pd in programDivisions" :key="pd.division_id">
+											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<td>
 													<input 
 														type="number" 
@@ -121,7 +277,6 @@
 											<td class="fw-bold text-center bg-info-subtle">
 												{{ calculateTentativeRowTotal(state.state_id) }}
 											</td>
-											<!-- <td class="fw-bold text-center row-total"> -->
 											<td class="fw-bold text-center bg-success-subtle">
 												{{ calculateRowTotal(state.state_id) }}
 											</td>
@@ -138,7 +293,7 @@
 										<!-- Total Row -->
 										<tr class="table-warning fw-bold">
 											<td class="fw-sticky">Total</td>
-											<template v-for="pd in programDivisions" :key="pd.division_id">
+											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<td>{{ calculateTentativeColumnTotal(pd.division_id) }}</td>
 												<td>{{ calculateColumnTotal(pd.division_id) }}</td>
 											</template>
@@ -230,6 +385,16 @@ const buildFinancialYearOptions = (yearsBack = 4) => {
 
 const financialYearOptions = buildFinancialYearOptions()
 const selectedFinancialYear = ref(getCurrentFinancialYear())
+
+// Filters
+const selectedStates = ref([])
+const selectedProgramDivisions = ref([])
+const tentativeAmountFilter = ref('')
+const finalAllocationFilter = ref('')
+const stateSearchTerm = ref('')
+const pdSearchTerm = ref('')
+const showStateDropdown = ref(false)
+const showPdDropdown = ref(false)
 
 // Fixed horizontal scrollbar at bottom of viewport
 const reportTableScrollWrapper = ref(null)
@@ -464,51 +629,194 @@ const addWithPrecision = (a, b) => {
   return Math.round((numA * 100000) + (numB * 100000)) / 100000
 }
 
-// Calculate column total
+const matchesAmountFilter = (value, filterText) => {
+  const filter = String(filterText || '').trim().toLowerCase()
+  if (!filter) return true
+  const raw = value === null || value === undefined || value === '' ? '0' : String(value)
+  const formatted = formatToFiveDecimals(raw)
+  return raw.toLowerCase().includes(filter) || formatted.toLowerCase().includes(filter)
+}
+
+const availableStates = computed(() => {
+  return states.value.filter(state => !selectedStates.value.includes(state.state_id))
+})
+
+const filteredAvailableStates = computed(() => {
+  if (!stateSearchTerm.value) return availableStates.value
+  const search = stateSearchTerm.value.toLowerCase()
+  return availableStates.value.filter(state => state.state_name.toLowerCase().includes(search))
+})
+
+const availableProgramDivisions = computed(() => {
+  return programDivisions.value.filter(pd => !selectedProgramDivisions.value.includes(pd.division_id))
+})
+
+const filteredAvailableProgramDivisions = computed(() => {
+  if (!pdSearchTerm.value) return availableProgramDivisions.value
+  const search = pdSearchTerm.value.toLowerCase()
+  return availableProgramDivisions.value.filter(pd => pd.division_name.toLowerCase().includes(search))
+})
+
+const filteredProgramDivisions = computed(() => {
+  if (selectedProgramDivisions.value.length === 0) return programDivisions.value
+  return programDivisions.value.filter(pd => selectedProgramDivisions.value.includes(pd.division_id))
+})
+
+const getStateTentativeTotalForFilter = (stateId) => {
+  let total = 0
+  filteredProgramDivisions.value.forEach(pd => {
+    const value = parseFloat(tentativeAmountData.value[stateId]?.[pd.division_id]) || 0
+    total = addWithPrecision(total, value)
+  })
+  return formatToFiveDecimals(total)
+}
+
+const getStateFinalTotalForFilter = (stateId) => {
+  let total = 0
+  filteredProgramDivisions.value.forEach(pd => {
+    const value = parseFloat(allocationData.value[stateId]?.[pd.division_id]) || 0
+    total = addWithPrecision(total, value)
+  })
+  return formatToFiveDecimals(total)
+}
+
+const filteredStates = computed(() => {
+  let result = states.value
+  if (selectedStates.value.length > 0) {
+    result = result.filter(state => selectedStates.value.includes(state.state_id))
+  }
+
+  const tentativeFilter = tentativeAmountFilter.value.trim()
+  if (tentativeFilter) {
+    result = result.filter(state => {
+      const hasMatchingCell = filteredProgramDivisions.value.some(pd =>
+        matchesAmountFilter(tentativeAmountData.value[state.state_id]?.[pd.division_id], tentativeFilter)
+      )
+      return hasMatchingCell || matchesAmountFilter(getStateTentativeTotalForFilter(state.state_id), tentativeFilter)
+    })
+  }
+
+  const finalFilter = finalAllocationFilter.value.trim()
+  if (finalFilter) {
+    result = result.filter(state => {
+      const hasMatchingCell = filteredProgramDivisions.value.some(pd =>
+        matchesAmountFilter(allocationData.value[state.state_id]?.[pd.division_id], finalFilter)
+      )
+      return hasMatchingCell || matchesAmountFilter(getStateFinalTotalForFilter(state.state_id), finalFilter)
+    })
+  }
+
+  return result
+})
+
+const toggleStateDropdown = () => {
+  showStateDropdown.value = !showStateDropdown.value
+  if (showStateDropdown.value) showPdDropdown.value = false
+}
+
+const togglePdDropdown = () => {
+  showPdDropdown.value = !showPdDropdown.value
+  if (showPdDropdown.value) showStateDropdown.value = false
+}
+
+const selectState = (stateId) => {
+  if (!selectedStates.value.includes(stateId)) {
+    selectedStates.value.push(stateId)
+    stateSearchTerm.value = ''
+  }
+  showStateDropdown.value = false
+}
+
+const removeState = (stateId) => {
+  const index = selectedStates.value.indexOf(stateId)
+  if (index > -1) selectedStates.value.splice(index, 1)
+}
+
+const selectProgramDivision = (pdId) => {
+  if (!selectedProgramDivisions.value.includes(pdId)) {
+    selectedProgramDivisions.value.push(pdId)
+    pdSearchTerm.value = ''
+  }
+  showPdDropdown.value = false
+}
+
+const removeProgramDivision = (pdId) => {
+  const index = selectedProgramDivisions.value.indexOf(pdId)
+  if (index > -1) selectedProgramDivisions.value.splice(index, 1)
+}
+
+const getStateName = (stateId) => {
+  const state = states.value.find(s => s.state_id === stateId)
+  return state ? state.state_name : ''
+}
+
+const getProgramDivisionName = (pdId) => {
+  const pd = programDivisions.value.find(p => p.division_id === pdId)
+  return pd ? pd.division_name : ''
+}
+
+const clearFilters = () => {
+  selectedStates.value = []
+  selectedProgramDivisions.value = []
+  tentativeAmountFilter.value = ''
+  finalAllocationFilter.value = ''
+  stateSearchTerm.value = ''
+  pdSearchTerm.value = ''
+  showStateDropdown.value = false
+  showPdDropdown.value = false
+  nextTick(updateFixedScrollBarWidth)
+}
+
+const handleClickOutside = () => {
+  showStateDropdown.value = false
+  showPdDropdown.value = false
+}
+
+// Calculate column total (visible states only)
 const calculateColumnTotal = (pdId) => {
   let total = 0
-  states.value.forEach(state => {
+  filteredStates.value.forEach(state => {
     const value = parseFloat(allocationData.value[state.state_id][pdId]) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
 }
 
-// Calculate tentative column total
+// Calculate tentative column total (visible states only)
 const calculateTentativeColumnTotal = (pdId) => {
   let total = 0
-  states.value.forEach(state => {
+  filteredStates.value.forEach(state => {
     const value = parseFloat(tentativeAmountData.value[state.state_id][pdId]) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
 }
 
-// Calculate row total for a specific state
+// Calculate row total for a specific state (visible PDs only)
 const calculateRowTotal = (stateId) => {
   let total = 0
-  programDivisions.value.forEach(pd => {
+  filteredProgramDivisions.value.forEach(pd => {
     const value = parseFloat(allocationData.value[stateId][pd.division_id]) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
 }
 
-// Calculate tentative row total for a specific state (sum of all tentative amounts)
+// Calculate tentative row total for a specific state (visible PDs only)
 const calculateTentativeRowTotal = (stateId) => {
   let total = 0
-  programDivisions.value.forEach(pd => {
+  filteredProgramDivisions.value.forEach(pd => {
     const value = parseFloat(tentativeAmountData.value[stateId][pd.division_id]) || 0
     total = addWithPrecision(total, value)
   })
   return formatToFiveDecimals(total)
 }
 
-// Calculate grand total (sum of all allocations)
+// Calculate grand total (visible states + PDs)
 const calculateGrandTotal = () => {
   let total = 0
-  states.value.forEach(state => {
-    programDivisions.value.forEach(pd => {
+  filteredStates.value.forEach(state => {
+    filteredProgramDivisions.value.forEach(pd => {
       const value = parseFloat(allocationData.value[state.state_id][pd.division_id]) || 0
       total = addWithPrecision(total, value)
     })
@@ -516,11 +824,11 @@ const calculateGrandTotal = () => {
   return formatToFiveDecimals(total)
 }
 
-// Calculate tentative grand total (sum of all tentative amounts)
+// Calculate tentative grand total (visible states + PDs)
 const calculateTentativeGrandTotal = () => {
   let total = 0
-  states.value.forEach(state => {
-    programDivisions.value.forEach(pd => {
+  filteredStates.value.forEach(state => {
+    filteredProgramDivisions.value.forEach(pd => {
       const value = parseFloat(tentativeAmountData.value[state.state_id][pd.division_id]) || 0
       total = addWithPrecision(total, value)
     })
@@ -532,6 +840,10 @@ const calculateTentativeGrandTotal = () => {
 watch(allocationData, () => {
   // This will trigger reactive updates when allocation data changes
 }, { deep: true })
+
+watch([selectedStates, selectedProgramDivisions, tentativeAmountFilter, finalAllocationFilter], () => {
+  nextTick(updateFixedScrollBarWidth)
+})
 
 // Submit allocation data
 const submitAllocation = async () => {
@@ -654,6 +966,7 @@ const onFinancialYearChange = async () => {
 // Load data on component mount
 onMounted(async () => {
   window.addEventListener('resize', updateFixedScrollBarWidth)
+  document.addEventListener('click', handleClickOutside)
   try {
     console.log('Component mounted, starting to load data...')
     
@@ -687,6 +1000,7 @@ onUpdated(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateFixedScrollBarWidth)
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -837,6 +1151,155 @@ onBeforeUnmount(() => {
 .fixed-horizontal-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #868e96 #e9ecef;
+}
+
+.table-warning .fw-sticky {
+  background-color: #fff3cd;
+}
+
+.table-dark .fw-sticky {
+  background-color: #212529;
+  color: #fff;
+}
+
+/* Custom Multiselect Styles */
+.custom-multiselect-container {
+  position: relative;
+}
+
+.custom-multiselect-input {
+  min-height: 38px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  cursor: text;
+  position: relative;
+}
+
+.custom-multiselect-input.is-open {
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.selected-tags-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-tag {
+  display: inline-flex;
+  align-items: center;
+  background-color: #b3d9ff;
+  color: #0056b3;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  margin: 2px 0;
+}
+
+.tag-remove {
+  margin-left: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  line-height: 1;
+  color: #0056b3;
+  padding: 0 2px;
+}
+
+.tag-remove:hover {
+  color: #003d82;
+}
+
+.tag-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  flex: 1;
+  min-width: 100px;
+  padding: 2px 4px;
+  font-size: 0.875rem;
+}
+
+.tag-input::placeholder {
+  color: #6c757d;
+  opacity: 1;
+}
+
+.dropdown-arrows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  color: #6c757d;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.custom-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ced4da;
+  border-top: none;
+  border-radius: 0 0 0.25rem 0.25rem;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: -1px;
+}
+
+.custom-dropdown-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-dropdown-menu::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.custom-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.custom-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.custom-dropdown-menu {
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f1f1f1;
+}
+
+.dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #f8f9fa;
+}
+
+.dropdown-item.text-muted {
+  cursor: default;
+  color: #6c757d;
 }
 
 </style>
