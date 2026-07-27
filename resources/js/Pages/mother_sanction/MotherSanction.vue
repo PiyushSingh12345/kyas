@@ -1200,11 +1200,6 @@ const prefillFormFromURL = async () => {
     if (urlParams.get('ky_ms_no') && !isRevise) {
       await fetchMotherSanctionDetails(urlParams.get('ky_ms_no'));
     }
-    
-    // Regenerate KY MS No after all data is loaded
-    if (financialYear.value && selectedState.value && msSequenceNo.value && selectedSlsId.value) {
-      kyMsNo.value = generateKyMsNo();
-    }
     } finally {
       isPrefilling.value = false;
     }

@@ -262,7 +262,7 @@
           </div>
           <div class="modal-body">
             <p>Do you really want to proceed?</p>
-            <p class="text-muted small mt-2">This will make the older data status inactive and open the mother sanction page with these data prefilled. The available amount value will be filled in the carry forward field and MS amount in the MS amount field. On submit, MS amount will equal (MS amount field value + Carry Forward field value).</p>
+            <p class="text-muted small mt-2">This will open the mother sanction page with these data prefilled. Available fund will be filled in the carry forward field. No status or amount changes happen until you submit the form. On submit, older records become inactive, MS amount equals (MS amount field + Carry Forward), and history is saved.</p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" @click="closeReviseDialog">Cancel</button>
@@ -684,81 +684,51 @@ const closeReviseDialog = () => {
   reviseIndex.value = null;
 };
 
-// Method to confirm revise action
-const confirmRevise = async () => {
+// Method to confirm revise action — redirect only; status/history change on form submit
+const confirmRevise = () => {
   if (!reviseItem.value) {
     closeReviseDialog();
     return;
   }
 
-  const kyMsNosToRevise = reviseItem.value.ky_ms_no_list && reviseItem.value.ky_ms_no_list.length > 0 
-    ? reviseItem.value.ky_ms_no_list 
+  const kyMsNosToRevise = reviseItem.value.ky_ms_no_list && reviseItem.value.ky_ms_no_list.length > 0
+    ? reviseItem.value.ky_ms_no_list
     : (reviseItem.value.ky_ms_no ? [reviseItem.value.ky_ms_no] : []);
-  
+
   if (kyMsNosToRevise.length === 0) {
     showFlashMessage('danger', 'No mother sanction numbers found to revise.', 'fas fa-exclamation-triangle');
     closeReviseDialog();
     return;
   }
 
-  try {
-    // First, set old data status to inactive
-    const response = await fetch('/api/mother-sanction/update-status', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-      },
-      body: JSON.stringify({
-        ky_ms_no: kyMsNosToRevise,
-        action: 'revise',
-        state_id: reviseItem.value.state_id,
-        sls_name: reviseItem.value.sls_name || '',
-      })
-    });
+  const firstKyMsNo = kyMsNosToRevise[0] || reviseItem.value.ky_ms_no;
 
-    if (response.ok) {
-      // Get the first ky_ms_no for redirect
-      const firstKyMsNo = kyMsNosToRevise.length > 0 ? kyMsNosToRevise[0] : reviseItem.value.ky_ms_no;
-      
-      // Prepare budget heads data with available amount in carry forward and MS amount in MS amount field
-      const budgetHeadsForForm = reviseItem.value.budget_heads.map(budget => ({
-        budget_head: budget.budget_head,
-        category: budget.category,
-        available_amount: budget.available_fund || calculateAvailableFund(budget),
-        sanction_amount: '',
-        carry_forward: calculateAvailableFund(budget) || '0.00000'
-      }));
-      
-      // Create query parameters for prefilling the form
-      const queryParams = new URLSearchParams({
-        revise: 'true',
-        ky_ms_no: firstKyMsNo,
-        financial_year: reviseItem.value.financial_year,
-        state_id: reviseItem.value.state_id || '',
-        sls_id: reviseItem.value.sls_id || '',
-        ms_sequence_no: reviseItem.value.ms_sequence_no || '',
-        sanction_date: reviseItem.value.sanction_date || '',
-        ifd_no: reviseItem.value.ifd_no || '',
-        sls_name: reviseItem.value.sls_name || '',
-        pd_component: reviseItem.value.pd_component || '',
-        remark: reviseItem.value.remark || '',
-        budget_heads: JSON.stringify(budgetHeadsForForm)
-      });
-      
-      // Redirect to the mother sanction page with prefilled data
-      window.location.href = `/mother-sanction?${queryParams.toString()}`;
-    } else {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Failed to revise record:', errorData);
-      showFlashMessage('danger', errorData.message || 'Failed to revise record. Please try again.', 'fas fa-exclamation-triangle');
-      closeReviseDialog();
-    }
-  } catch (error) {
-    console.error('Error revising record:', error);
-    showFlashMessage('danger', 'An error occurred while revising the record. Please try again.', 'fas fa-exclamation-triangle');
-    closeReviseDialog();
-  }
+  // Prefill: available fund → carry forward; MS amount field left blank for new entry
+  const budgetHeadsForForm = reviseItem.value.budget_heads.map(budget => ({
+    budget_head: budget.budget_head,
+    category: budget.category,
+    available_amount: budget.available_fund || calculateAvailableFund(budget),
+    sanction_amount: '',
+    carry_forward: calculateAvailableFund(budget) || '0.00000'
+  }));
+
+  const queryParams = new URLSearchParams({
+    revise: 'true',
+    ky_ms_no: firstKyMsNo,
+    financial_year: reviseItem.value.financial_year,
+    state_id: reviseItem.value.state_id || '',
+    sls_id: reviseItem.value.sls_id || '',
+    ms_sequence_no: reviseItem.value.ms_sequence_no || '',
+    sanction_date: reviseItem.value.sanction_date || '',
+    ifd_no: reviseItem.value.ifd_no || '',
+    sls_name: reviseItem.value.sls_name || '',
+    pd_component: reviseItem.value.pd_component || '',
+    remark: reviseItem.value.remark || '',
+    budget_heads: JSON.stringify(budgetHeadsForForm)
+  });
+
+  closeReviseDialog();
+  window.location.href = `/mother-sanction?${queryParams.toString()}`;
 };
 </script>
 

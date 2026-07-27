@@ -720,7 +720,10 @@ public function list()
         $annualAllocation = array_sum($annualAllocationByBudgetHead);
 
         $displayKyMsNo = $firstItem->ky_ms_no ?? '';
-        $kyMsNoList = $displayKyMsNo ? [$displayKyMsNo] : [];
+        $kyMsNoList = $kyMsNos->map(fn ($no) => (string) $no)->values()->all();
+        if (empty($kyMsNoList) && $displayKyMsNo) {
+            $kyMsNoList = [$displayKyMsNo];
+        }
 
         return [
             'id' => $firstItem->id,
@@ -987,36 +990,46 @@ public function listReport(Request $request)
 
         $lastInserted = null;
 
-        foreach ($reappropriations as $row) {
-            $safeBudgetHead = $this->sanitizeTextInput($row['budget_head'] ?? '');
-            $safeCategory = $this->sanitizeTextInput($row['category'] ?? '');
-            $safeAvailableAmount = is_numeric($row['available_amount'] ?? null) ? (float) $row['available_amount'] : 0;
-            $safeSanctionAmount = is_numeric($row['sanction_amount'] ?? null) ? (float) $row['sanction_amount'] : 0;
-            $safeCarryForward = is_numeric($row['carry_forward'] ?? null) ? (float) $row['carry_forward'] : 0;
+        DB::beginTransaction();
 
-            $sanction = MotherSanction::create(array_merge($commonData, [
-                'budget_head' => $safeBudgetHead,
-                'category' => $safeCategory,
-                'available_fund' => $safeAvailableAmount,
-                'mother_sanction_amount' => $safeSanctionAmount,
-                'carry_forward_amount' => $safeCarryForward,
-            ]));
+        try {
+            // Revise submit: only now inactivate older open records (Proceed must not mutate).
+            if ($request->boolean('is_revise')) {
+                $this->inactivateOpenMotherSanctionsForRevise(
+                    (int) $request->state_id,
+                    $sanitizedSlsName
+                );
+            }
 
-            // Save history for creation
-            $historyDescription = $createActionType === 'REVISED'
-                ? 'Revised mother sanction record created'
-                : 'New mother sanction record created';
-            $this->saveHistory($sanction, $createActionType, $historyDescription);
+            foreach ($reappropriations as $row) {
+                $safeBudgetHead = $this->sanitizeTextInput($row['budget_head'] ?? '');
+                $safeCategory = $this->sanitizeTextInput($row['category'] ?? '');
+                $safeAvailableAmount = is_numeric($row['available_amount'] ?? null) ? (float) $row['available_amount'] : 0;
+                $safeSanctionAmount = is_numeric($row['sanction_amount'] ?? null) ? (float) $row['sanction_amount'] : 0;
+                $safeCarryForward = is_numeric($row['carry_forward'] ?? null) ? (float) $row['carry_forward'] : 0;
 
-            $lastInserted = $sanction; // Keep reference to the last inserted record
+                $sanction = MotherSanction::create(array_merge($commonData, [
+                    'budget_head' => $safeBudgetHead,
+                    'category' => $safeCategory,
+                    'available_fund' => $safeAvailableAmount,
+                    'mother_sanction_amount' => $safeSanctionAmount,
+                    'carry_forward_amount' => $safeCarryForward,
+                ]));
+
+                // History for fresh create and revised create (inserted at submit time)
+                $historyDescription = $createActionType === 'REVISED'
+                    ? 'Revised mother sanction record created'
+                    : 'New mother sanction record created';
+                $this->saveHistory($sanction, $createActionType, $historyDescription);
+
+                $lastInserted = $sanction;
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
         }
-
-        // Update the last inserted record with its own ID in 'last_id'
-        /*if ($lastInserted) {
-            $lastInserted->update([
-                'last_id' => $lastInserted->id
-            ]);
-        }*/
 
         return response()->json([
             'message' => 'Data saved successfully',
@@ -1258,61 +1271,12 @@ public function updateStatus(Request $request)
                 'updated_count' => $records->count()
             ]);
         } elseif ($action === 'revise') {
-            // "Revise" action triggered from Revise button:
-            //  - Set old data status to inactive
-            //  - MS Amount = Current MS Amount + Available Fund (where Available Fund = MS Amount - Expenditure)
-            //  - Available Fund = New MS Amount - Expenditure
-
-            DB::beginTransaction();
-
-            foreach ($records as $record) {
-                // Expenditure across all DS for this BH + PD (all MS tranches)
-                $expenditure = $this->calculateExpenditureForPdAndBudgetHead(
-                    (string) ($record->budget_head ?? ''),
-                    $record->pd_component ?? null,
-                    $record->financial_year ?? null,
-                    $record->state_id ? (int) $record->state_id : null,
-                    $record->sls_name ?? null
-                );
-
-                // Get current MS Amount
-                $currentMsAmount = floatval($record->mother_sanction_amount ?: 0);
-                $oldAvailableFund = floatval($record->available_fund ?: 0);
-
-                // Calculate current Available Fund as MS Amount - Expenditure (matching frontend calculation)
-                $currentAvailableFund = $currentMsAmount - $expenditure;
-
-                // Store the current Available Fund as Carry Forward Amount (this is what was added)
-                $carryForwardAmount = $currentAvailableFund;
-
-                // New MS Amount = Current MS Amount + Available Fund
-                $newMsAmount = $currentMsAmount + $currentAvailableFund;
-
-                // New Available Fund = New MS Amount - Expenditure
-                $newAvailableFund = $newMsAmount - $expenditure;
-
-                // Save history before update
-                $this->saveHistory($record, 'REVISED', 
-                    "Record revised. MS Amount: {$currentMsAmount} -> {$newMsAmount}, Available Fund: {$oldAvailableFund} -> {$newAvailableFund}",
-                    $currentMsAmount, $newMsAmount, $oldAvailableFund, $newAvailableFund
-                );
-
-                // Set status to inactive for revise
-                $record->status = 0;
-                $record->action_type = 'REVISED';
-                $record->mother_sanction_amount = $newMsAmount;
-                $record->available_fund = $newAvailableFund;
-                $record->carry_forward_amount = $carryForwardAmount;
-
-                $record->save();
-            }
-
-            DB::commit();
-
+            // Legacy no-op: revise Proceed must not mutate DB.
+            // Inactivation + history happen in addMotherSanction when is_revise=1 on form submit.
             return response()->json([
-                'message' => 'Records revised successfully. MS Amount has been updated and Available Fund recalculated.',
+                'message' => 'Revise form can be opened. Status and history will update only after submit.',
                 'success' => true,
-                'updated_count' => $records->count()
+                'updated_count' => 0
             ]);
         } else {
             // Close:
@@ -1626,6 +1590,35 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
     }
 
     /**
+     * On revise form submit: mark active open-chain records inactive.
+     * Does not rewrite amounts or write history (history is written for the new create rows).
+     */
+    private function inactivateOpenMotherSanctionsForRevise(int $stateId, string $slsName): void
+    {
+        $query = MotherSanction::query()
+            ->where('state_id', $stateId)
+            ->where(function ($q) {
+                $q->whereNull('action_type')
+                    ->orWhereRaw('UPPER(action_type) <> ?', ['CLOSED']);
+            })
+            ->where(function ($q) {
+                $q->where('status', 1)->orWhere('status', '1');
+            });
+
+        if ($slsName !== '') {
+            $query->where('sls_name', $slsName);
+        }
+
+        $records = $query->get();
+
+        foreach ($records as $record) {
+            $record->status = 0;
+            $record->action_type = 'REVISED';
+            $record->save();
+        }
+    }
+
+    /**
      * Save history record for mother sanction changes
      */
     private function saveHistory($record, $actionType, $description = null, $oldMsAmount = null, $newMsAmount = null, $oldAvailableFund = null, $newAvailableFund = null)
@@ -1690,10 +1683,18 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                 ->orderBy('msh.history_id', 'asc')
                 ->get();
 
-            // Tranche steps = create / revised-create, plus CLOSED steps
+            // Tranche steps = create / revised-create (by insert time), plus CLOSED steps
             $createEvents = $history->filter(function ($item) {
                 $description = strtolower((string) ($item->change_description ?? ''));
-                return str_contains($description, 'record created');
+                $actionType = strtoupper((string) ($item->action_type ?? ''));
+
+                // Prefer explicit create descriptions written on submit
+                if (str_contains($description, 'record created')) {
+                    return true;
+                }
+
+                // Fallback: create action types that are not close/activate/deactivate noise
+                return in_array($actionType, ['FRESH_CREATE', 'CREATE'], true);
             })->values();
 
             $closeEvents = $history->filter(function ($item) {
@@ -1843,10 +1844,33 @@ public function getMotherSanctionDetails(Request $request, $kyMsNo)
                     ],
                 ];
             })
-                ->sortByDesc(fn ($row) => $row['history_timestamp'] ?? '')
                 ->values();
 
-            return response()->json($transformedData);
+            // Show history rows in insert-time order (latest → oldest)
+            $transformedDataArray = $transformedData->values()->all();
+            usort($transformedDataArray, function (array $a, array $b) {
+                $ta = $a['history_timestamp'] ?? null;
+                $tb = $b['history_timestamp'] ?? null;
+
+                if ($ta === null && $tb === null) {
+                    return ((int) ($b['id'] ?? 0)) <=> ((int) ($a['id'] ?? 0));
+                }
+                if ($ta === null) {
+                    return 1; // nulls last
+                }
+                if ($tb === null) {
+                    return -1; // nulls last
+                }
+
+                $cmp = strcmp((string) $tb, (string) $ta); // descending by timestamp string
+                if ($cmp !== 0) {
+                    return $cmp;
+                }
+
+                return ((int) ($b['id'] ?? 0)) <=> ((int) ($a['id'] ?? 0));
+            });
+
+            return response()->json(collect($transformedDataArray)->values());
         } catch (\Exception $e) {
             Log::error('Error fetching mother sanction history:', [
                 'error' => $e->getMessage(),

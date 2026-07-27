@@ -341,6 +341,7 @@ const pdShortNames = {
   'National Mission on Edible Oils-Oil Palm': 'NMEO-Oil Palm',
   'Mission Pulses': 'Mission Pulse',
   'Integrated Scheme for Agricultural Marketing': 'Marketing',
+  'Mission Cotton': 'Mission Cotton',
 }
 
 const shortPdName = (name) => pdShortNames[name] || name
