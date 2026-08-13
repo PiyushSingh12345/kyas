@@ -241,6 +241,7 @@
                     <li><Link :href="route('pd-wise-budget-allocation-report')" class="nav-link"><span class="sub-item">PD wise Budget Allocation Report</span></Link></li>
                     <li><Link :href="route('pd-wise-budget-allocation-release')" class="nav-link"><span class="sub-item">PD wise Budget Allocation Release Report</span></Link></li>
                     <li><Link :href="route('statewise-aap-allocation-report')" class="nav-link"><span class="sub-item">Statewise Release Report</span></Link></li>
+                    <li><Link :href="route('statewise-aap-allocation-mis-report')" class="nav-link"><span class="sub-item">Statewise AAP Allocation</span></Link></li>
                     <li><Link :href="route('pdwise-statewise-allocation-report')" class="nav-link"><span class="sub-item">PD-wise, State/UT-wise Allocation Report</span></Link></li>
                     <li><Link :href="route('som-status-ky-report')" class="nav-link"><span class="sub-item">SOM Status-KY Report</span></Link></li>
                     <li><Link :href="route('statewise-fund-allocation-release-expenditure-report')" class="nav-link"><span class="sub-item">State wise Fund Allocation, Release and Expenditure Report</span></Link></li>
@@ -425,8 +426,11 @@ const menuMap = {
   '/daily-sanction-time-series-report': 'reports',
   '/mother-sanction-time-series-report': 'reports',
   '/statewise-aap-allocation-report': 'reports',
+  '/statewise-aap-allocation-mis-report': 'reports',
   '/pdwise-statewise-allocation-report': 'reports',
   '/som-status-ky-report': 'reports',
+  '/statewise-fund-allocation-release-expenditure-report': 'reports',
+  '/pdwise-fund-allocation-release-expenditure-report': 'reports',
   '/statewise-release-report': 'reports',
   '/re-appropriation-of-funds': 're-appropriation-of-funds',
   '/statewise-aap-allocation': 'annual-action-plan',

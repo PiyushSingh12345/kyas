@@ -199,6 +199,10 @@ Route::get('/pdwise-fund-allocation-release-expenditure-report', function () {
     return Inertia::render('Reports/PdwiseFundAllocationReleaseExpenditureReport');
 })->middleware(['auth', 'verified', 'role:1,2,4'])->name('pdwise-fund-allocation-release-expenditure-report');
 
+Route::get('/statewise-aap-allocation-mis-report', function () {
+    return Inertia::render('Reports/StatewiseAapAllocationMisReport');
+})->middleware(['auth', 'verified', 'role:1,2,4'])->name('statewise-aap-allocation-mis-report');
+
 Route::get('/statewise-release-report', function () {
     return Inertia::render('Reports/StateWiseReleaseReport');
 })->middleware(['auth', 'verified', 'role:1,2,4'])->name('statewise-release-report');
@@ -334,6 +338,7 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     Route::get('/api/som-status-ky-report', [AnnualActionPlanController::class, 'getSomStatusKyReport']);
     Route::get('/api/statewise-fund-allocation-release-expenditure-report', [AnnualActionPlanController::class, 'getStatewiseFundAllocationReleaseExpenditureReport']);
     Route::get('/api/pdwise-fund-allocation-release-expenditure-report', [AnnualActionPlanController::class, 'getPdwiseFundAllocationReleaseExpenditureReport']);
+    Route::get('/api/vw-statewise-aap-allocation-report', [AnnualActionPlanController::class, 'getVwStatewiseAapAllocationReport']);
     Route::get('/api/statewise-release-report', [AnnualActionPlanController::class, 'getStateWiseReleaseReport']);
     Route::get('/api/aap-states', [AnnualActionPlanController::class, 'getStates']);
     Route::get('/api/aap-program-divisions', [AnnualActionPlanController::class, 'getProgramDivisions']);

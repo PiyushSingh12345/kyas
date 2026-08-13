@@ -54,12 +54,13 @@ class AnnualActionPlanController extends Controller
             try {
                 // Process each allocation - update if exists, insert if new
                 foreach ($request->allocations as $allocation) {
-                    // Check if record exists for the same state_id, financial_year, and pd_id
-                    $existingRecord = StatewiseAapAllocation::where([
-                        'state_id' => $allocation['state_id'],
-                        'financial_year' => $allocation['financial_year'],
-                        'pd_id' => $allocation['pd_id']
-                    ])->first();
+                    $yearVariants = $this->normalizeFinancialYearVariants($allocation['financial_year']);
+
+                    // Match both short (2026-27) and long (2026-2027) FY formats
+                    $existingRecord = StatewiseAapAllocation::where('state_id', $allocation['state_id'])
+                        ->where('pd_id', $allocation['pd_id'])
+                        ->whereIn('financial_year', $yearVariants)
+                        ->first();
 
                     if ($existingRecord) {
                         // Update existing record
@@ -70,9 +71,13 @@ class AnnualActionPlanController extends Controller
                             'remark' => $request->remarks[$allocation['state_id']] ?? $existingRecord->remark
                         ]);
                     } else {
+                        // Prefer FY format already used in DB for this year, else request value
+                        $canonicalYear = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
+                            ->value('financial_year') ?? $allocation['financial_year'];
+
                         // Insert new record
                         StatewiseAapAllocation::create([
-                            'financial_year' => $allocation['financial_year'],
+                            'financial_year' => $canonicalYear,
                             'state_id' => $allocation['state_id'],
                             'pd_id' => $allocation['pd_id'],
                             'amount' => $allocation['amount'],
@@ -110,10 +115,13 @@ class AnnualActionPlanController extends Controller
      */
     public function getStatewiseAllocation(Request $request): JsonResponse
     {
+    // dump($request->all());
+    // exit;
         try {
-            $financialYear = $request->get('financial_year', '2025-26');
+            $financialYear = $request->get('financial_year', '2026-27');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
 
-            $allocations = StatewiseAapAllocation::where('financial_year', $financialYear)
+            $allocations = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
                 ->get()
                 ->groupBy('state_id')
                 ->map(function ($stateAllocations) {
@@ -156,8 +164,10 @@ class AnnualActionPlanController extends Controller
                     });
                 });
 
+            // dump($allocations);
+            // exit;
             // Get remarks for each state
-            $remarks = StatewiseAapAllocation::where('financial_year', $financialYear)
+            $remarks = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
                 ->whereNotNull('remark')
                 ->pluck('remark', 'state_id')
                 ->toArray();
@@ -176,7 +186,7 @@ class AnnualActionPlanController extends Controller
             ], 500);
         }
     }
-
+    
     /**
      * Get states for dropdown
      */
@@ -2889,5 +2899,85 @@ class AnnualActionPlanController extends Controller
         $add('agency_release_administrative_expenditure', 'amount', 'expenditure');
 
         return $result;
+    }
+
+    /**
+     * Statewise AAP Allocation MIS report from vw_statewise_aap_allocation.
+     * Layout matches Final AAP allocation Excel (PD / SLS-wise columns + row total).
+     */
+    public function getVwStatewiseAapAllocationReport(Request $request): JsonResponse
+    {
+        try {
+            $financialYear = $request->get('financial_year', '2026-27');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+
+            $columnMap = [
+                'agriculture_extension' => 'Agricuture_Extension',
+                'nfsnm' => 'National_Food_Security_and_Nutrition_Mission',
+                'seed_sls1' => 'Sub Mission on Seed and Planting_1',
+                'seed_sls2' => 'Sub Mission on Seed and Planting_2',
+                'midh' => 'Mission for Integrated Development of Horticulture',
+                'bamboo' => 'National Bamboo Mission',
+                'movcdner' => 'MOVCDNER',
+                'digital_agri' => 'Digital Agriculture Mission',
+                'oil_palm_sls1' => 'National Mission on Edible Oils- Oil Palm_1',
+                'oil_palm_sls2' => 'National Mission on Edible Oils- Oil Palm_2',
+                'oil_seeds_sls1' => 'National Mission on Edible Oils- Oil Seeds_1',
+                'oil_seeds_sls2' => 'National Mission on Edible Oils- Oil Seeds_2',
+                'pulses_sls1' => 'Mission Pulses_1',
+                'pulses_sls2' => 'Mission Pulses_2',
+                'cotton' => 'Mission Cotton',
+            ];
+
+            $selectParts = ['financial_year', 'Statename'];
+            foreach ($columnMap as $alias => $dbCol) {
+                $selectParts[] = '`' . str_replace('`', '``', $dbCol) . '` AS `' . $alias . '`';
+            }
+
+            $viewRows = DB::table('vw_statewise_aap_allocation')
+                ->selectRaw(implode(', ', $selectParts))
+                ->whereIn('financial_year', $yearVariants)
+                ->get();
+
+            $amountKeys = array_keys($columnMap);
+            $rows = [];
+            $slNo = 1;
+            $totals = array_fill_keys($amountKeys, 0.0);
+            $totals['final_allocation'] = 0.0;
+
+            foreach ($viewRows as $viewRow) {
+                $row = [
+                    'sl_no' => $slNo++,
+                    'state_name' => $viewRow->Statename,
+                ];
+                $final = 0.0;
+                foreach ($amountKeys as $key) {
+                    $value = floatval($viewRow->{$key} ?? 0);
+                    $row[$key] = $value;
+                    $totals[$key] += $value;
+                    $final += $value;
+                }
+                $row['final_allocation'] = $final;
+                $totals['final_allocation'] += $final;
+                $rows[] = $row;
+            }
+
+            return response()->json([
+                'success' => true,
+                'financial_year' => $financialYear,
+                'rows' => $rows,
+                'totals' => $totals,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching vw_statewise_aap_allocation report: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch Statewise AAP Allocation report',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
