@@ -252,26 +252,35 @@
 											<td class="fw-bold fw-sticky">{{ state.state_name }}</td>
 											<template v-for="pd in filteredProgramDivisions" :key="pd.division_id">
 												<td>
-													<input 
-														type="number" 
-														class="form-control tableform-control-withoutbg" 
-														v-model="tentativeAmountData[state.state_id][pd.division_id]"
-														@blur="formatTentativeInputValue(state.state_id, pd.division_id)"
-														placeholder="0.00000"
-														step="0.00001"
-														min="0"
-													>
+													<div class="sls-cell-wrap">
+														<button
+															type="button"
+															class="btn btn-sm sls-action-btn"
+															:class="hasSavedSls(state.state_id, pd.division_id) ? 'btn-outline-primary' : 'btn-outline-success'"
+															:title="hasSavedSls(state.state_id, pd.division_id) ? 'Edit SLS bifurcation' : 'Add SLS bifurcation'"
+															@click="openSlsModal(state, pd)"
+														>
+															<i :class="hasSavedSls(state.state_id, pd.division_id) ? 'fas fa-edit' : 'fas fa-plus'"></i>
+														</button>
+														<input
+															type="text"
+															class="form-control tableform-control-withoutbg"
+															:value="tentativeAmountData[state.state_id][pd.division_id]"
+															readonly
+															tabindex="-1"
+															placeholder="0.00000"
+														>
+													</div>
 												</td>
 												<td>
-												<input 
-													type="number" 
-													class="form-control tableform-control-withoutbg" 
-													v-model="allocationData[state.state_id][pd.division_id]"
-													@blur="formatInputValue(state.state_id, pd.division_id)"
-													placeholder="0.00000"
-													step="0.00001"
-													min="0"
-												>
+													<input
+														type="text"
+														class="form-control tableform-control-withoutbg"
+														:value="allocationData[state.state_id][pd.division_id]"
+														readonly
+														tabindex="-1"
+														placeholder="0.00000"
+													>
 												</td>
 											</template>
 											<td class="fw-bold text-center bg-info-subtle">
@@ -310,16 +319,16 @@
 							</div>
 							</div>
 
-							<!-- Submit Button -->
+							<!-- Save Remarks -->
 							<div class="row mt-4">
 								<div class="col-12 text-center">
 									<button 
-										@click="submitAllocation" 
+										@click="submitRemarks" 
 										class="btn btn-primary btn-lg"
 										:disabled="submitting"
 									>
 										<span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
-										{{ submitting ? 'Saving...' : 'Submit Allocation' }}
+										{{ submitting ? 'Saving...' : 'Save Remarks' }}
 									</button>
 								</div>
 							</div>
@@ -341,6 +350,121 @@
         </div>
         <Footer />
     </div>
+
+    <!-- SLS bifurcation modal -->
+    <div
+      v-if="showSlsModal"
+      class="modal fade show d-block"
+      tabindex="-1"
+      role="dialog"
+      style="z-index: 1055;"
+      @click.self="closeSlsModal"
+    >
+      <div
+        class="modal-backdrop fade show"
+        style="z-index: 1050; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5);"
+      ></div>
+      <div
+        class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
+        role="document"
+        style="z-index: 1055;"
+        @click.stop
+      >
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              SLS Bifurcation
+              <small class="d-block text-muted fw-normal mt-1">
+                {{ slsModalStateName }} — {{ slsModalPdName }} (₹ In Lakhs)
+              </small>
+            </h5>
+            <button type="button" class="btn-close" aria-label="Close" @click="closeSlsModal"></button>
+          </div>
+          <div class="modal-body">
+            <div v-if="slsModalLoading" class="text-center py-4">
+              <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+            <div v-else-if="slsModalError" class="alert alert-danger mb-0">
+              {{ slsModalError }}
+            </div>
+            <div v-else>
+              <div class="table-responsive">
+                <table class="table table-bordered align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>SLS Name</th>
+                      <th>SLS Code</th>
+                      <th class="text-center">Sharing (C:S)</th>
+                      <th class="text-center" style="min-width: 140px;">Tentative Amount</th>
+                      <th class="text-center" style="min-width: 140px;">Final Allocation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, index) in slsModalRows" :key="row.sls_id || ('sls-' + index)">
+                      <td class="text-start">
+                        <div class="fw-semibold">{{ row.full_sls_name || row.name }}</div>
+                        <small v-if="row.full_sls_name && row.name && row.full_sls_name !== row.name" class="text-muted">
+                          {{ row.name }}
+                        </small>
+                      </td>
+                      <td>{{ row.sls_code || '-' }}</td>
+                      <td class="text-center">
+                        {{ sharingLabel(row) }}
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          class="form-control text-center"
+                          v-model="row.tentative_amount"
+                          step="0.00001"
+                          min="0"
+                          placeholder="0.00000"
+                          @blur="formatSlsModalAmount(index, 'tentative_amount')"
+                        >
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          class="form-control text-center"
+                          v-model="row.amount"
+                          step="0.00001"
+                          min="0"
+                          placeholder="0.00000"
+                          @blur="formatSlsModalAmount(index, 'amount')"
+                        >
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr class="table-warning fw-bold">
+                      <td colspan="3" class="text-end">Total</td>
+                      <td class="text-center">{{ slsModalTentativeTotal }}</td>
+                      <td class="text-center">{{ slsModalFinalTotal }}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeSlsModal" :disabled="slsModalSaving">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              @click="submitSlsModal"
+              :disabled="slsModalLoading || slsModalSaving || !!slsModalError"
+            >
+              <span v-if="slsModalSaving" class="spinner-border spinner-border-sm me-2" role="status"></span>
+              {{ slsModalSaving ? 'Saving...' : 'Submit' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -358,9 +482,20 @@ const programDivisions = ref([])
 const allocationData = ref({})
 const tentativeAmountData = ref({})
 const remarksData = ref({})
+const hasSlsData = ref({})
 const loading = ref(true)
 const error = ref(null)
 const submitting = ref(false)
+
+const showSlsModal = ref(false)
+const slsModalLoading = ref(false)
+const slsModalSaving = ref(false)
+const slsModalError = ref(null)
+const slsModalRows = ref([])
+const slsModalStateId = ref(null)
+const slsModalPdId = ref(null)
+const slsModalStateName = ref('')
+const slsModalPdName = ref('')
 
 const getCurrentFinancialYear = () => {
   const now = new Date()
@@ -522,6 +657,11 @@ const fetchExistingAllocations = async () => {
               console.log(`Set tentative amount for state ${stateId}, PD ${pdId}: ${formatToFiveDecimals(tentativeAmount)} (original: ${tentativeAmount})`)
             }
           }
+
+          if (!hasSlsData.value[stateId]) {
+            hasSlsData.value[stateId] = {}
+          }
+          hasSlsData.value[stateId][pdId] = !!allocation.has_sls_data
         })
       })
       
@@ -553,11 +693,13 @@ const initializeAllocationData = () => {
   states.value.forEach(state => {
     allocationData.value[state.state_id] = {}
     tentativeAmountData.value[state.state_id] = {}
+    hasSlsData.value[state.state_id] = {}
     remarksData.value[state.state_id] = ''
     
     programDivisions.value.forEach(pd => {
       allocationData.value[state.state_id][pd.division_id] = ''
       tentativeAmountData.value[state.state_id][pd.division_id] = ''
+      hasSlsData.value[state.state_id][pd.division_id] = false
     })
     
     console.log(`Initialized data structure for state ${state.state_id}:`, allocationData.value[state.state_id])
@@ -845,100 +987,186 @@ watch([selectedStates, selectedProgramDivisions, tentativeAmountFilter, finalAll
   nextTick(updateFixedScrollBarWidth)
 })
 
-// Submit allocation data
-const submitAllocation = async () => {
+const hasSavedSls = (stateId, pdId) => {
+  return !!(hasSlsData.value[stateId] && hasSlsData.value[stateId][pdId])
+}
+
+const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+
+const showToast = (message, type = 'success') => {
+  const el = document.createElement('div')
+  el.className = `alert alert-${type} alert-dismissible fade show position-fixed`
+  el.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;'
+  el.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `
+  document.body.appendChild(el)
+  setTimeout(() => {
+    if (el.parentNode) el.remove()
+  }, 5000)
+}
+
+const sharingLabel = (row) => {
+  const center = row?.sharing_patter_center
+  const stateShare = row?.sharing_patter_state
+  if (center === null || center === undefined || center === '') return '-'
+  return `${center}:${stateShare ?? 0}`
+}
+
+const slsModalTentativeTotal = computed(() => {
+  let total = 0
+  slsModalRows.value.forEach((row) => {
+    total = addWithPrecision(total, parseFloat(row.tentative_amount) || 0)
+  })
+  return formatToFiveDecimals(total)
+})
+
+const slsModalFinalTotal = computed(() => {
+  let total = 0
+  slsModalRows.value.forEach((row) => {
+    total = addWithPrecision(total, parseFloat(row.amount) || 0)
+  })
+  return formatToFiveDecimals(total)
+})
+
+const formatSlsModalAmount = (index, field) => {
+  const currentValue = slsModalRows.value[index]?.[field]
+  if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+    const numValue = parseFloat(currentValue)
+    if (!isNaN(numValue)) {
+      slsModalRows.value[index][field] = formatToFiveDecimals(numValue)
+    }
+  }
+}
+
+const openSlsModal = async (state, pd) => {
+  slsModalStateId.value = state.state_id
+  slsModalPdId.value = pd.division_id
+  slsModalStateName.value = state.state_name
+  slsModalPdName.value = pd.division_name
+  slsModalRows.value = []
+  slsModalError.value = null
+  slsModalLoading.value = true
+  showSlsModal.value = true
+
+  try {
+    const params = new URLSearchParams({
+      financial_year: selectedFinancialYear.value,
+      state_id: String(state.state_id),
+      pd_id: String(pd.division_id),
+    })
+    const response = await fetch(`/api/statewise-aap-allocation-sls?${params.toString()}`)
+    const result = await response.json()
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Failed to load SLS details')
+    }
+    slsModalRows.value = (result.sls || []).map((row) => ({
+      ...row,
+      tentative_amount: formatToFiveDecimals(row.tentative_amount ?? 0),
+      amount: formatToFiveDecimals(row.amount ?? 0),
+    }))
+  } catch (err) {
+    console.error('Error loading SLS bifurcation:', err)
+    slsModalError.value = err.message || 'Failed to load SLS details'
+  } finally {
+    slsModalLoading.value = false
+  }
+}
+
+const closeSlsModal = () => {
+  if (slsModalSaving.value) return
+  showSlsModal.value = false
+  slsModalRows.value = []
+  slsModalError.value = null
+}
+
+const submitSlsModal = async () => {
+  slsModalSaving.value = true
+  slsModalError.value = null
+
+  try {
+    const payload = slsModalRows.value.map((row) => {
+      const tentative = parseFloat(row.tentative_amount)
+      const amount = parseFloat(row.amount)
+      return {
+        sls_id: row.sls_id,
+        tentative_amount: !isNaN(tentative) && tentative >= 0 ? tentative : 0,
+        amount: !isNaN(amount) && amount >= 0 ? amount : 0,
+      }
+    })
+
+    const response = await fetch('/api/statewise-aap-allocation-sls', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken(),
+      },
+      body: JSON.stringify({
+        financial_year: selectedFinancialYear.value,
+        state_id: slsModalStateId.value,
+        pd_id: slsModalPdId.value,
+        remark: remarksData.value[slsModalStateId.value] || null,
+        sls: payload,
+      }),
+    })
+
+    const result = await response.json()
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Failed to save SLS bifurcation')
+    }
+
+    const stateId = slsModalStateId.value
+    const pdId = slsModalPdId.value
+    if (allocationData.value[stateId]) {
+      allocationData.value[stateId][pdId] = formatToFiveDecimals(result.amount)
+    }
+    if (tentativeAmountData.value[stateId]) {
+      tentativeAmountData.value[stateId][pdId] = formatToFiveDecimals(result.tentative_amount)
+    }
+    if (!hasSlsData.value[stateId]) {
+      hasSlsData.value[stateId] = {}
+    }
+    hasSlsData.value[stateId][pdId] = true
+
+    slsModalSaving.value = false
+    showToast('<strong>Success!</strong> SLS bifurcation saved successfully.')
+    closeSlsModal()
+  } catch (err) {
+    console.error('Error saving SLS bifurcation:', err)
+    slsModalError.value = err.message || 'Failed to save SLS bifurcation'
+  } finally {
+    slsModalSaving.value = false
+  }
+}
+
+// Submit remarks only — amounts are saved from the SLS modal
+const submitRemarks = async () => {
   submitting.value = true
   
   try {
-    // Prepare data for submission
-    const submissionData = []
-    
-    states.value.forEach(state => {
-      programDivisions.value.forEach(pd => {
-        const amount = allocationData.value[state.state_id][pd.division_id]
-        const tentativeAmount = tentativeAmountData.value[state.state_id][pd.division_id]
-        
-        // Allow zero values to be saved - check if amount is not null/undefined/empty string
-        // but allow 0 as a valid value
-        if (amount !== null && amount !== undefined && amount !== '') {
-          // Parse and format to 5 decimals before submission to ensure exact precision
-          const exactAmount = parseFloat(amount)
-          // Check if it's a valid number (including 0)
-          // This will save 0 when user explicitly enters 0
-          if (!isNaN(exactAmount) && exactAmount >= 0) {
-            // Parse tentative amount - default to 0 if not provided (matching amount column constraint)
-            const exactTentativeAmount = (tentativeAmount !== null && tentativeAmount !== undefined && tentativeAmount !== '') 
-              ? parseFloat(tentativeAmount) 
-              : 0
-            
-            submissionData.push({
-              financial_year: selectedFinancialYear.value,
-              state_id: state.state_id,
-              pd_id: pd.division_id,
-              amount: exactAmount, // Save exact amount as entered (including 0, will be stored with 5 decimal precision in DB)
-              tentative_amount: (!isNaN(exactTentativeAmount) && exactTentativeAmount >= 0) ? exactTentativeAmount : 0,
-              status: 1
-            })
-          }
-        }
-      })
-    })
-
-	// console.log("========================submissionData=======================");
-	// console.log(submissionData);
-	// return false;
-
-    if (submissionData.length === 0) {
-      alert('Please enter at least one allocation amount (including 0)')
-      submitting.value = false
-      return
-    }
-
-    // Submit to backend
     const response = await fetch('/api/statewise-aap-allocation', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        'X-CSRF-TOKEN': csrfToken()
       },
       body: JSON.stringify({
-        allocations: submissionData,
+        financial_year: selectedFinancialYear.value,
         remarks: remarksData.value
       })
     })
 
-    if (!response.ok) {
-      throw new Error('Failed to save allocation data')
+    const result = await response.json()
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Failed to save remarks')
     }
 
-    const result = await response.json()
-    
-    // Show success message without interrupting the form
-    const successMessage = document.createElement('div')
-    successMessage.className = 'alert alert-success alert-dismissible fade show position-fixed'
-    successMessage.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;'
-    successMessage.innerHTML = `
-      <strong>Success!</strong> Allocation data saved successfully.
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `
-    document.body.appendChild(successMessage)
-    
-    // Auto-remove success message after 5 seconds
-    setTimeout(() => {
-      if (successMessage.parentNode) {
-        successMessage.remove()
-      }
-    }, 5000)
-    
-    // Don't reset form - keep data intact for user to see
-    // initializeAllocationData()
-    
-    // Refresh existing data from database to show the most current data
+    showToast('<strong>Success!</strong> Remarks saved successfully.')
     await fetchExistingAllocations()
-    
   } catch (err) {
-    console.error('Error submitting allocation:', err)
-    alert('Failed to save allocation data: ' + err.message)
+    console.error('Error submitting remarks:', err)
+    alert('Failed to save remarks: ' + err.message)
   } finally {
     submitting.value = false
   }
@@ -1015,6 +1243,27 @@ onBeforeUnmount(() => {
   background: white;
   border-color: #80bdff;
   box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.tableform-control-withoutbg[readonly] {
+  background: #f8f9fa;
+  cursor: default;
+}
+
+.sls-cell-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sls-action-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .table th {

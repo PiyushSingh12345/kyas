@@ -114,7 +114,7 @@
                               <th
                                 v-for="group in columnGroups"
                                 :key="'g1-' + group.key"
-                                :colspan="group.keys.length"
+                                :colspan="group.columns.length"
                                 class="text-center"
                               >
                                 {{ group.label }}
@@ -127,7 +127,7 @@
                               <th
                                 v-for="group in columnGroups"
                                 :key="'g2-' + group.key"
-                                :colspan="group.keys.length"
+                                :colspan="group.columns.length"
                                 class="text-center fy-row"
                               >
                                 FY {{ displayFinancialYear }}
@@ -136,11 +136,11 @@
                             <tr>
                               <template v-for="group in columnGroups" :key="'g3-' + group.key">
                                 <th
-                                  v-for="col in group.keys"
-                                  :key="col"
-                                  class="text-center"
+                                  v-for="col in group.columns"
+                                  :key="col.key"
+                                  class="text-center sls-name"
                                 >
-                                  {{ slsLabel(group, col) }}
+                                  {{ col.label }}
                                 </th>
                               </template>
                             </tr>
@@ -207,53 +207,12 @@ import Footer from '../Common/Footer.vue'
 import AmountInFilter from '../../Components/Reports/AmountInFilter.vue'
 import { useAmountIn } from '../../Composables/useAmountIn'
 
-const columnGroups = [
-  { key: 'ae', label: 'Agricuture Extension', keys: ['agriculture_extension'] },
-  {
-    key: 'nfsnm',
-    label: 'National Food Security and Nutrition Mission',
-    keys: ['nfsnm'],
-  },
-  {
-    key: 'seed',
-    label: 'Sub Mission on Seed and Planting',
-    keys: ['seed_sls1', 'seed_sls2'],
-    sls: true,
-  },
-  {
-    key: 'midh',
-    label: 'Mission for Integrated Development of Horticulture',
-    keys: ['midh'],
-  },
-  { key: 'bamboo', label: 'National Bamboo Mission', keys: ['bamboo'] },
-  { key: 'movcdner', label: 'MOVCDNER', keys: ['movcdner'] },
-  { key: 'digital', label: 'Digital Agriculture Mission', keys: ['digital_agri'] },
-  {
-    key: 'oil_palm',
-    label: 'National Mission on Edible Oils- Oil Palm',
-    keys: ['oil_palm_sls1', 'oil_palm_sls2'],
-    sls: true,
-  },
-  {
-    key: 'oil_seeds',
-    label: 'National Mission on Edible Oils- Oil Seeds',
-    keys: ['oil_seeds_sls1', 'oil_seeds_sls2'],
-    sls: true,
-  },
-  {
-    key: 'pulses',
-    label: 'Mission Pulses',
-    keys: ['pulses_sls1', 'pulses_sls2'],
-    sls: true,
-  },
-  { key: 'cotton', label: 'Mission Cotton', keys: ['cotton'] },
-]
-
-const amountKeys = columnGroups.flatMap((g) => g.keys)
+const columnGroups = ref([])
+const amountKeys = computed(() => columnGroups.value.flatMap((g) => (g.columns || []).map((c) => c.key)))
 
 const emptyTotals = () => {
   const t = { final_allocation: 0 }
-  amountKeys.forEach((k) => {
+  amountKeys.value.forEach((k) => {
     t[k] = 0
   })
   return t
@@ -281,12 +240,7 @@ const displayFinancialYear = computed(() => {
   return `${start}-${endFull}`
 })
 
-const totalColSpan = computed(() => 2 + amountKeys.length + 1)
-
-const slsLabel = (group, col) => {
-  if (!group.sls) return 'Final Allocation'
-  return col.endsWith('_sls2') ? 'Final Allocation (SLS-2)' : 'Final Allocation (SLS-1)'
-}
+const totalColSpan = computed(() => 2 + amountKeys.value.length + 1)
 
 const formatCell = (value) =>
   formatAmount(value ?? 0, { fractionDigits: amountFractionDigits.value })
@@ -361,11 +315,13 @@ const fetchReportData = async () => {
     if (!result.success) throw new Error(result.message || 'Failed to load report')
 
     rows.value = result.rows || []
+    columnGroups.value = result.column_groups || []
     totals.value = result.totals || emptyTotals()
   } catch (err) {
     console.error(err)
     error.value = 'Failed to load Statewise AAP Allocation report'
     rows.value = []
+    columnGroups.value = []
     totals.value = emptyTotals()
   } finally {
     loading.value = false
@@ -382,11 +338,11 @@ const buildExportRows = () => {
   const header2 = ['', '']
   const header3 = ['', '']
 
-  columnGroups.forEach((group) => {
-    group.keys.forEach((key, idx) => {
+  columnGroups.value.forEach((group) => {
+    (group.columns || []).forEach((col, idx) => {
       header1.push(idx === 0 ? group.label : '')
       header2.push(idx === 0 ? `FY ${displayFinancialYear.value}` : '')
-      header3.push(slsLabel(group, key))
+      header3.push(col.label)
     })
   })
   header1.push(`Final Allocation for FY${displayFinancialYear.value}`)
@@ -399,7 +355,7 @@ const buildExportRows = () => {
     exportRows.push([
       row.sl_no,
       row.state_name,
-      ...amountKeys.map((key) => formatCell(row[key])),
+      ...amountKeys.value.map((key) => formatCell(row[key])),
       formatCell(row.final_allocation),
     ])
   })
@@ -408,7 +364,7 @@ const buildExportRows = () => {
     exportRows.push([
       '',
       'Total',
-      ...amountKeys.map((key) => formatCell(totals.value[key])),
+      ...amountKeys.value.map((key) => formatCell(totals.value[key])),
       formatCell(totals.value.final_allocation),
     ])
   }
@@ -518,6 +474,14 @@ onBeforeUnmount(() => {
 
 .aap-alloc-table thead th:not(.col-sl):not(.col-state) {
   min-width: 110px;
+}
+
+.aap-alloc-table thead th.sls-name {
+  white-space: normal;
+  min-width: 140px;
+  max-width: 220px;
+  font-size: 0.75rem;
+  line-height: 1.25;
 }
 
 .aap-alloc-table .total-row td {

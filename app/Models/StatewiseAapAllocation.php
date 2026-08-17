@@ -20,7 +20,9 @@ class StatewiseAapAllocation extends Model
         'amount',
         'tentative_amount',
         'status',
-        'remark'
+        'remark',
+        'p_sub_id',
+        'order_id',
     ];
 
     protected $casts = [

@@ -25,20 +25,14 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
-     * Store statewise AAP allocation data
+     * Store statewise AAP remarks. Amounts are saved from the SLS bifurcation modal.
      */
     public function storeStatewiseAllocation(Request $request): JsonResponse
     {
         try {
             $validator = Validator::make($request->all(), [
-                'allocations' => 'required|array|min:1',
-                'allocations.*.financial_year' => 'required|string',
-                'allocations.*.state_id' => 'required|integer',
-                'allocations.*.pd_id' => 'required|integer',
-                'allocations.*.amount' => 'required|numeric|min:0',
-                'allocations.*.tentative_amount' => 'required|numeric|min:0',
-                'allocations.*.status' => 'required|integer|in:0,1',
-                'remarks' => 'nullable|array'
+                'financial_year' => 'nullable|string',
+                'remarks' => 'nullable|array',
             ]);
 
             if ($validator->fails()) {
@@ -49,42 +43,28 @@ class AnnualActionPlanController extends Controller
                 ], 422);
             }
 
+            $remarks = $request->remarks ?? [];
+            if (empty($remarks)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No remarks to save',
+                ], 422);
+            }
+
+            $financialYear = $request->get('financial_year', '2026-27');
+            $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
+
             DB::beginTransaction();
 
             try {
-                // Process each allocation - update if exists, insert if new
-                foreach ($request->allocations as $allocation) {
-                    $yearVariants = $this->normalizeFinancialYearVariants($allocation['financial_year']);
-
-                    // Match both short (2026-27) and long (2026-2027) FY formats
-                    $existingRecord = StatewiseAapAllocation::where('state_id', $allocation['state_id'])
-                        ->where('pd_id', $allocation['pd_id'])
+                $updatedStates = 0;
+                foreach ($remarks as $stateId => $remark) {
+                    $updated = StatewiseAapAllocation::where('state_id', (int) $stateId)
                         ->whereIn('financial_year', $yearVariants)
-                        ->first();
+                        ->update(['remark' => $remark !== '' ? $remark : null]);
 
-                    if ($existingRecord) {
-                        // Update existing record
-                        $existingRecord->update([
-                            'amount' => $allocation['amount'],
-                            'tentative_amount' => $allocation['tentative_amount'] ?? 0,
-                            'status' => $allocation['status'],
-                            'remark' => $request->remarks[$allocation['state_id']] ?? $existingRecord->remark
-                        ]);
-                    } else {
-                        // Prefer FY format already used in DB for this year, else request value
-                        $canonicalYear = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
-                            ->value('financial_year') ?? $allocation['financial_year'];
-
-                        // Insert new record
-                        StatewiseAapAllocation::create([
-                            'financial_year' => $canonicalYear,
-                            'state_id' => $allocation['state_id'],
-                            'pd_id' => $allocation['pd_id'],
-                            'amount' => $allocation['amount'],
-                            'tentative_amount' => $allocation['tentative_amount'] ?? 0,
-                            'status' => $allocation['status'],
-                            'remark' => $request->remarks[$allocation['state_id']] ?? null
-                        ]);
+                    if ($updated > 0) {
+                        $updatedStates++;
                     }
                 }
 
@@ -92,83 +72,57 @@ class AnnualActionPlanController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Allocation data saved successfully',
-                    'count' => count($request->allocations)
+                    'message' => 'Remarks saved successfully',
+                    'count' => $updatedStates,
                 ]);
-
             } catch (\Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to save allocation data',
+                'message' => 'Failed to save remarks',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Get existing statewise AAP allocation data
+     * Get existing statewise AAP allocation data (PD totals = sum of SLS rows)
      */
     public function getStatewiseAllocation(Request $request): JsonResponse
     {
-    // dump($request->all());
-    // exit;
         try {
             $financialYear = $request->get('financial_year', '2026-27');
             $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
 
-            $allocations = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
-                ->get()
-                ->groupBy('state_id')
-                ->map(function ($stateAllocations) {
-                    return $stateAllocations->keyBy('pd_id')->map(function ($allocation) {
-                        // Format amount to exactly 5 decimal places without rounding
-                        // Get raw value from database to preserve exact precision
-                        $rawAmount = $allocation->getRawOriginal('amount') ?? $allocation->amount;
-                        
-                        // Convert to string to preserve precision, then format to 5 decimals
-                        $amountStr = (string)$rawAmount;
-                        if (strpos($amountStr, '.') !== false) {
-                            $parts = explode('.', $amountStr);
-                            $integerPart = $parts[0];
-                            $decimalPart = isset($parts[1]) ? substr($parts[1], 0, 5) : '';
-                            $decimalPart = str_pad($decimalPart, 5, '0', STR_PAD_RIGHT);
-                            $amountStr = $integerPart . '.' . $decimalPart;
-                        } else {
-                            $amountStr = $amountStr . '.00000';
-                        }
-                        
-                        $allocation->amount = $amountStr;
-                        
-                        // Format tentative_amount to exactly 5 decimal places without rounding
-                        if ($allocation->tentative_amount !== null) {
-                            $rawTentativeAmount = $allocation->getRawOriginal('tentative_amount') ?? $allocation->tentative_amount;
-                            $tentativeAmountStr = (string)$rawTentativeAmount;
-                            if (strpos($tentativeAmountStr, '.') !== false) {
-                                $parts = explode('.', $tentativeAmountStr);
-                                $integerPart = $parts[0];
-                                $decimalPart = isset($parts[1]) ? substr($parts[1], 0, 5) : '';
-                                $decimalPart = str_pad($decimalPart, 5, '0', STR_PAD_RIGHT);
-                                $tentativeAmountStr = $integerPart . '.' . $decimalPart;
-                            } else {
-                                $tentativeAmountStr = $tentativeAmountStr . '.00000';
-                            }
-                            $allocation->tentative_amount = $tentativeAmountStr;
-                        }
-                        
-                        return $allocation;
-                    });
-                });
+            $rows = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
+                ->select(
+                    'state_id',
+                    'pd_id',
+                    DB::raw('SUM(COALESCE(amount, 0)) as amount'),
+                    DB::raw('SUM(COALESCE(tentative_amount, 0)) as tentative_amount'),
+                    DB::raw('COUNT(*) as sls_count')
+                )
+                ->groupBy('state_id', 'pd_id')
+                ->get();
 
-            // dump($allocations);
-            // exit;
-            // Get remarks for each state
+            $allocations = [];
+            foreach ($rows as $row) {
+                $stateId = (string) $row->state_id;
+                $pdId = (string) $row->pd_id;
+                $allocations[$stateId][$pdId] = [
+                    'amount' => $this->formatAllocationDecimal($row->amount),
+                    'tentative_amount' => $this->formatAllocationDecimal($row->tentative_amount),
+                    'has_sls_data' => ((int) $row->sls_count) > 0,
+                    'sls_count' => (int) $row->sls_count,
+                ];
+            }
+
             $remarks = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
                 ->whereNotNull('remark')
+                ->where('remark', '!=', '')
                 ->pluck('remark', 'state_id')
                 ->toArray();
 
@@ -177,12 +131,238 @@ class AnnualActionPlanController extends Controller
                 'data' => $allocations,
                 'remarks' => $remarks
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve allocation data',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * SLS list + saved tentative/final amounts for one state × PD cell.
+     */
+    public function getStatewiseSlsBifurcation(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'financial_year' => 'required|string',
+                'state_id' => 'required|integer',
+                'pd_id' => 'required|integer',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $stateId = (int) $request->get('state_id');
+            $pdId = (int) $request->get('pd_id');
+            $yearVariants = $this->normalizeFinancialYearVariants($request->get('financial_year'));
+
+            $stateName = DB::table('states')->where('id', $stateId)->value('name');
+            $pdName = DB::table('md_program_divisions')->where('division_id', $pdId)->value('division_name');
+
+            $slsComponents = $this->getSlsComponentsForStatePd($stateId, $pdId);
+            $savedRows = StatewiseAapAllocation::where('state_id', $stateId)
+                ->where('pd_id', $pdId)
+                ->whereIn('financial_year', $yearVariants)
+                ->orderBy('p_sub_id')
+                ->get();
+
+            $savedList = $savedRows->values();
+            $slsRows = [];
+
+            foreach ($slsComponents as $index => $sls) {
+                $saved = $savedList->get($index);
+                $slsRows[] = [
+                    'sls_id' => (int) $sls->id,
+                    'name' => $sls->name,
+                    'full_sls_name' => $sls->full_sls_name,
+                    'sls_code' => $sls->sls_code,
+                    'sharing_patter_center' => $sls->sharing_patter_center,
+                    'sharing_patter_state' => $sls->sharing_patter_state,
+                    'tentative_amount' => $this->formatAllocationDecimal($saved->tentative_amount ?? 0),
+                    'amount' => $this->formatAllocationDecimal($saved->amount ?? 0),
+                ];
+            }
+
+            if ($savedList->count() > $slsComponents->count()) {
+                for ($i = $slsComponents->count(); $i < $savedList->count(); $i++) {
+                    $saved = $savedList->get($i);
+                    $label = ((int) $saved->p_sub_id) > 0
+                        ? 'SLS-' . $saved->p_sub_id
+                        : 'PD total';
+                    $slsRows[] = [
+                        'sls_id' => null,
+                        'name' => $label,
+                        'full_sls_name' => $label,
+                        'sls_code' => null,
+                        'sharing_patter_center' => null,
+                        'sharing_patter_state' => null,
+                        'tentative_amount' => $this->formatAllocationDecimal($saved->tentative_amount ?? 0),
+                        'amount' => $this->formatAllocationDecimal($saved->amount ?? 0),
+                    ];
+                }
+            }
+
+            if (empty($slsRows)) {
+                $saved = $savedList->first();
+                $slsRows[] = [
+                    'sls_id' => null,
+                    'name' => 'No SLS mapped — PD total',
+                    'full_sls_name' => 'No SLS mapped for this State and Program Division',
+                    'sls_code' => null,
+                    'sharing_patter_center' => null,
+                    'sharing_patter_state' => null,
+                    'tentative_amount' => $this->formatAllocationDecimal($saved->tentative_amount ?? 0),
+                    'amount' => $this->formatAllocationDecimal($saved->amount ?? 0),
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'state_id' => $stateId,
+                'pd_id' => $pdId,
+                'state_name' => $stateName,
+                'pd_name' => $pdName,
+                'has_saved_data' => $savedRows->isNotEmpty(),
+                'sls' => $slsRows,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve SLS bifurcation',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Save SLS-wise tentative/final amounts for one state × PD cell.
+     */
+    public function storeStatewiseSlsBifurcation(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'financial_year' => 'required|string',
+                'state_id' => 'required|integer',
+                'pd_id' => 'required|integer',
+                'remark' => 'nullable|string|max:255',
+                'sls' => 'required|array|min:1',
+                'sls.*.tentative_amount' => 'required|numeric|min:0',
+                'sls.*.amount' => 'required|numeric|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $stateId = (int) $request->get('state_id');
+            $pdId = (int) $request->get('pd_id');
+            $yearVariants = $this->normalizeFinancialYearVariants($request->get('financial_year'));
+            $canonicalYear = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
+                ->value('financial_year') ?? $request->get('financial_year');
+            $slsItems = array_values($request->get('sls', []));
+            $slsCount = count($slsItems);
+
+            $orderId = StatewiseAapAllocation::where('state_id', $stateId)
+                ->whereIn('financial_year', $yearVariants)
+                ->min('order_id');
+            if ($orderId === null) {
+                $orderId = (int) (StatewiseAapAllocation::whereIn('financial_year', $yearVariants)->max('order_id') ?? 0) + 1;
+            }
+
+            $existingRemark = StatewiseAapAllocation::where('state_id', $stateId)
+                ->whereIn('financial_year', $yearVariants)
+                ->whereNotNull('remark')
+                ->where('remark', '!=', '')
+                ->value('remark');
+            $remark = $request->has('remark') ? $request->get('remark') : $existingRemark;
+
+            DB::beginTransaction();
+
+            try {
+                $existing = StatewiseAapAllocation::where('state_id', $stateId)
+                    ->where('pd_id', $pdId)
+                    ->whereIn('financial_year', $yearVariants)
+                    ->orderBy('p_sub_id')
+                    ->get()
+                    ->values();
+
+                $usedIds = [];
+                foreach ($slsItems as $index => $item) {
+                    $pSubId = $slsCount === 1 ? 0 : ($index + 1);
+                    $record = $existing->get($index);
+
+                    $payload = [
+                        'financial_year' => $record ? $record->financial_year : $canonicalYear,
+                        'state_id' => $stateId,
+                        'pd_id' => $pdId,
+                        'amount' => $item['amount'],
+                        'tentative_amount' => $item['tentative_amount'],
+                        'status' => 1,
+                        'remark' => $remark,
+                        'p_sub_id' => $pSubId,
+                        'order_id' => $orderId,
+                    ];
+
+                    if ($record) {
+                        $record->update($payload);
+                        $usedIds[] = $record->id;
+                    } else {
+                        $created = StatewiseAapAllocation::create($payload);
+                        $usedIds[] = $created->id;
+                    }
+                }
+
+                StatewiseAapAllocation::where('state_id', $stateId)
+                    ->where('pd_id', $pdId)
+                    ->whereIn('financial_year', $yearVariants)
+                    ->whereNotIn('id', $usedIds)
+                    ->get()
+                    ->each(fn (StatewiseAapAllocation $row) => $row->delete());
+
+                if ($request->has('remark')) {
+                    StatewiseAapAllocation::where('state_id', $stateId)
+                        ->whereIn('financial_year', $yearVariants)
+                        ->update(['remark' => $remark]);
+                }
+
+                DB::commit();
+
+                $tentativeTotal = 0.0;
+                $finalTotal = 0.0;
+                foreach ($slsItems as $item) {
+                    $tentativeTotal += (float) $item['tentative_amount'];
+                    $finalTotal += (float) $item['amount'];
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'SLS bifurcation saved successfully',
+                    'tentative_amount' => $this->formatAllocationDecimal($tentativeTotal),
+                    'amount' => $this->formatAllocationDecimal($finalTotal),
+                    'has_sls_data' => true,
+                    'sls_count' => $slsCount,
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save SLS bifurcation',
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -952,6 +1132,106 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
+     * Format a numeric value to 5 decimal places without rounding.
+     */
+    private function formatAllocationDecimal($value): string
+    {
+        if ($value === null || $value === '') {
+            return '0.00000';
+        }
+
+        $amountStr = (string) $value;
+        if (strpos($amountStr, '.') !== false) {
+            $parts = explode('.', $amountStr);
+            $integerPart = $parts[0];
+            $decimalPart = isset($parts[1]) ? substr($parts[1], 0, 5) : '';
+            $decimalPart = str_pad($decimalPart, 5, '0', STR_PAD_RIGHT);
+
+            return $integerPart . '.' . $decimalPart;
+        }
+
+        return $amountStr . '.00000';
+    }
+
+    /**
+     * SLS rows for a state + program division from pd_and_sls_comp.
+     * SLS-1 is typically CSS (state share > 0); SLS-2 is 100% central.
+     */
+    private function getSlsComponentsForStatePd(int $stateId, int $pdId)
+    {
+        $rows = DB::table('pd_and_sls_comp')
+            ->where('state_id', $stateId)
+            ->where('status', 1)
+            ->where('pd_id', $pdId)
+            ->orderByRaw('CAST(IFNULL(sharing_patter_state, 0) AS UNSIGNED) DESC')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'name',
+                'full_sls_name',
+                'sls_code',
+                'slsPD',
+                'sharing_patter_center',
+                'sharing_patter_state',
+                'pd_id',
+            ]);
+
+        if ($rows->isNotEmpty()) {
+            return $rows;
+        }
+
+        $pdName = trim((string) DB::table('md_program_divisions')
+            ->where('division_id', $pdId)
+            ->value('division_name'));
+
+        if ($pdName === '') {
+            return $rows;
+        }
+
+        return DB::table('pd_and_sls_comp')
+            ->where('state_id', $stateId)
+            ->where('status', 1)
+            ->whereRaw('TRIM(slsPD) = ?', [$pdName])
+            ->orderByRaw('CAST(IFNULL(sharing_patter_state, 0) AS UNSIGNED) DESC')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'name',
+                'full_sls_name',
+                'sls_code',
+                'slsPD',
+                'sharing_patter_center',
+                'sharing_patter_state',
+                'pd_id',
+            ]);
+    }
+
+    /**
+     * Sum tentative/final amounts per state + PD (SLS rows rolled up).
+     */
+    private function getStatePdAllocationTotals(array $yearVariants, ?int $stateId = null)
+    {
+        $query = StatewiseAapAllocation::query()
+            ->whereIn('financial_year', $yearVariants)
+            ->where('status', 1)
+            ->whereNotNull('state_id')
+            ->whereNotNull('pd_id')
+            ->select(
+                'state_id',
+                'pd_id',
+                DB::raw('SUM(COALESCE(amount, 0)) as amount'),
+                DB::raw('SUM(COALESCE(tentative_amount, 0)) as tentative_amount')
+            )
+            ->groupBy('state_id', 'pd_id');
+
+        if ($stateId) {
+            $query->where('state_id', $stateId);
+        }
+
+        return $query->get();
+    }
+
+    /**
      * Parse optional date/time range from request (date_from, time_from, date_to, time_to).
      *
      * @return array{0: ?Carbon, 1: ?Carbon}|null
@@ -1694,13 +1974,9 @@ class AnnualActionPlanController extends Controller
             $financialYear = $request->get('financial_year', '2025-26');
             $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
 
-            // 1. Tentative + Final Allocation from statewise_aap_allocation (state_id + pd_id)
+            // 1. Tentative + Final Allocation from statewise_aap_allocation (state_id + pd_id, SLS summed)
             $allocations = [];
-            $allocationRows = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
-                ->where('status', 1)
-                ->whereNotNull('state_id')
-                ->whereNotNull('pd_id')
-                ->get(['state_id', 'pd_id', 'tentative_amount', 'amount']);
+            $allocationRows = $this->getStatePdAllocationTotals($yearVariants);
 
             foreach ($allocationRows as $row) {
                 $stateId = (string) $row->state_id;
@@ -2093,12 +2369,8 @@ class AnnualActionPlanController extends Controller
             $reportData = [];
             $allowedStatePd = [];
 
-            // 1. AAP Approved from statewise_aap_allocation
-            $allocationRows = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
-                ->where('status', 1)
-                ->whereNotNull('state_id')
-                ->whereNotNull('pd_id')
-                ->get(['state_id', 'pd_id', 'amount']);
+            // 1. AAP Approved from statewise_aap_allocation (SLS summed)
+            $allocationRows = $this->getStatePdAllocationTotals($yearVariants);
 
             foreach ($allocationRows as $row) {
                 $stateId = (string) $row->state_id;
@@ -2592,12 +2864,8 @@ class AnnualActionPlanController extends Controller
             $allowedStatePd = [];
             $stateKey = (string) $stateId;
 
-            // 1. AAP Allocation from statewise_aap_allocation for selected state
-            $allocationRows = StatewiseAapAllocation::whereIn('financial_year', $yearVariants)
-                ->where('status', 1)
-                ->where('state_id', $stateId)
-                ->whereNotNull('pd_id')
-                ->get(['pd_id', 'amount']);
+            // 1. AAP Allocation from statewise_aap_allocation for selected state (SLS summed)
+            $allocationRows = $this->getStatePdAllocationTotals($yearVariants, $stateId);
 
             foreach ($allocationRows as $row) {
                 $pdId = (string) $row->pd_id;
@@ -2902,8 +3170,8 @@ class AnnualActionPlanController extends Controller
     }
 
     /**
-     * Statewise AAP Allocation MIS report from vw_statewise_aap_allocation.
-     * Layout matches Final AAP allocation Excel (PD / SLS-wise columns + row total).
+     * Statewise AAP Allocation MIS report from statewise_aap_allocation.
+     * PD groups with SLS-name sub-columns (not SLS-1 / SLS-2 labels).
      */
     public function getVwStatewiseAapAllocationReport(Request $request): JsonResponse
     {
@@ -2911,48 +3179,114 @@ class AnnualActionPlanController extends Controller
             $financialYear = $request->get('financial_year', '2026-27');
             $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
 
-            $columnMap = [
-                'agriculture_extension' => 'Agricuture_Extension',
-                'nfsnm' => 'National_Food_Security_and_Nutrition_Mission',
-                'seed_sls1' => 'Sub Mission on Seed and Planting_1',
-                'seed_sls2' => 'Sub Mission on Seed and Planting_2',
-                'midh' => 'Mission for Integrated Development of Horticulture',
-                'bamboo' => 'National Bamboo Mission',
-                'movcdner' => 'MOVCDNER',
-                'digital_agri' => 'Digital Agriculture Mission',
-                'oil_palm_sls1' => 'National Mission on Edible Oils- Oil Palm_1',
-                'oil_palm_sls2' => 'National Mission on Edible Oils- Oil Palm_2',
-                'oil_seeds_sls1' => 'National Mission on Edible Oils- Oil Seeds_1',
-                'oil_seeds_sls2' => 'National Mission on Edible Oils- Oil Seeds_2',
-                'pulses_sls1' => 'Mission Pulses_1',
-                'pulses_sls2' => 'Mission Pulses_2',
-                'cotton' => 'Mission Cotton',
-            ];
+            $allocationRows = StatewiseAapAllocation::query()
+                ->whereIn('financial_year', $yearVariants)
+                ->where('status', 1)
+                ->whereNotNull('state_id')
+                ->whereNotNull('pd_id')
+                ->get(['state_id', 'pd_id', 'p_sub_id', 'amount', 'order_id']);
 
-            $selectParts = ['financial_year', 'Statename'];
-            foreach ($columnMap as $alias => $dbCol) {
-                $selectParts[] = '`' . str_replace('`', '``', $dbCol) . '` AS `' . $alias . '`';
+            if ($allocationRows->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'financial_year' => $financialYear,
+                    'column_groups' => [],
+                    'amount_keys' => [],
+                    'rows' => [],
+                    'totals' => ['final_allocation' => 0.0],
+                ]);
             }
 
-            $viewRows = DB::table('vw_statewise_aap_allocation')
-                ->selectRaw(implode(', ', $selectParts))
-                ->whereIn('financial_year', $yearVariants)
-                ->get();
+            $pdNames = DB::table('md_program_divisions')
+                ->pluck('division_name', 'division_id');
 
-            $amountKeys = array_keys($columnMap);
-            $rows = [];
-            $slNo = 1;
+            $stateNames = DB::table('states')->pluck('name', 'id');
+            $slsNameMap = $this->getSlsHeaderNamesByPdSub();
+
+            $pdSubIds = [];
+            foreach ($allocationRows as $row) {
+                $pdId = (int) $row->pd_id;
+                $pdSubIds[$pdId][(int) $row->p_sub_id] = true;
+            }
+
+            $preferredPdOrder = [2, 6, 10, 3, 5, 4, 9, 7, 8, 12, 13, 11];
+            $pdIds = array_keys($pdSubIds);
+            usort($pdIds, function ($a, $b) use ($preferredPdOrder) {
+                $ia = array_search($a, $preferredPdOrder, true);
+                $ib = array_search($b, $preferredPdOrder, true);
+                $ia = $ia === false ? 1000 + $a : $ia;
+                $ib = $ib === false ? 1000 + $b : $ib;
+                return $ia <=> $ib;
+            });
+
+            $columnGroups = [];
+            $amountKeys = [];
+            foreach ($pdIds as $pdId) {
+                $subIds = array_map('intval', array_keys($pdSubIds[$pdId]));
+                sort($subIds);
+
+                $columns = [];
+                foreach ($subIds as $pSubId) {
+                    $key = 'pd_' . $pdId . '_sub_' . $pSubId;
+                    $amountKeys[] = $key;
+                    $isSplit = count($subIds) > 1 || $pSubId > 0;
+                    $columns[] = [
+                        'key' => $key,
+                        'p_sub_id' => $pSubId,
+                        'label' => $isSplit
+                            ? ($slsNameMap[$pdId][$pSubId] ?? ('SLS-' . $pSubId))
+                            : 'Final Allocation',
+                    ];
+                }
+
+                $columnGroups[] = [
+                    'key' => 'pd_' . $pdId,
+                    'pd_id' => $pdId,
+                    'label' => trim((string) ($pdNames[$pdId] ?? ('PD ' . $pdId))),
+                    'columns' => $columns,
+                ];
+            }
+
+            $amountsByState = [];
+            $orderByState = [];
+            foreach ($allocationRows as $row) {
+                $stateId = (int) $row->state_id;
+                $key = 'pd_' . (int) $row->pd_id . '_sub_' . (int) $row->p_sub_id;
+                if (!isset($amountsByState[$stateId])) {
+                    $amountsByState[$stateId] = [];
+                }
+                $amountsByState[$stateId][$key] = ($amountsByState[$stateId][$key] ?? 0) + floatval($row->amount ?? 0);
+                $existingOrder = $orderByState[$stateId] ?? null;
+                $rowOrder = (int) ($row->order_id ?? 0);
+                if ($existingOrder === null || ($rowOrder > 0 && $rowOrder < $existingOrder)) {
+                    $orderByState[$stateId] = $rowOrder > 0 ? $rowOrder : ($existingOrder ?? 9999);
+                }
+            }
+
+            $stateIds = array_keys($amountsByState);
+            usort($stateIds, function ($a, $b) use ($orderByState, $stateNames) {
+                $oa = $orderByState[$a] ?? 9999;
+                $ob = $orderByState[$b] ?? 9999;
+                if ($oa !== $ob) {
+                    return $oa <=> $ob;
+                }
+                return strcasecmp((string) ($stateNames[$a] ?? ''), (string) ($stateNames[$b] ?? ''));
+            });
+
             $totals = array_fill_keys($amountKeys, 0.0);
             $totals['final_allocation'] = 0.0;
+            $rows = [];
+            $slNo = 1;
 
-            foreach ($viewRows as $viewRow) {
+            foreach ($stateIds as $stateId) {
                 $row = [
                     'sl_no' => $slNo++,
-                    'state_name' => $viewRow->Statename,
+                    'state_id' => $stateId,
+                    'state_name' => $stateNames[$stateId] ?? ('State ' . $stateId),
                 ];
                 $final = 0.0;
                 foreach ($amountKeys as $key) {
-                    $value = floatval($viewRow->{$key} ?? 0);
+                    $value = floatval($amountsByState[$stateId][$key] ?? 0);
                     $row[$key] = $value;
                     $totals[$key] += $value;
                     $final += $value;
@@ -2965,11 +3299,13 @@ class AnnualActionPlanController extends Controller
             return response()->json([
                 'success' => true,
                 'financial_year' => $financialYear,
+                'column_groups' => $columnGroups,
+                'amount_keys' => $amountKeys,
                 'rows' => $rows,
                 'totals' => $totals,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching vw_statewise_aap_allocation report: ' . $e->getMessage(), [
+            Log::error('Error fetching statewise AAP allocation MIS report: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
 
@@ -2979,5 +3315,90 @@ class AnnualActionPlanController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Representative SLS names for MIS column headers, keyed by pd_id then p_sub_id.
+     * p_sub_id 0 = unsplit PD (first/only SLS); 1,2,... = SLS index in the same order as the allocation modal.
+     *
+     * @return array<int, array<int, string>>
+     */
+    private function getSlsHeaderNamesByPdSub(): array
+    {
+        $stateNames = DB::table('states')
+            ->pluck('name')
+            ->map(function ($name) {
+                $clean = preg_replace('/\s*\(.*$/', '', (string) $name);
+                $clean = trim(str_replace(['[National Capital Territory (NCT)]', 'AND'], ['', 'and'], $clean));
+                return $clean;
+            })
+            ->filter()
+            ->sortByDesc(fn ($name) => strlen($name))
+            ->values()
+            ->all();
+
+        $components = DB::table('pd_and_sls_comp')
+            ->where('status', 1)
+            ->whereNotNull('pd_id')
+            ->where('pd_id', '>', 0)
+            ->orderBy('pd_id')
+            ->orderBy('state_id')
+            ->orderByRaw('CAST(IFNULL(sharing_patter_state, 0) AS UNSIGNED) DESC')
+            ->orderBy('id')
+            ->get(['pd_id', 'state_id', 'name']);
+
+        $indexNames = [];
+        foreach ($components->groupBy(fn ($row) => (int) $row->pd_id . ':' . (int) $row->state_id) as $stateRows) {
+            $list = $stateRows->values();
+            $pdId = (int) $list->first()->pd_id;
+            $count = $list->count();
+            foreach ($list as $index => $sls) {
+                $name = $this->normalizeSlsHeaderName((string) ($sls->name ?? ''), $stateNames);
+                if ($name === '') {
+                    continue;
+                }
+                $pSubId = $count === 1 ? 0 : ($index + 1);
+                $indexNames[$pdId][$pSubId][] = $name;
+                if ($count > 1 && $index === 0) {
+                    $indexNames[$pdId][0][] = $name;
+                }
+            }
+        }
+
+        $result = [];
+        foreach ($indexNames as $pdId => $bySub) {
+            foreach ($bySub as $pSubId => $names) {
+                $counts = array_count_values($names);
+                arsort($counts);
+                $result[$pdId][$pSubId] = (string) array_key_first($counts);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Drop state-specific wording so a single SLS column header works across states.
+     */
+    private function normalizeSlsHeaderName(string $name, array $stateNames): string
+    {
+        $clean = trim($name);
+        if ($clean === '') {
+            return '';
+        }
+
+        foreach ($stateNames as $stateName) {
+            if ($stateName === '') {
+                continue;
+            }
+            $clean = preg_replace('/\b' . preg_quote($stateName, '/') . '\b/i', ' ', $clean) ?? $clean;
+        }
+
+        $clean = preg_replace('/\[[^\]]*\]/', ' ', $clean) ?? $clean;
+        $clean = preg_replace('/\b(UT|MN|AP|AS|BR|CG|GJ|HR|HP|JH|KA|KL|MH|MP|OD|PB|RJ|TN|TS|UP|UK|WB)\b/i', ' ', $clean) ?? $clean;
+        $clean = preg_replace('/\s+/', ' ', $clean) ?? $clean;
+        $clean = trim($clean, " \t\n\r\0\x0B-–,/");
+
+        return $clean;
     }
 }

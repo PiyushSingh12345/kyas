@@ -333,6 +333,8 @@ Route::get('/pd-components-dropdown', [SlsPDComponentController::class, 'getPDCo
     // Statewise AAP Allocation API routes
     Route::post('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'storeStatewiseAllocation']);
     Route::get('/api/statewise-aap-allocation', [AnnualActionPlanController::class, 'getStatewiseAllocation']);
+    Route::get('/api/statewise-aap-allocation-sls', [AnnualActionPlanController::class, 'getStatewiseSlsBifurcation']);
+    Route::post('/api/statewise-aap-allocation-sls', [AnnualActionPlanController::class, 'storeStatewiseSlsBifurcation']);
     Route::get('/api/statewise-aap-allocation-report', [AnnualActionPlanController::class, 'getStatewiseAapAllocationReport']);
     Route::get('/api/pdwise-statewise-allocation-report', [AnnualActionPlanController::class, 'getPdwiseStatewiseAllocationReport']);
     Route::get('/api/som-status-ky-report', [AnnualActionPlanController::class, 'getSomStatusKyReport']);
