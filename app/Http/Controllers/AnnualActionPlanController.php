@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use App\Models\State;
 use App\Models\ProgramDivision;
 use App\Models\PdAndSlsComp;
@@ -168,11 +169,13 @@ class AnnualActionPlanController extends Controller
             $pdName = DB::table('md_program_divisions')->where('division_id', $pdId)->value('division_name');
 
             $slsComponents = $this->getSlsComponentsForStatePd($stateId, $pdId);
-            $savedRows = StatewiseAapAllocation::where('state_id', $stateId)
+            $savedQuery = StatewiseAapAllocation::where('state_id', $stateId)
                 ->where('pd_id', $pdId)
-                ->whereIn('financial_year', $yearVariants)
-                ->orderBy('p_sub_id')
-                ->get();
+                ->whereIn('financial_year', $yearVariants);
+            if (Schema::hasColumn('statewise_aap_allocation', 'p_sub_id')) {
+                $savedQuery->orderBy('p_sub_id');
+            }
+            $savedRows = $savedQuery->get();
 
             $savedList = $savedRows->values();
             $slsRows = [];
@@ -194,7 +197,7 @@ class AnnualActionPlanController extends Controller
             if ($savedList->count() > $slsComponents->count()) {
                 for ($i = $slsComponents->count(); $i < $savedList->count(); $i++) {
                     $saved = $savedList->get($i);
-                    $label = ((int) $saved->p_sub_id) > 0
+                    $label = (Schema::hasColumn('statewise_aap_allocation', 'p_sub_id') && (int) $saved->p_sub_id > 0)
                         ? 'SLS-' . $saved->p_sub_id
                         : 'PD total';
                     $slsRows[] = [
@@ -274,11 +277,14 @@ class AnnualActionPlanController extends Controller
             $slsItems = array_values($request->get('sls', []));
             $slsCount = count($slsItems);
 
-            $orderId = StatewiseAapAllocation::where('state_id', $stateId)
-                ->whereIn('financial_year', $yearVariants)
-                ->min('order_id');
-            if ($orderId === null) {
-                $orderId = (int) (StatewiseAapAllocation::whereIn('financial_year', $yearVariants)->max('order_id') ?? 0) + 1;
+            $orderId = 0;
+            if (Schema::hasColumn('statewise_aap_allocation', 'order_id')) {
+                $orderId = StatewiseAapAllocation::where('state_id', $stateId)
+                    ->whereIn('financial_year', $yearVariants)
+                    ->min('order_id');
+                if ($orderId === null) {
+                    $orderId = (int) (StatewiseAapAllocation::whereIn('financial_year', $yearVariants)->max('order_id') ?? 0) + 1;
+                }
             }
 
             $existingRemark = StatewiseAapAllocation::where('state_id', $stateId)
@@ -291,12 +297,13 @@ class AnnualActionPlanController extends Controller
             DB::beginTransaction();
 
             try {
-                $existing = StatewiseAapAllocation::where('state_id', $stateId)
+                $existingQuery = StatewiseAapAllocation::where('state_id', $stateId)
                     ->where('pd_id', $pdId)
-                    ->whereIn('financial_year', $yearVariants)
-                    ->orderBy('p_sub_id')
-                    ->get()
-                    ->values();
+                    ->whereIn('financial_year', $yearVariants);
+                if (Schema::hasColumn('statewise_aap_allocation', 'p_sub_id')) {
+                    $existingQuery->orderBy('p_sub_id');
+                }
+                $existing = $existingQuery->get()->values();
 
                 $usedIds = [];
                 foreach ($slsItems as $index => $item) {
@@ -311,9 +318,13 @@ class AnnualActionPlanController extends Controller
                         'tentative_amount' => $item['tentative_amount'],
                         'status' => 1,
                         'remark' => $remark,
-                        'p_sub_id' => $pSubId,
-                        'order_id' => $orderId,
                     ];
+                    if (Schema::hasColumn('statewise_aap_allocation', 'p_sub_id')) {
+                        $payload['p_sub_id'] = $pSubId;
+                    }
+                    if (Schema::hasColumn('statewise_aap_allocation', 'order_id')) {
+                        $payload['order_id'] = $orderId;
+                    }
 
                     if ($record) {
                         $record->update($payload);
@@ -1159,51 +1170,57 @@ class AnnualActionPlanController extends Controller
      */
     private function getSlsComponentsForStatePd(int $stateId, int $pdId)
     {
-        $rows = DB::table('pd_and_sls_comp')
-            ->where('state_id', $stateId)
-            ->where('status', 1)
-            ->where('pd_id', $pdId)
-            ->orderByRaw('CAST(IFNULL(sharing_patter_state, 0) AS UNSIGNED) DESC')
-            ->orderBy('id')
-            ->get([
-                'id',
-                'name',
-                'full_sls_name',
-                'sls_code',
-                'slsPD',
-                'sharing_patter_center',
-                'sharing_patter_state',
-                'pd_id',
-            ]);
-
-        if ($rows->isNotEmpty()) {
-            return $rows;
+        $select = [
+            'id',
+            'name',
+            'full_sls_name',
+            'sls_code',
+            'slsPD',
+            'sharing_patter_center',
+            'sharing_patter_state',
+        ];
+        $hasPdId = Schema::hasColumn('pd_and_sls_comp', 'pd_id');
+        if ($hasPdId) {
+            $select[] = 'pd_id';
         }
 
-        $pdName = trim((string) DB::table('md_program_divisions')
-            ->where('division_id', $pdId)
-            ->value('division_name'));
-
-        if ($pdName === '') {
-            return $rows;
+        $rows = collect();
+        if ($hasPdId) {
+            $rows = DB::table('pd_and_sls_comp')
+                ->where('state_id', $stateId)
+                ->where('status', 1)
+                ->where('pd_id', $pdId)
+                ->orderBy('id')
+                ->get($select);
         }
 
-        return DB::table('pd_and_sls_comp')
-            ->where('state_id', $stateId)
-            ->where('status', 1)
-            ->whereRaw('TRIM(slsPD) = ?', [$pdName])
-            ->orderByRaw('CAST(IFNULL(sharing_patter_state, 0) AS UNSIGNED) DESC')
-            ->orderBy('id')
-            ->get([
-                'id',
-                'name',
-                'full_sls_name',
-                'sls_code',
-                'slsPD',
-                'sharing_patter_center',
-                'sharing_patter_state',
-                'pd_id',
-            ]);
+        if ($rows->isEmpty()) {
+            $pdName = trim((string) DB::table('md_program_divisions')
+                ->where('division_id', $pdId)
+                ->value('division_name'));
+
+            if ($pdName !== '') {
+                $rows = DB::table('pd_and_sls_comp')
+                    ->where('state_id', $stateId)
+                    ->where('status', 1)
+                    ->whereRaw('LOWER(TRIM(slsPD)) = ?', [strtolower($pdName)])
+                    ->orderBy('id')
+                    ->get($select);
+            }
+        }
+
+        return $this->sortSlsByStateShare($rows);
+    }
+
+    /**
+     * Sort SLS rows so CSS (state share > 0) comes before 100% central, without SQL CAST.
+     */
+    private function sortSlsByStateShare($rows)
+    {
+        return collect($rows)->sortBy([
+            fn ($row) => -1 * (int) preg_replace('/[^0-9]/', '', (string) ($row->sharing_patter_state ?? '0')),
+            fn ($row) => (int) ($row->id ?? 0),
+        ])->values();
     }
 
     /**
@@ -3179,12 +3196,22 @@ class AnnualActionPlanController extends Controller
             $financialYear = $request->get('financial_year', '2026-27');
             $yearVariants = $this->normalizeFinancialYearVariants($financialYear);
 
-            $allocationRows = StatewiseAapAllocation::query()
+            $allocationQuery = StatewiseAapAllocation::query()
                 ->whereIn('financial_year', $yearVariants)
-                ->where('status', 1)
                 ->whereNotNull('state_id')
-                ->whereNotNull('pd_id')
-                ->get(['state_id', 'pd_id', 'p_sub_id', 'amount', 'order_id']);
+                ->whereNotNull('pd_id');
+
+            $hasPSubId = Schema::hasColumn('statewise_aap_allocation', 'p_sub_id');
+            $hasOrderId = Schema::hasColumn('statewise_aap_allocation', 'order_id');
+            $select = ['state_id', 'pd_id', 'amount'];
+            if ($hasPSubId) {
+                $select[] = 'p_sub_id';
+            }
+            if ($hasOrderId) {
+                $select[] = 'order_id';
+            }
+
+            $allocationRows = $allocationQuery->get($select);
 
             if ($allocationRows->isEmpty()) {
                 return response()->json([
@@ -3201,12 +3228,18 @@ class AnnualActionPlanController extends Controller
                 ->pluck('division_name', 'division_id');
 
             $stateNames = DB::table('states')->pluck('name', 'id');
-            $slsNameMap = $this->getSlsHeaderNamesByPdSub();
+            $slsNameMap = [];
+            try {
+                $slsNameMap = $this->getSlsHeaderNamesByPdSub();
+            } catch (\Throwable $e) {
+                Log::warning('SLS header names could not be resolved: ' . $e->getMessage());
+            }
 
             $pdSubIds = [];
             foreach ($allocationRows as $row) {
                 $pdId = (int) $row->pd_id;
-                $pdSubIds[$pdId][(int) $row->p_sub_id] = true;
+                $pSubId = $hasPSubId ? (int) ($row->p_sub_id ?? 0) : 0;
+                $pdSubIds[$pdId][$pSubId] = true;
             }
 
             $preferredPdOrder = [2, 6, 10, 3, 5, 4, 9, 7, 8, 12, 13, 11];
@@ -3242,7 +3275,7 @@ class AnnualActionPlanController extends Controller
                 $columnGroups[] = [
                     'key' => 'pd_' . $pdId,
                     'pd_id' => $pdId,
-                    'label' => trim((string) ($pdNames[$pdId] ?? ('PD ' . $pdId))),
+                    'label' => trim((string) ($pdNames->get($pdId) ?? $pdNames->get((string) $pdId) ?? ('PD ' . $pdId))),
                     'columns' => $columns,
                 ];
             }
@@ -3251,13 +3284,14 @@ class AnnualActionPlanController extends Controller
             $orderByState = [];
             foreach ($allocationRows as $row) {
                 $stateId = (int) $row->state_id;
-                $key = 'pd_' . (int) $row->pd_id . '_sub_' . (int) $row->p_sub_id;
+                $pSubId = $hasPSubId ? (int) ($row->p_sub_id ?? 0) : 0;
+                $key = 'pd_' . (int) $row->pd_id . '_sub_' . $pSubId;
                 if (!isset($amountsByState[$stateId])) {
                     $amountsByState[$stateId] = [];
                 }
                 $amountsByState[$stateId][$key] = ($amountsByState[$stateId][$key] ?? 0) + floatval($row->amount ?? 0);
                 $existingOrder = $orderByState[$stateId] ?? null;
-                $rowOrder = (int) ($row->order_id ?? 0);
+                $rowOrder = $hasOrderId ? (int) ($row->order_id ?? 0) : 0;
                 if ($existingOrder === null || ($rowOrder > 0 && $rowOrder < $existingOrder)) {
                     $orderByState[$stateId] = $rowOrder > 0 ? $rowOrder : ($existingOrder ?? 9999);
                 }
@@ -3282,7 +3316,7 @@ class AnnualActionPlanController extends Controller
                 $row = [
                     'sl_no' => $slNo++,
                     'state_id' => $stateId,
-                    'state_name' => $stateNames[$stateId] ?? ('State ' . $stateId),
+                    'state_name' => $stateNames->get($stateId) ?? $stateNames->get((string) $stateId) ?? ('State ' . $stateId),
                 ];
                 $final = 0.0;
                 foreach ($amountKeys as $key) {
@@ -3337,20 +3371,45 @@ class AnnualActionPlanController extends Controller
             ->values()
             ->all();
 
-        $components = DB::table('pd_and_sls_comp')
-            ->where('status', 1)
-            ->whereNotNull('pd_id')
-            ->where('pd_id', '>', 0)
-            ->orderBy('pd_id')
-            ->orderBy('state_id')
-            ->orderByRaw('CAST(IFNULL(sharing_patter_state, 0) AS UNSIGNED) DESC')
-            ->orderBy('id')
-            ->get(['pd_id', 'state_id', 'name']);
+        $divisionMap = [];
+        foreach (DB::table('md_program_divisions')->get(['division_id', 'division_name']) as $division) {
+            $divisionMap[strtolower(trim((string) $division->division_name))] = (int) $division->division_id;
+        }
 
+        $hasPdId = Schema::hasColumn('pd_and_sls_comp', 'pd_id');
+        $componentQuery = DB::table('pd_and_sls_comp')
+            ->where('status', 1)
+            ->orderBy('state_id')
+            ->orderBy('id');
+
+        $select = ['id', 'state_id', 'name', 'slsPD', 'sharing_patter_state'];
+        if ($hasPdId) {
+            $select[] = 'pd_id';
+        }
+        $components = $componentQuery->get($select);
+
+        $resolved = [];
+        foreach ($components as $row) {
+            $pdId = 0;
+            if ($hasPdId) {
+                $pdId = (int) ($row->pd_id ?? 0);
+            }
+            if ($pdId <= 0) {
+                $slsPdKey = strtolower(trim((string) ($row->slsPD ?? '')));
+                $pdId = $divisionMap[$slsPdKey] ?? 0;
+            }
+            if ($pdId <= 0) {
+                continue;
+            }
+            $row->resolved_pd_id = $pdId;
+            $resolved[] = $row;
+        }
+
+        $grouped = collect($resolved)->groupBy(fn ($row) => (int) $row->resolved_pd_id . ':' . (int) $row->state_id);
         $indexNames = [];
-        foreach ($components->groupBy(fn ($row) => (int) $row->pd_id . ':' . (int) $row->state_id) as $stateRows) {
-            $list = $stateRows->values();
-            $pdId = (int) $list->first()->pd_id;
+        foreach ($grouped as $stateRows) {
+            $list = $this->sortSlsByStateShare($stateRows);
+            $pdId = (int) $list->first()->resolved_pd_id;
             $count = $list->count();
             foreach ($list as $index => $sls) {
                 $name = $this->normalizeSlsHeaderName((string) ($sls->name ?? ''), $stateNames);
@@ -3391,7 +3450,7 @@ class AnnualActionPlanController extends Controller
             if ($stateName === '') {
                 continue;
             }
-            $clean = preg_replace('/\b' . preg_quote($stateName, '/') . '\b/i', ' ', $clean) ?? $clean;
+            $clean = preg_replace('/\b' . preg_quote($stateName, '/') . '\b/iu', ' ', $clean) ?? $clean;
         }
 
         $clean = preg_replace('/\[[^\]]*\]/', ' ', $clean) ?? $clean;
