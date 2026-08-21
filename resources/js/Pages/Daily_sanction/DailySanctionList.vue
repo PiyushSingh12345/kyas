@@ -96,11 +96,11 @@
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    <tr v-for="(budget, budgetIndex) in item.budget_heads" :key="budgetIndex">
+                                    <tr v-for="(budget, budgetIndex) in positiveBudgetHeads(item.budget_heads)" :key="budgetIndex">
                                       <td class="text-center">{{ budget.budget_head }}</td>
                                       <td class="text-center currency-cell">{{ formatCurrency(budget.daily_sanction_amount) }}</td>
                                     </tr>
-                                    <tr v-if="!item.budget_heads || item.budget_heads.length === 0">
+                                    <tr v-if="positiveBudgetHeads(item.budget_heads).length === 0">
                                       <td colspan="2" class="text-center text-muted">No budget heads available</td>
                                     </tr>
                                   </tbody>
@@ -286,6 +286,10 @@ const formatCurrency = (amount) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+const positiveBudgetHeads = (heads) => {
+  return (heads || []).filter((budget) => parseFloat(budget.daily_sanction_amount) > 0)
 }
 
 onMounted(() => {
