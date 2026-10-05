@@ -135,6 +135,42 @@
                         </table>
                       </div>
                       </div>
+
+                      <div v-if="pagination.total > 0" class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                          <span class="text-muted">
+                            Showing {{ pagination.from }} to {{ pagination.to }} of {{ pagination.total }} entries
+                          </span>
+                          <div class="d-flex align-items-center">
+                            <label class="form-label me-2 mb-0" for="history-per-page">Per page:</label>
+                            <select id="history-per-page" class="form-select form-select-sm" style="width: auto;" v-model.number="pagination.per_page" @change="changePerPage">
+                              <option :value="15">15</option>
+                              <option :value="25">25</option>
+                              <option :value="50">50</option>
+                              <option :value="100">100</option>
+                            </select>
+                          </div>
+                        </div>
+                        <nav v-if="pagination.last_page > 1" aria-label="Daily sanction history pages">
+                          <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item" :class="{ disabled: pagination.current_page === 1 }">
+                              <button type="button" class="page-link" @click="prevPage" :disabled="pagination.current_page === 1">
+                                <i class="fas fa-chevron-left"></i>
+                              </button>
+                            </li>
+                            <li v-for="page in visiblePages" :key="page" class="page-item" :class="{ active: page === pagination.current_page }">
+                              <button type="button" class="page-link" @click="goToPage(page)" :disabled="page === pagination.current_page">
+                                {{ page }}
+                              </button>
+                            </li>
+                            <li class="page-item" :class="{ disabled: pagination.current_page === pagination.last_page }">
+                              <button type="button" class="page-link" @click="nextPage" :disabled="pagination.current_page === pagination.last_page">
+                                <i class="fas fa-chevron-right"></i>
+                              </button>
+                            </li>
+                          </ul>
+                        </nav>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -157,7 +193,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 
 import Header from '../Common/Header.vue'
@@ -168,6 +204,15 @@ import { useFixedHorizontalScroll } from '../../Composables/useFixedHorizontalSc
 const historyData = ref([])
 const isLoading = ref(false)
 const error = ref(null)
+const pagination = ref({
+  current_page: 1,
+  last_page: 1,
+  per_page: 25,
+  total: 0,
+  from: 0,
+  to: 0,
+  has_more_pages: false,
+})
 
 const {
   reportTableScrollWrapper,
@@ -211,15 +256,25 @@ onMounted(async () => {
   refreshFixedHorizontalScroll()
 })
 
-const fetchHistory = async () => {
+const fetchHistory = async (page = pagination.value.current_page || 1) => {
   isLoading.value = true
   error.value = null
   
   try {
-    const res = await fetch('/api/daily-sanction-history');
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(pagination.value.per_page || 25),
+    })
+    const res = await fetch(`/api/daily-sanction-history?${params}`);
     if (res.ok) {
       const data = await res.json();
-      historyData.value = data;
+      historyData.value = Array.isArray(data?.data) ? data.data : [];
+      if (data?.pagination) {
+        pagination.value = {
+          ...pagination.value,
+          ...data.pagination,
+        }
+      }
     } else {
       console.error('Failed to fetch history data');
       error.value = 'Failed to fetch history data from server';
@@ -232,6 +287,53 @@ const fetchHistory = async () => {
     refreshFixedHorizontalScroll()
   }
 };
+
+const visiblePages = computed(() => {
+  const current = pagination.value.current_page
+  const last = pagination.value.last_page
+  const pages = []
+
+  let start = Math.max(1, current - 2)
+  let end = Math.min(last, current + 2)
+
+  if (end - start < 4) {
+    if (start === 1) {
+      end = Math.min(last, start + 4)
+    } else {
+      start = Math.max(1, end - 4)
+    }
+  }
+
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+
+  return pages
+})
+
+const goToPage = (pageNumber) => {
+  if (pageNumber < 1 || pageNumber > pagination.value.last_page || pageNumber === pagination.value.current_page) {
+    return
+  }
+  fetchHistory(pageNumber)
+}
+
+const nextPage = () => {
+  if (pagination.value.has_more_pages) {
+    goToPage(pagination.value.current_page + 1)
+  }
+}
+
+const prevPage = () => {
+  if (pagination.value.current_page > 1) {
+    goToPage(pagination.value.current_page - 1)
+  }
+}
+
+const changePerPage = () => {
+  pagination.value.current_page = 1
+  fetchHistory(1)
+}
 
 // Method to format date
 const formatDate = (dateString) => {
@@ -383,5 +485,22 @@ const formatCurrency = (amount) => {
 
 .btn-close:hover {
   opacity: 1;
+}
+
+.pagination .page-link {
+  color: #007bff;
+  border-color: #dee2e6;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: #007bff;
+  border-color: #007bff;
+  color: #fff;
+}
+
+.pagination .page-item.disabled .page-link {
+  color: #6c757d;
+  background-color: #fff;
+  border-color: #dee2e6;
 }
 </style>

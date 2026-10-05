@@ -2221,71 +2221,62 @@ public function store(Request $request)
     }
 
     /**
-     * Get daily sanction history list
+     * Get daily sanction history list, one row per state + sanction number.
+     * Only the requested page is loaded. Reading the whole history table as
+     * Eloquent models exhausted PHP memory and returned an empty 500.
      */
-    public function historyList()
+    public function historyList(Request $request)
     {
         try {
-            $history = DailySanctionHistory::with('state')
-                ->orderBy('history_timestamp', 'desc')
+            $page = max(1, (int) $request->input('page', 1));
+            $perPage = (int) $request->input('per_page', 25);
+            if (! in_array($perPage, [15, 25, 50, 100], true)) {
+                $perPage = 25;
+            }
+
+            $total = (int) DB::query()
+                ->fromSub(function ($query) {
+                    $query->from('daily_sanction_history')
+                        ->select('state_id', 'daily_sanction_no')
+                        ->groupBy('state_id', 'daily_sanction_no');
+                }, 'history_groups')
+                ->count();
+
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            if ($page > $lastPage) {
+                $page = $lastPage;
+            }
+
+            $offset = ($page - 1) * $perPage;
+            $groupKeys = DB::table('daily_sanction_history')
+                ->select([
+                    'state_id',
+                    'daily_sanction_no',
+                    DB::raw('MAX(history_timestamp) as latest_ts'),
+                    DB::raw('MAX(history_id) as latest_id'),
+                ])
+                ->groupBy('state_id', 'daily_sanction_no')
+                ->orderByDesc('latest_ts')
+                ->orderByDesc('latest_id')
+                ->offset($offset)
+                ->limit($perPage)
                 ->get();
 
-            // Group by daily_sanction_no and state_id (one row per sanction no in UI)
-            $groupedData = $history->groupBy(function ($item) {
-                return ($item->state_id ?? '') . '|' . ($item->daily_sanction_no ?? '');
-            });
+            $transformedData = $this->aggregateDailySanctionHistoryPage($groupKeys);
 
-            $transformedData = $groupedData->map(function ($group) {
-                $firstItem = $group->first();
-
-                $budgetHeadMap = [];
-                foreach ($group as $item) {
-                    if (empty($item->budget_head)) {
-                        continue;
-                    }
-                    $budgetKey = $item->budget_head;
-                    if (! isset($budgetHeadMap[$budgetKey])) {
-                        $budgetHeadMap[$budgetKey] = [
-                            'budget_head' => $item->budget_head,
-                            'old_center_share_amount' => 0,
-                            'new_center_share_amount' => 0,
-                            'center_share_amount' => 0,
-                            'action_type' => $item->action_type,
-                            'change_description' => $item->change_description,
-                            'changed_by' => $item->changed_by,
-                            'history_timestamp' => $item->history_timestamp,
-                        ];
-                    }
-                    $budgetHeadMap[$budgetKey]['center_share_amount'] += floatval($item->center_share_amount ?? 0);
-                    $budgetHeadMap[$budgetKey]['old_center_share_amount'] += floatval($item->old_center_share_amount ?? 0);
-                    $budgetHeadMap[$budgetKey]['new_center_share_amount'] += floatval($item->new_center_share_amount ?? 0);
-                }
-
-                $budgetHeads = collect($budgetHeadMap)->values();
-
-                return [
-                    'id' => $firstItem->history_id,
-                    'financial_year' => $firstItem->financial_year,
-                    'state_id' => $firstItem->state_id,
-                    'daily_sanction_no' => $firstItem->daily_sanction_no,
-                    'ds_date' => $firstItem->ds_date,
-                    'mother_sanction' => $firstItem->mother_sanction,
-                    'sls_name' => $firstItem->sls_name,
-                    'ifd_no' => $firstItem->ifd_no,
-                    'budget_heads' => $budgetHeads,
-                    'action_type' => $firstItem->action_type,
-                    'changed_by' => $firstItem->changed_by,
-                    'history_timestamp' => $firstItem->history_timestamp,
-                    'change_description' => $firstItem->change_description,
-                    'state' => [
-                        'id' => $firstItem->state_id,
-                        'name' => $firstItem->state?->name ?? '',
-                    ],
-                ];
-            })->values();
-
-            return response()->json($transformedData);
-        } catch (\Exception $e) {
+            return response()->json([
+                'data' => $transformedData,
+                'pagination' => [
+                    'current_page' => $page,
+                    'last_page' => $total === 0 ? 1 : $lastPage,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'from' => $total === 0 ? 0 : $offset + 1,
+                    'to' => $total === 0 ? 0 : min($offset + $groupKeys->count(), $total),
+                    'has_more_pages' => $page < ($total === 0 ? 1 : $lastPage),
+                ],
+            ]);
+        } catch (\Throwable $e) {
             Log::error('Error fetching daily sanction history:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -2296,5 +2287,144 @@ public function store(Request $request)
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Sum budget-head amounts for one page of sanction groups.
+     * Header fields come from the latest history row in each group.
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $groupKeys
+     * @return array<int, array<string, mixed>>
+     */
+    private function aggregateDailySanctionHistoryPage($groupKeys): array
+    {
+        if ($groupKeys->isEmpty()) {
+            return [];
+        }
+
+        $appTimezone = new \DateTimeZone(config('app.timezone') ?: 'Asia/Kolkata');
+        $utc = new \DateTimeZone('UTC');
+        $toIso = static function ($value) use ($appTimezone, $utc): ?string {
+            if ($value === null || $value === '') {
+                return null;
+            }
+
+            try {
+                $dt = new \DateTimeImmutable((string) $value, $appTimezone);
+
+                return $dt->setTimezone($utc)->format('Y-m-d\TH:i:s.u\Z');
+            } catch (\Throwable $e) {
+                return null;
+            }
+        };
+
+        $groupKey = static function ($stateId, $sanctionNo): string {
+            return ($stateId ?? '') . '|' . ($sanctionNo ?? '');
+        };
+
+        $rows = DB::table('daily_sanction_history as h')
+            ->leftJoin('states as s', 'h.state_id', '=', 's.id')
+            ->select([
+                'h.history_id',
+                'h.financial_year',
+                'h.state_id',
+                'h.daily_sanction_no',
+                'h.ds_date',
+                'h.mother_sanction',
+                'h.sls_name',
+                'h.ifd_no',
+                'h.budget_head',
+                'h.center_share_amount',
+                'h.old_center_share_amount',
+                'h.new_center_share_amount',
+                'h.action_type',
+                'h.changed_by',
+                'h.history_timestamp',
+                'h.change_description',
+                's.name as state_name',
+            ])
+            ->where(function ($query) use ($groupKeys) {
+                foreach ($groupKeys as $key) {
+                    $query->orWhere(function ($inner) use ($key) {
+                        if ($key->state_id === null) {
+                            $inner->whereNull('h.state_id');
+                        } else {
+                            $inner->where('h.state_id', $key->state_id);
+                        }
+
+                        if ($key->daily_sanction_no === null) {
+                            $inner->whereNull('h.daily_sanction_no');
+                        } else {
+                            $inner->where('h.daily_sanction_no', $key->daily_sanction_no);
+                        }
+                    });
+                }
+            })
+            ->orderByDesc('h.history_timestamp')
+            ->orderByDesc('h.history_id')
+            ->get();
+
+        $groups = [];
+        foreach ($rows as $item) {
+            $key = $groupKey($item->state_id, $item->daily_sanction_no);
+
+            if (! isset($groups[$key])) {
+                $groups[$key] = [
+                    'id' => $item->history_id,
+                    'financial_year' => $item->financial_year,
+                    'state_id' => $item->state_id,
+                    'daily_sanction_no' => $item->daily_sanction_no,
+                    'ds_date' => $toIso($item->ds_date),
+                    'mother_sanction' => $item->mother_sanction,
+                    'sls_name' => $item->sls_name,
+                    'ifd_no' => $item->ifd_no,
+                    'budget_heads' => [],
+                    'action_type' => $item->action_type,
+                    'changed_by' => $item->changed_by,
+                    'history_timestamp' => $toIso($item->history_timestamp),
+                    'change_description' => $item->change_description,
+                    'state' => [
+                        'id' => $item->state_id,
+                        'name' => $item->state_name ?? '',
+                    ],
+                ];
+            }
+
+            if ($item->budget_head === null || $item->budget_head === '') {
+                continue;
+            }
+
+            $budgetKey = $item->budget_head;
+            if (! isset($groups[$key]['budget_heads'][$budgetKey])) {
+                $groups[$key]['budget_heads'][$budgetKey] = [
+                    'budget_head' => $item->budget_head,
+                    'old_center_share_amount' => 0,
+                    'new_center_share_amount' => 0,
+                    'center_share_amount' => 0,
+                    'action_type' => $item->action_type,
+                    'change_description' => $item->change_description,
+                    'changed_by' => $item->changed_by,
+                    'history_timestamp' => $toIso($item->history_timestamp),
+                ];
+            }
+
+            $groups[$key]['budget_heads'][$budgetKey]['center_share_amount'] += floatval($item->center_share_amount ?? 0);
+            $groups[$key]['budget_heads'][$budgetKey]['old_center_share_amount'] += floatval($item->old_center_share_amount ?? 0);
+            $groups[$key]['budget_heads'][$budgetKey]['new_center_share_amount'] += floatval($item->new_center_share_amount ?? 0);
+        }
+
+        $ordered = [];
+        foreach ($groupKeys as $key) {
+            $lookup = $groupKey($key->state_id, $key->daily_sanction_no);
+            if (! isset($groups[$lookup])) {
+                continue;
+            }
+
+            $group = $groups[$lookup];
+            $group['budget_heads'] = array_values($group['budget_heads']);
+            $ordered[] = $group;
+        }
+
+        return $ordered;
     }
 }
