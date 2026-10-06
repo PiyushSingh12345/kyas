@@ -6,7 +6,7 @@
  * - Red rows    → agency_release_loa
  * - Blue rows   → agency_release_administrative_expenditure
  *
- * Usage: php database/scripts/import_agency_release_2026_2027.php
+ * Usage: php database/scripts/import_agency_release_2026_2027.php [excel-path]
  */
 
 ini_set('memory_limit', '512M');
@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-const EXCEL_PATH = 'C:/Users/piyush_singh/Documents/AGRICULTURE/KYAS-documents/kyas_upload/2026-2027/KY RoG CSNA 2026-27.xlsx';
+const EXCEL_PATH = 'C:/Users/piyush_singh/Documents/AGRICULTURE/KYAS-documents/kyas_upload/2026-2027/secondTrunch/KY RoG CSNA - Copy.xlsx';
 
 const COLOR_TSA = 'FFFFFF';
 const COLOR_LOA = 'F4CCCC';
@@ -63,6 +63,10 @@ const PD_ALIASES = [
     'movcdner' => 4,
     'mission cotton' => 13,
     'cotton' => 13,
+    'seeds' => 10,
+    'seed' => 10,
+    'sub mission on seed and planting' => 10,
+    'sub-mission on seed and planting' => 10,
 ];
 
 const UT_FORM_VALUES = [
@@ -177,7 +181,7 @@ function parseDate($value): ?string
     }
 }
 
-function saveHistory(string $type, $record, string $description): void
+function saveHistory(string $type, $record, string $description, string $actionType = 'CREATE'): void
 {
     AgencyReleaseHistory::create([
         'release_type' => $type,
@@ -193,16 +197,52 @@ function saveHistory(string $type, $record, string $description): void
         'ut' => $record->ut ?? null,
         'agency_vendor' => $record->agency_vendor ?? null,
         'status' => $record->status ?? 1,
-        'action_type' => 'CREATE',
+        'action_type' => $actionType,
         'changed_by' => 'System',
         'change_description' => $description,
     ]);
+}
+
+function identityKey(array $row): string
+{
+    $extra = $row['central_implementing_agency'] ?? $row['ut'] ?? $row['agency_vendor'] ?? '';
+
+    return strtolower($row['sanction_number']) . '|' . $row['budget_head'] . '|' . $row['program_division_id'] . '|' . strtolower(trim((string) $extra));
+}
+
+function valuesChanged($record, array $payload): bool
+{
+    foreach ($payload as $field => $value) {
+        $current = $record->{$field};
+        if ($field === 'date') {
+            $current = $current instanceof DateTimeInterface ? $current->format('Y-m-d') : substr((string) $current, 0, 10);
+        } elseif (in_array($field, ['amount', 'expenditure'], true)) {
+            $curNum = $current === null || $current === '' ? null : number_format((float) $current, 5, '.', '');
+            $newNum = $value === null || $value === '' ? null : number_format((float) $value, 5, '.', '');
+            if ($curNum !== $newNum) {
+                return true;
+            }
+            continue;
+        } elseif (in_array($field, ['is_ner', 'status', 'program_division_id'], true)) {
+            if ((int) $current !== (int) $value) {
+                return true;
+            }
+            continue;
+        }
+        if ((string) ($current ?? '') !== (string) ($value ?? '')) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 if (!is_file(EXCEL_PATH)) {
     fwrite(STDERR, 'Excel file not found: ' . EXCEL_PATH . PHP_EOL);
     exit(1);
 }
+
+echo 'Excel: ' . EXCEL_PATH . PHP_EOL;
 
 echo "Loading master data...\n";
 
@@ -246,25 +286,31 @@ foreach ($states as $state) {
 $resolveUt = function (string $agency) use ($utStates): ?array {
     $u = strtoupper($agency);
     $matchId = null;
+    $formValue = null;
     if (str_contains($u, 'LADAKH')) {
         $matchId = 35;
     } elseif (str_contains($u, 'A&N') || str_contains($u, 'ANDAMAN') || str_contains($u, 'NICOBAR')) {
         $matchId = 32;
     } elseif (str_contains($u, 'LAKSHADWEEP')) {
-        $matchId = null;
+        $formValue = 'Lakshadweep';
         foreach ($utStates as $id => $state) {
             if (str_contains(strtoupper($state->name), 'LAKSHADWEEP')) {
                 $matchId = $id;
                 break;
             }
         }
+        return [
+            'id' => $matchId,
+            'name' => $matchId !== null ? ($utStates[$matchId]->name ?? 'Lakshadweep') : 'Lakshadweep',
+            'form_value' => $formValue,
+        ];
     } elseif (str_contains($u, 'CHANDIGARH')) {
         $matchId = 33;
     } elseif (str_contains($u, 'DADRA') || str_contains($u, 'DAMAN') || str_contains($u, 'DIU')) {
         $matchId = 34;
     }
 
-    if ($matchId === null || !isset($utStates[$matchId]) && !isset(UT_FORM_VALUES[$matchId])) {
+    if ($matchId === null || (!isset($utStates[$matchId]) && !isset(UT_FORM_VALUES[$matchId]))) {
         return null;
     }
 
@@ -425,39 +471,46 @@ if ($unmatchedUt) {
     echo "Unmatched UTs:\n  " . implode("\n  ", $unmatchedUt) . "\n";
 }
 
-$existingTsa = DB::table('agency_release_tsa')->whereNull('deleted_at')->get([
-    'sanction_number', 'date', 'budget_head', 'program_division_id', 'amount', 'central_implementing_agency',
-])->map(fn ($r) => strtolower($r->sanction_number) . '|' . substr((string) $r->date, 0, 10) . '|' . $r->budget_head . '|' . $r->program_division_id . '|' . number_format((float) $r->amount, 5, '.', '') . '|' . strtolower(trim((string) $r->central_implementing_agency)))
-    ->flip();
-$existingLoa = DB::table('agency_release_loa')->whereNull('deleted_at')->get([
-    'sanction_number', 'date', 'budget_head', 'program_division_id', 'amount', 'ut',
-])->map(fn ($r) => strtolower($r->sanction_number) . '|' . substr((string) $r->date, 0, 10) . '|' . $r->budget_head . '|' . $r->program_division_id . '|' . number_format((float) $r->amount, 5, '.', '') . '|' . strtolower(trim((string) $r->ut)))
-    ->flip();
-$existingAdmin = DB::table('agency_release_administrative_expenditure')->whereNull('deleted_at')->get([
-    'sanction_number', 'date', 'budget_head', 'program_division_id', 'amount', 'agency_vendor',
-])->map(fn ($r) => strtolower($r->sanction_number) . '|' . substr((string) $r->date, 0, 10) . '|' . $r->budget_head . '|' . $r->program_division_id . '|' . number_format((float) $r->amount, 5, '.', '') . '|' . strtolower(trim((string) $r->agency_vendor)))
-    ->flip();
-
-$dupKey = function (array $row): string {
-    $extra = $row['central_implementing_agency'] ?? $row['ut'] ?? $row['agency_vendor'] ?? '';
-
-    return strtolower($row['sanction_number']) . '|' . $row['date'] . '|' . $row['budget_head'] . '|' . $row['program_division_id'] . '|' . number_format((float) $row['amount'], 5, '.', '') . '|' . strtolower(trim((string) $extra));
-};
+$existingTsa = [];
+foreach (DB::table('agency_release_tsa')->whereNull('deleted_at')->get(['id', 'sanction_number', 'date', 'budget_head', 'program_division_id', 'central_implementing_agency']) as $r) {
+    $existingTsa[identityKey([
+        'sanction_number' => $r->sanction_number,
+        'budget_head' => $r->budget_head,
+        'program_division_id' => $r->program_division_id,
+        'central_implementing_agency' => $r->central_implementing_agency,
+    ])] = (int) $r->id;
+}
+$existingLoa = [];
+foreach (DB::table('agency_release_loa')->whereNull('deleted_at')->get(['id', 'sanction_number', 'date', 'budget_head', 'program_division_id', 'ut']) as $r) {
+    $existingLoa[identityKey([
+        'sanction_number' => $r->sanction_number,
+        'budget_head' => $r->budget_head,
+        'program_division_id' => $r->program_division_id,
+        'ut' => $r->ut,
+    ])] = (int) $r->id;
+}
+$existingAdmin = [];
+foreach (DB::table('agency_release_administrative_expenditure')->whereNull('deleted_at')->get(['id', 'sanction_number', 'date', 'budget_head', 'program_division_id', 'agency_vendor']) as $r) {
+    $existingAdmin[identityKey([
+        'sanction_number' => $r->sanction_number,
+        'budget_head' => $r->budget_head,
+        'program_division_id' => $r->program_division_id,
+        'agency_vendor' => $r->agency_vendor,
+    ])] = (int) $r->id;
+}
 
 $inserted = ['tsa' => 0, 'loa' => 0, 'admin' => 0];
-$duplicates = ['tsa' => 0, 'loa' => 0, 'admin' => 0];
+$updated = ['tsa' => 0, 'loa' => 0, 'admin' => 0];
+$unchanged = ['tsa' => 0, 'loa' => 0, 'admin' => 0];
 $nerCounts = ['tsa' => 0, 'admin' => 0];
 $utCounts = [];
+$sourceLabel = 'KY RoG CSNA - Copy.xlsx (second tranche)';
 
 DB::beginTransaction();
 try {
     foreach ($tsaRows as $row) {
-        $key = $dupKey($row);
-        if (isset($existingTsa[$key])) {
-            $duplicates['tsa']++;
-            continue;
-        }
-        $record = AgencyReleaseTSA::create([
+        $key = identityKey($row);
+        $payload = [
             'sanction_number' => $row['sanction_number'],
             'date' => $row['date'],
             'budget_head' => $row['budget_head'],
@@ -469,22 +522,31 @@ try {
             'remark' => $row['remark'],
             'is_ner' => $row['is_ner'],
             'status' => 1,
-        ]);
-        saveHistory('tsa', $record, 'Imported from KY RoG CSNA 2026-27.xlsx (white row ' . $row['excel_row'] . ')');
-        $existingTsa[$key] = true;
-        $inserted['tsa']++;
+        ];
+        if (isset($existingTsa[$key])) {
+            $record = AgencyReleaseTSA::find($existingTsa[$key]);
+            if ($record && valuesChanged($record, $payload)) {
+                $record->update($payload);
+                $record->refresh();
+                saveHistory('tsa', $record, 'Updated from ' . $sourceLabel . ' (white row ' . $row['excel_row'] . ')', 'UPDATE');
+                $updated['tsa']++;
+            } else {
+                $unchanged['tsa']++;
+            }
+        } else {
+            $record = AgencyReleaseTSA::create($payload);
+            saveHistory('tsa', $record, 'Imported from ' . $sourceLabel . ' (white row ' . $row['excel_row'] . ')', 'CREATE');
+            $existingTsa[$key] = (int) $record->id;
+            $inserted['tsa']++;
+        }
         if ((int) $row['is_ner'] === 1) {
             $nerCounts['tsa']++;
         }
     }
 
     foreach ($loaRows as $row) {
-        $key = $dupKey($row);
-        if (isset($existingLoa[$key])) {
-            $duplicates['loa']++;
-            continue;
-        }
-        $record = AgencyReleaseLOA::create([
+        $key = identityKey($row);
+        $payload = [
             'sanction_number' => $row['sanction_number'],
             'date' => $row['date'],
             'budget_head' => $row['budget_head'],
@@ -494,20 +556,30 @@ try {
             'ut' => $row['ut'],
             'remark' => $row['remark'],
             'status' => 1,
-        ]);
-        saveHistory('loa', $record, 'Imported from KY RoG CSNA 2026-27.xlsx (red row ' . $row['excel_row'] . ', states.id=' . $row['ut_id'] . ')');
-        $existingLoa[$key] = true;
-        $inserted['loa']++;
-        $utCounts[$row['ut'] . ' (id ' . $row['ut_id'] . ')'] = ($utCounts[$row['ut'] . ' (id ' . $row['ut_id'] . ')'] ?? 0) + 1;
+        ];
+        $utLabel = $row['ut'] . ' (id ' . ($row['ut_id'] ?? 'n/a') . ')';
+        if (isset($existingLoa[$key])) {
+            $record = AgencyReleaseLOA::find($existingLoa[$key]);
+            if ($record && valuesChanged($record, $payload)) {
+                $record->update($payload);
+                $record->refresh();
+                saveHistory('loa', $record, 'Updated from ' . $sourceLabel . ' (red row ' . $row['excel_row'] . ', ' . $utLabel . ')', 'UPDATE');
+                $updated['loa']++;
+            } else {
+                $unchanged['loa']++;
+            }
+        } else {
+            $record = AgencyReleaseLOA::create($payload);
+            saveHistory('loa', $record, 'Imported from ' . $sourceLabel . ' (red row ' . $row['excel_row'] . ', ' . $utLabel . ')', 'CREATE');
+            $existingLoa[$key] = (int) $record->id;
+            $inserted['loa']++;
+        }
+        $utCounts[$utLabel] = ($utCounts[$utLabel] ?? 0) + 1;
     }
 
     foreach ($adminRows as $row) {
-        $key = $dupKey($row);
-        if (isset($existingAdmin[$key])) {
-            $duplicates['admin']++;
-            continue;
-        }
-        $record = AgencyReleaseAdministrativeExpenditure::create([
+        $key = identityKey($row);
+        $payload = [
             'sanction_number' => $row['sanction_number'],
             'date' => $row['date'],
             'budget_head' => $row['budget_head'],
@@ -518,10 +590,23 @@ try {
             'is_ner' => $row['is_ner'],
             'remark' => $row['remark'],
             'status' => 1,
-        ]);
-        saveHistory('administrative-expenditure', $record, 'Imported from KY RoG CSNA 2026-27.xlsx (blue row ' . $row['excel_row'] . ')');
-        $existingAdmin[$key] = true;
-        $inserted['admin']++;
+        ];
+        if (isset($existingAdmin[$key])) {
+            $record = AgencyReleaseAdministrativeExpenditure::find($existingAdmin[$key]);
+            if ($record && valuesChanged($record, $payload)) {
+                $record->update($payload);
+                $record->refresh();
+                saveHistory('administrative-expenditure', $record, 'Updated from ' . $sourceLabel . ' (blue row ' . $row['excel_row'] . ')', 'UPDATE');
+                $updated['admin']++;
+            } else {
+                $unchanged['admin']++;
+            }
+        } else {
+            $record = AgencyReleaseAdministrativeExpenditure::create($payload);
+            saveHistory('administrative-expenditure', $record, 'Imported from ' . $sourceLabel . ' (blue row ' . $row['excel_row'] . ')', 'CREATE');
+            $existingAdmin[$key] = (int) $record->id;
+            $inserted['admin']++;
+        }
         if ((int) $row['is_ner'] === 1) {
             $nerCounts['admin']++;
         }
@@ -537,12 +622,12 @@ try {
     exit(1);
 }
 
-echo "\nInserted TSA: {$inserted['tsa']} (duplicates skipped: {$duplicates['tsa']}, is_ner=1: {$nerCounts['tsa']})\n";
-echo "Inserted LOA: {$inserted['loa']} (duplicates skipped: {$duplicates['loa']})\n";
+echo "\nTSA: inserted {$inserted['tsa']}, updated {$updated['tsa']}, unchanged {$unchanged['tsa']} (is_ner=1 in file: {$nerCounts['tsa']})\n";
+echo "LOA: inserted {$inserted['loa']}, updated {$updated['loa']}, unchanged {$unchanged['loa']}\n";
 if ($utCounts) {
-    echo "LOA UTs: " . json_encode($utCounts) . "\n";
+    echo "LOA UTs in file: " . json_encode($utCounts) . "\n";
 }
-echo "Inserted Admin Exp: {$inserted['admin']} (duplicates skipped: {$duplicates['admin']}, is_ner=1: {$nerCounts['admin']})\n";
+echo "Admin Exp: inserted {$inserted['admin']}, updated {$updated['admin']}, unchanged {$unchanged['admin']} (is_ner=1 in file: {$nerCounts['admin']})\n";
 
 if ($skipped) {
     echo "\nSkipped rows (" . count($skipped) . "):\n";
